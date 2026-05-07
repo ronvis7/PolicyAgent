@@ -1,6 +1,7 @@
 # GoodManus - 通用 AI Agent 系统
 
 GoodManus 是一个通用的 AI Agent 系统，支持完全私有化部署，使用 A2A + MCP 连接 Agent/Tool，同时支持在沙箱中运行各种内置工具和操作。
+![GoodManus 架构图](./architecture.png)
 
 ## 项目结构
 
