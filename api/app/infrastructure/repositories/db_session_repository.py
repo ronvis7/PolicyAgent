@@ -37,30 +37,36 @@ class DBSessionRepository(SessionRepository):
         # 3.会话存在则更新会话
         record.update_from_domain(session)
 
-    async def get_all(self) -> List[Session]:
-        """获取所有会话列表"""
-        # 1.构建sql查询所有记录
+    async def get_all(self, tenant_id: Optional[str] = None) -> List[Session]:
+        """获取会话列表(传入tenant_id则按租户过滤)"""
+        # 1.构建sql查询记录(可选按租户过滤)
         stmt = select(SessionModel).order_by(SessionModel.latest_message_at.desc())
+        if tenant_id is not None:
+            stmt = stmt.where(SessionModel.tenant_id == tenant_id)
         result = await self.db_session.execute(stmt)
         records = result.scalars().all()
 
         # 2.将数据循环遍历成Session
         return [record.to_domain() for record in records]
 
-    async def get_by_id(self, session_id: str) -> Optional[Session]:
-        """根据id查询会话"""
-        # 1.根据id查询会话是否存在
+    async def get_by_id(self, session_id: str, tenant_id: Optional[str] = None) -> Optional[Session]:
+        """根据id查询会话(传入tenant_id则要求归属该租户，否则返回None)"""
+        # 1.根据id查询会话是否存在(可选按租户过滤实现隔离)
         stmt = select(SessionModel).where(SessionModel.id == session_id)
+        if tenant_id is not None:
+            stmt = stmt.where(SessionModel.tenant_id == tenant_id)
         result = await self.db_session.execute(stmt)
         record = result.scalar_one_or_none()
 
         # 2.判断会话记录是否存在并返回
         return record.to_domain() if record is not None else None
 
-    async def delete_by_id(self, session_id: str) -> None:
-        """根据传递的id删除会话"""
-        # 1.构建删除语句
+    async def delete_by_id(self, session_id: str, tenant_id: Optional[str] = None) -> None:
+        """根据id删除会话(传入tenant_id则仅删除归属该租户的会话)"""
+        # 1.构建删除语句(可选按租户过滤)
         stmt = delete(SessionModel).where(SessionModel.id == session_id)
+        if tenant_id is not None:
+            stmt = stmt.where(SessionModel.tenant_id == tenant_id)
 
         # 2.执行sql无需检查是否删除
         await self.db_session.execute(stmt)

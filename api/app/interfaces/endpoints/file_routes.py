@@ -7,6 +7,7 @@ from starlette.responses import StreamingResponse
 
 from app.application.services.file_service import FileService
 from app.domain.models.file import File as FileInfo
+from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas import Response
 from app.interfaces.service_dependencies import get_file_service
 
@@ -22,10 +23,15 @@ router = APIRouter(prefix="/files", tags=["文件模块"])
 )
 async def upload_file(
         file: UploadFile = File(...),
+        current_user: CurrentUser = Depends(get_current_user),
         file_service: FileService = Depends(get_file_service),
 ) -> Response[FileInfo]:
-    """文件上传接口，传递文件返回文件的File信息"""
-    fileinfo = await file_service.upload_file(upload_file=file)
+    """文件上传接口，传递文件返回文件的File信息(归属当前租户与用户)"""
+    fileinfo = await file_service.upload_file(
+        upload_file=file,
+        tenant_id=current_user.tenant_id,
+        owner_id=current_user.user_id,
+    )
     return Response.success(
         msg="上传文件成功",
         data=fileinfo,
@@ -40,6 +46,7 @@ async def upload_file(
 )
 async def get_file_info(
         file_id: str,
+        current_user: CurrentUser = Depends(get_current_user),
         file_service: FileService = Depends(get_file_service),
 ) -> Response[FileInfo]:
     """获取指定会话中对应文件的基础信息"""
@@ -57,6 +64,7 @@ async def get_file_info(
 )
 async def download_file(
         file_id: str,
+        current_user: CurrentUser = Depends(get_current_user),
         file_service: FileService = Depends(get_file_service),
 ) -> StreamingResponse:
     """下载指定会话中的指定文件"""

@@ -22,9 +22,18 @@ class FileService:
         self._uow_factory = uow_factory
         self._uow = uow_factory()
 
-    async def upload_file(self, upload_file: UploadFile) -> File:
-        """将传递的文件上传到腾讯云cos并记录上传数据"""
-        return await self.file_storage.upload_file(upload_file=upload_file)
+    async def upload_file(
+            self,
+            upload_file: UploadFile,
+            tenant_id: str,
+            owner_id: str,
+    ) -> File:
+        """将传递的文件上传到腾讯云cos并记录上传数据(标记租户与创建者)"""
+        return await self.file_storage.upload_file(
+            upload_file=upload_file,
+            tenant_id=tenant_id,
+            owner_id=owner_id,
+        )
 
     async def get_file_info(self, file_id: str) -> File:
         """根据传递的文件id获取文件信息"""

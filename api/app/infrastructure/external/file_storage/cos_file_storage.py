@@ -3,7 +3,7 @@ import logging
 import os.path
 import uuid
 from datetime import datetime
-from typing import Tuple, BinaryIO, Callable
+from typing import Tuple, BinaryIO, Callable, Optional
 
 from fastapi import UploadFile
 from starlette.concurrency import run_in_threadpool
@@ -31,8 +31,13 @@ class CosFileStorage(FileStorage):
         self._uow_factory = uow_factory
         self._uow = uow_factory()
 
-    async def upload_file(self, upload_file: UploadFile) -> File:
-        """根据传递的文件源将文件上传到腾讯云cos"""
+    async def upload_file(
+            self,
+            upload_file: UploadFile,
+            tenant_id: Optional[str] = None,
+            owner_id: Optional[str] = None,
+    ) -> File:
+        """根据传递的文件源将文件上传到腾讯云cos(可选标记租户与创建者)"""
         try:
             # 1.生成随机的uuid作为文件id并获取文件扩展名
             file_id = str(uuid.uuid4())
@@ -56,6 +61,8 @@ class CosFileStorage(FileStorage):
             # 4.构建file模型并将数据存储到数据库中
             file = File(
                 id=file_id,
+                tenant_id=tenant_id,
+                owner_id=owner_id,
                 filename=upload_file.filename,
                 key=cos_key,
                 extension=file_extension,

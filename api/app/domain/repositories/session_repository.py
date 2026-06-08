@@ -14,16 +14,16 @@ class SessionRepository(Protocol):
         """存储或更新传递进来的会话"""
         ...
 
-    async def get_all(self) -> List[Session]:
-        """获取所有会话列表信息"""
+    async def get_all(self, tenant_id: Optional[str] = None) -> List[Session]:
+        """获取会话列表信息(传入tenant_id则按租户过滤)"""
         ...
 
-    async def get_by_id(self, session_id: str) -> Optional[Session]:
-        """根据传递的会话id查询会话"""
+    async def get_by_id(self, session_id: str, tenant_id: Optional[str] = None) -> Optional[Session]:
+        """根据会话id查询会话(传入tenant_id则要求会话归属该租户，否则返回None)"""
         ...
 
-    async def delete_by_id(self, session_id: str) -> None:
-        """根据传递的会话id删除会话"""
+    async def delete_by_id(self, session_id: str, tenant_id: Optional[str] = None) -> None:
+        """根据会话id删除会话(传入tenant_id则仅删除归属该租户的会话)"""
         ...
 
     async def update_title(self, session_id: str, title: str) -> None:
