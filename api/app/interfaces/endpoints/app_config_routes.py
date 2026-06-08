@@ -7,12 +7,19 @@ from fastapi import APIRouter, Depends, Body
 
 from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig
+from app.interfaces.auth_dependencies import require_platform_admin
 from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse
 from app.interfaces.schemas.base import Response
 from app.interfaces.service_dependencies import get_app_config_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/app-config", tags=["设置模块"])
+
+# 平台级配置(LLM密钥/MCP/A2A)整组路由仅限平台管理员访问
+router = APIRouter(
+    prefix="/app-config",
+    tags=["设置模块"],
+    dependencies=[Depends(require_platform_admin)],
+)
 
 @router.get(
     path="/llm",

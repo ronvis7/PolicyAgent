@@ -19,6 +19,7 @@ class User(BaseModel):
     password_hash: str = ""  # argon2密码哈希
     display_name: str = ""  # 显示名称
     status: UserStatus = UserStatus.ACTIVE  # 状态
+    is_platform_admin: bool = False  # 是否为平台管理员(可管理平台级配置)
     last_login_at: Optional[datetime] = None  # 最后登录时间
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间

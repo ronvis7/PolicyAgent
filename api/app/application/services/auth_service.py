@@ -218,6 +218,12 @@ class AuthService:
             tokens=TokenPair(access_token="", refresh_token=""),
         )
 
+    async def is_platform_admin(self, user_id: str) -> bool:
+        """判断用户是否为平台管理员"""
+        async with self.uow_factory() as uow:
+            user = await uow.user.get_by_id(user_id)
+        return user is not None and user.is_platform_admin
+
     # ==================== 内部辅助方法 ====================
 
     async def _issue_tokens(self, user_id: str, tenant_id: str, role: str) -> TokenPair:

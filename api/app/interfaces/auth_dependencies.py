@@ -5,8 +5,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 from app.application.errors.exceptions import ForbiddenError, UnauthorizedError
+from app.application.services.auth_service import AuthService
 from app.domain.external.token_service import TokenService
-from app.interfaces.service_dependencies import get_token_service
+from app.interfaces.service_dependencies import get_auth_service, get_token_service
 
 # access令牌类型标识
 TOKEN_TYPE_ACCESS = "access"
@@ -53,3 +54,13 @@ def require_role(*roles: str) -> Callable[..., "CurrentUser"]:
         return current_user
 
     return checker
+
+
+async def require_platform_admin(
+        current_user: CurrentUser = Depends(get_current_user),
+        auth_service: AuthService = Depends(get_auth_service),
+) -> CurrentUser:
+    """平台管理员校验依赖，用于保护平台级配置(如LLM密钥/MCP/A2A)"""
+    if not await auth_service.is_platform_admin(current_user.user_id):
+        raise ForbiddenError("需要平台管理员权限")
+    return current_user

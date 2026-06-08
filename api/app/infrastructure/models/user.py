@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     String,
+    Boolean,
     DateTime,
     text,
     PrimaryKeyConstraint,
@@ -48,6 +49,11 @@ class UserModel(Base):
         nullable=False,
         server_default=text("'active'::character varying"),
     )  # 状态
+    is_platform_admin: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+    )  # 是否为平台管理员
     last_login_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=True,
