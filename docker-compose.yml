@@ -1,9 +1,9 @@
 services:
   # ==================== 基础设施 ====================
 
-  manus-redis:
+  policy-redis:
     image: redis:7.2-alpine
-    container_name: manus-redis
+    container_name: policy-redis
     restart: unless-stopped
     command: >
       redis-server
@@ -13,16 +13,16 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - manus-network
+      - policy-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  manus-postgres:
+  policy-postgres:
     image: postgres:16-alpine
-    container_name: manus-postgres
+    container_name: policy-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -31,7 +31,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - manus-network
+      - policy-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-manus}"]
       interval: 10s
@@ -40,23 +40,23 @@ services:
 
   # ==================== 沙箱服务 ====================
 
-  manus-sandbox:
+  policy-sandbox:
     build:
       context: ./sandbox
       dockerfile: Dockerfile
-    image: manus-sandbox
-    container_name: manus-sandbox
+    image: policy-sandbox
+    container_name: policy-sandbox
     restart: "no"
     networks:
-      - manus-network
+      - policy-network
 
   # ==================== 后端 API ====================
 
-  manus-api:
+  policy-api:
     build:
       context: ./api
       dockerfile: Dockerfile
-    container_name: manus-api
+    container_name: policy-api
     restart: unless-stopped
     env_file:
       - .env
@@ -65,12 +65,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./api/config.yaml:/app/config.yaml  # 挂载配置文件，确保配置持久化到宿主机
     depends_on:
-      manus-redis:
+      policy-redis:
         condition: service_healthy
-      manus-postgres:
+      policy-postgres:
         condition: service_healthy
     networks:
-      - manus-network
+      - policy-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/status"]
       interval: 15s
@@ -80,19 +80,19 @@ services:
 
   # ==================== 前端 UI ====================
 
-  manus-ui:
+  policy-ui:
     build:
       context: ./ui
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: /api
-    container_name: manus-ui
+    container_name: policy-ui
     restart: unless-stopped
     depends_on:
-      manus-api:
+      policy-api:
         condition: service_healthy
     networks:
-      - manus-network
+      - policy-network
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
       interval: 15s
@@ -101,9 +101,9 @@ services:
 
   # ==================== Nginx 网关 ====================
 
-  manus-nginx:
+  policy-nginx:
     image: nginx:alpine
-    container_name: manus-nginx
+    container_name: policy-nginx
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-8088}:80"
@@ -115,12 +115,12 @@ services:
       # SSL 证书挂载（如需启用 HTTPS，取消以下注释）
       # - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      manus-ui:
+      policy-ui:
         condition: service_healthy
-      manus-api:
+      policy-api:
         condition: service_healthy
     networks:
-      - manus-network
+      - policy-network
 
 # ==================== 数据卷 ====================
 volumes:
@@ -131,6 +131,6 @@ volumes:
 
 # ==================== 网络 ====================
 networks:
-  manus-network:
-    name: manus-network
+  policy-network:
+    name: policy-network
     driver: bridge
