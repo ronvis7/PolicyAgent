@@ -32,10 +32,12 @@ class DBFileRepository(FileRepository):
         # 3.文件存在则直接更新文件
         record.update_from_domain(file)
 
-    async def get_by_id(self, file_id: str) -> Optional[File]:
-        """根据传递的文件id获取文件信息"""
-        # 1.根据id查询记录是否存在
+    async def get_by_id(self, file_id: str, tenant_id: Optional[str] = None) -> Optional[File]:
+        """根据文件id获取文件信息(传入tenant_id则要求归属该租户，否则返回None)"""
+        # 1.根据id查询记录是否存在(可选按租户过滤实现隔离)
         stmt = select(FileModel).where(FileModel.id == file_id)
+        if tenant_id is not None:
+            stmt = stmt.where(FileModel.tenant_id == tenant_id)
         result = await self.db_session.execute(stmt)
         record = result.scalar_one_or_none()
 

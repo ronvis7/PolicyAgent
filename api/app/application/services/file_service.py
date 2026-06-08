@@ -35,14 +35,21 @@ class FileService:
             owner_id=owner_id,
         )
 
-    async def get_file_info(self, file_id: str) -> File:
-        """根据传递的文件id获取文件信息"""
+    async def get_file_info(self, file_id: str, tenant_id: str) -> File:
+        """根据传递的文件id获取文件信息(校验租户归属)"""
         async with self._uow:
-            file = await self._uow.file.get_by_id(file_id)
+            file = await self._uow.file.get_by_id(file_id, tenant_id=tenant_id)
         if not file:
             raise NotFoundError(f"该文件[{file_id}]不存在")
         return file
 
-    async def download_file(self, file_id: str) -> Tuple[BinaryIO, File]:
-        """根据传递的文件id下载文件"""
+    async def download_file(self, file_id: str, tenant_id: str) -> Tuple[BinaryIO, File]:
+        """根据传递的文件id下载文件(校验租户归属)"""
+        # 1.先校验文件归属当前租户(隔离守卫)
+        async with self._uow:
+            file = await self._uow.file.get_by_id(file_id, tenant_id=tenant_id)
+        if not file:
+            raise NotFoundError(f"该文件[{file_id}]不存在")
+
+        # 2.通过后再下载文件源
         return await self.file_storage.download_file(file_id)

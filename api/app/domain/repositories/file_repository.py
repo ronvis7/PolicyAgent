@@ -12,6 +12,6 @@ class FileRepository(Protocol):
         """新增或更新文件信息"""
         ...
 
-    async def get_by_id(self, file_id: str) -> Optional[File]:
-        """根据传递的文件id获取文件信息"""
+    async def get_by_id(self, file_id: str, tenant_id: Optional[str] = None) -> Optional[File]:
+        """根据文件id获取文件信息(传入tenant_id则要求归属该租户，否则返回None)"""
         ...

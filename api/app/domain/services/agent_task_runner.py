@@ -4,7 +4,7 @@ import asyncio
 import io
 import logging
 import uuid
-from typing import List, AsyncGenerator, Callable, BinaryIO
+from typing import List, AsyncGenerator, Callable, BinaryIO, Optional, Tuple
 
 from fastapi import UploadFile
 from pydantic import TypeAdapter
@@ -55,6 +55,10 @@ class AgentTaskRunner(TaskRunner):
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._session_id = session_id
+        # 会话作用域(租户/创建者)懒加载缓存，用于给生成文件盖章
+        self._tenant_id: Optional[str] = None
+        self._owner_id: Optional[str] = None
+        self._scope_loaded = False
         self._sandbox = sandbox
         self._mcp_config = mcp_config
         self._mcp_tool = MCPTool()
@@ -99,6 +103,17 @@ class AgentTaskRunner(TaskRunner):
         event.id = event_id
 
         return event
+
+    async def _get_session_scope(self) -> Tuple[Optional[str], Optional[str]]:
+        """懒加载当前会话的(租户id, 创建者id)，用于给生成的文件盖章"""
+        if not self._scope_loaded:
+            async with self._uow:
+                session = await self._uow.session.get_by_id(self._session_id)
+            if session is not None:
+                self._tenant_id = session.tenant_id
+                self._owner_id = session.owner_id
+            self._scope_loaded = True
+        return self._tenant_id, self._owner_id
 
     async def _sync_file_to_sandbox(self, file_id: str) -> File:
         """根据文件id将文件同步到沙箱中"""
@@ -189,8 +204,9 @@ class AgentTaskRunner(TaskRunner):
                 size=self._get_stream_size(file_data),
             )
 
-            # 5.上传文件到文件存储桶
-            file = await self._file_storage.upload_file(upload_file)
+            # 5.上传文件到文件存储桶(盖章当前会话的租户与创建者)
+            tenant_id, owner_id = await self._get_session_scope()
+            file = await self._file_storage.upload_file(upload_file, tenant_id=tenant_id, owner_id=owner_id)
             file.filepath = filepath
 
             # 6.往会话中新增一个文件信息
@@ -225,13 +241,18 @@ class AgentTaskRunner(TaskRunner):
         # 1.调用浏览器完成截图
         screenshot = await self._browser.screenshot()
 
-        # 2.将浏览器截图上传到文件存储中
-        file = await self._file_storage.upload_file(UploadFile(
-            file=io.BytesIO(screenshot),
-            filename=f"{str(uuid.uuid4())}.png",
-            # bugfix:添加size尺寸
-            size=self._get_stream_size(io.BytesIO(screenshot)),
-        ))
+        # 2.将浏览器截图上传到文件存储中(盖章当前会话的租户与创建者)
+        tenant_id, owner_id = await self._get_session_scope()
+        file = await self._file_storage.upload_file(
+            UploadFile(
+                file=io.BytesIO(screenshot),
+                filename=f"{str(uuid.uuid4())}.png",
+                # bugfix:添加size尺寸
+                size=self._get_stream_size(io.BytesIO(screenshot)),
+            ),
+            tenant_id=tenant_id,
+            owner_id=owner_id,
+        )
 
         # 3.获取setting并组装完整URL
         settings = get_settings()

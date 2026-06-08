@@ -50,7 +50,7 @@ async def get_file_info(
         file_service: FileService = Depends(get_file_service),
 ) -> Response[FileInfo]:
     """获取指定会话中对应文件的基础信息"""
-    fileinfo = await file_service.get_file_info(file_id)
+    fileinfo = await file_service.get_file_info(file_id, current_user.tenant_id)
     return Response.success(
         msg="获取文件信息成功",
         data=fileinfo,
@@ -68,8 +68,8 @@ async def download_file(
         file_service: FileService = Depends(get_file_service),
 ) -> StreamingResponse:
     """下载指定会话中的指定文件"""
-    # 1.调用服务获取文件源数据
-    file_data, fileinfo = await file_service.download_file(file_id)
+    # 1.调用服务获取文件源数据(校验租户归属)
+    file_data, fileinfo = await file_service.download_file(file_id, current_user.tenant_id)
 
     # 2.对文件中的中文名字进行url编码
     encoded_filename = urllib.parse.quote(fileinfo.filename)
