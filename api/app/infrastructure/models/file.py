@@ -6,6 +6,7 @@ from sqlalchemy import (
     String,
     Integer,
     DateTime,
+    ForeignKey,
     text,
     PrimaryKeyConstraint,
 )
@@ -28,6 +29,18 @@ class FileModel(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )  # 文件id
+    tenant_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )  # 所属租户id(P3启用隔离后收紧为NOT NULL)
+    owner_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )  # 创建者用户id
     filename: Mapped[str] = mapped_column(
         String(255),
         nullable=False,

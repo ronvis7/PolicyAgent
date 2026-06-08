@@ -8,6 +8,7 @@ from sqlalchemy import (
     Integer,
     DateTime,
     Text,
+    ForeignKey,
     text,
     PrimaryKeyConstraint,
 )
@@ -31,6 +32,18 @@ class SessionModel(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )  # 会话id
+    tenant_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )  # 所属租户id(P3启用隔离后收紧为NOT NULL)
+    owner_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )  # 创建者用户id
     sandbox_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 沙箱id
     task_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 任务id
     title: Mapped[str] = mapped_column(
