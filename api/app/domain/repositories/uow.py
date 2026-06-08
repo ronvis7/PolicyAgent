@@ -3,7 +3,10 @@ from abc import ABC, abstractmethod
 from typing import TypeVar
 
 from .file_repository import FileRepository
+from .membership_repository import MembershipRepository
 from .session_repository import SessionRepository
+from .tenant_repository import TenantRepository
+from .user_repository import UserRepository
 
 T = TypeVar("T", bound="IUnitOfWork")
 
@@ -12,6 +15,9 @@ class IUnitOfWork(ABC):
     """Uow模式协议接口"""
     file: FileRepository
     session: SessionRepository
+    user: UserRepository
+    tenant: TenantRepository
+    membership: MembershipRepository
 
     @abstractmethod
     async def commit(self):

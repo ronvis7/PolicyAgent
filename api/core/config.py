@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     sandbox_http_proxy: Optional[str] = Field(default=None, alias="SANDBOX_HTTP_PROXY")
     sandbox_no_proxy: Optional[str] = Field(default=None, alias="SANDBOX_NO_PROXY")
 
+    # JWT认证配置
+    jwt_secret_key: str = Field(default="dev-insecure-secret-change-me-in-production-please", alias="JWT_SECRET_KEY")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(default=14, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+
     # 使用pydantic v2的写法来完成环境变量信息的告知
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from app.domain.repositories.uow import IUnitOfWork
 from .db_file_repository import DBFileRepository
+from .db_membership_repository import DBMembershipRepository
 from .db_session_repository import DBSessionRepository
+from .db_tenant_repository import DBTenantRepository
+from .db_user_repository import DBUserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,9 @@ class DBUnitOfWork(IUnitOfWork):
         # 2.初始化所有数据库仓库
         self.file = DBFileRepository(db_session=self.db_session)
         self.session = DBSessionRepository(db_session=self.db_session)
+        self.user = DBUserRepository(db_session=self.db_session)
+        self.tenant = DBTenantRepository(db_session=self.db_session)
+        self.membership = DBMembershipRepository(db_session=self.db_session)
 
         return self
 

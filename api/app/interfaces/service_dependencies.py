@@ -5,9 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
+from app.application.services.auth_service import AuthService
 from app.application.services.file_service import FileService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
+from app.domain.external.password_hasher import PasswordHasher
+from app.domain.external.token_service import TokenService
+from app.infrastructure.external.security.argon2_password_hasher import Argon2Hasher
+from app.infrastructure.external.security.jwt_token_service import JWTTokenService
 from app.infrastructure.external.file_storage.cos_file_storage import CosFileStorage
 from app.infrastructure.external.health_checker.postgres_health_checker import PostgresHealthChecker
 from app.infrastructure.external.health_checker.redis_health_checker import RedisHealthChecker
@@ -68,6 +73,34 @@ def get_file_service(
 
 def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
+
+
+def get_password_hasher() -> PasswordHasher:
+    """获取密码哈希器"""
+    return Argon2Hasher()
+
+
+def get_token_service() -> TokenService:
+    """获取JWT令牌服务"""
+    return JWTTokenService(
+        secret_key=settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+        access_token_expire_minutes=settings.access_token_expire_minutes,
+        refresh_token_expire_days=settings.refresh_token_expire_days,
+    )
+
+
+def get_auth_service(
+        redis_client: RedisClient = Depends(get_redis),
+) -> AuthService:
+    """获取认证服务"""
+    return AuthService(
+        uow_factory=get_uow,
+        password_hasher=get_password_hasher(),
+        token_service=get_token_service(),
+        redis_client=redis_client,
+        refresh_token_ttl_seconds=settings.refresh_token_expire_days * 24 * 3600,
+    )
 
 
 def get_agent_service(

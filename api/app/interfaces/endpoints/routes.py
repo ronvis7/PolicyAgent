@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import status_routes,app_config_routes,file_routes,session_routes
+from . import status_routes,app_config_routes,file_routes,session_routes,auth_routes
 
 def create_api_routes() -> APIRouter:
     """创建API路由,涵盖整个项目的所有路由管路"""
@@ -8,6 +8,7 @@ def create_api_routes() -> APIRouter:
     api_router = APIRouter()
 
     # 2.将各个模块添加到api_router中
+    api_router.include_router(auth_routes.router)
     api_router.include_router(status_routes.router)
     api_router.include_router(app_config_routes.router)
     api_router.include_router(file_routes.router)

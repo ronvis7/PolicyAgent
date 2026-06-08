@@ -26,11 +26,32 @@ class BadRequestError(AppException):
         super().__init__(status_code=400, code=400, msg=msg)
 
 
+class UnauthorizedError(AppException):
+    """未认证错误(未登录或凭证无效)"""
+
+    def __init__(self, msg: str = "登录状态已失效，请重新登录"):
+        super().__init__(status_code=401, code=401, msg=msg)
+
+
+class ForbiddenError(AppException):
+    """无权限错误(已认证但无权访问)"""
+
+    def __init__(self, msg: str = "无权访问该资源"):
+        super().__init__(status_code=403, code=403, msg=msg)
+
+
 class NotFoundError(AppException):
     """资源未找到错误"""
 
     def __init__(self, msg: str = "资源未找到，请核实后重试"):
         super().__init__(status_code=404, code=404, msg=msg)
+
+
+class ConflictError(AppException):
+    """资源冲突错误(如邮箱已注册)"""
+
+    def __init__(self, msg: str = "资源已存在，请核实后重试"):
+        super().__init__(status_code=409, code=409, msg=msg)
 
 
 class ValidationError(AppException):
