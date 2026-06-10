@@ -154,7 +154,7 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
                 onChange={(e) => handleChange('model_name', e.target.value)}
               />
               <FieldDescription className="text-xs">
-                请填写 GoodManus 调用的模型名字，模型必须支持工具调用、图像识别等功能。
+                请填写 PolicyManus 调用的模型名字，模型必须支持工具调用、图像识别等功能。
               </FieldDescription>
             </Field>
             <Field>
@@ -241,7 +241,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
                 <DialogHeader>
                   <DialogTitle className="text-gray-700">添加远程Agent</DialogTitle>
                   <DialogDescription className="text-gray-500">
-                    GoodManus 使用标准的 A2A 协议来连接远程 Agent。
+                    PolicyManus 使用标准的 A2A 协议来连接远程 Agent。
                     <br/>
                     请将您的配置粘贴到下方，然后点击"添加"即可添加 Agent。
                   </DialogDescription>
@@ -259,7 +259,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
                         <Input
                           id="a2a_base_url"
                           type="url"
-                          placeholder="Example: https://mooc-manus.com/weather-agent"
+                          placeholder="Example: https://policy-agent.example.com"
                           value={addUrl}
                           onChange={(e) => setAddUrl(e.target.value)}
                           disabled={adding}
@@ -281,7 +281,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
             </Dialog>
           </FieldLegend>
           <FieldDescription className="text-sm">
-            模型上下文协议 (MCP) 通过集成外部工具来增强 GoodManus 的性能，例如私有域搜索、网页浏览、订餐、PPT 生成等任务。
+            模型上下文协议 (MCP) 通过集成外部工具来增强 PolicyManus 的性能，例如政策库搜索、网页浏览、数据分析和报告生成等任务。
           </FieldDescription>
 
           {/* 加载态 */}
@@ -421,7 +421,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
                 <DialogHeader>
                   <DialogTitle className="text-gray-700">添加新的 MCP 服务器</DialogTitle>
                   <DialogDescription className="text-gray-500">
-                    GoodManus 使用标准的 JSON MCP 配置来创建新服务器。
+                    PolicyManus 使用标准的 JSON MCP 配置来创建新服务器。
                     请将您的配置粘贴到下方，然后点击"添加"即可添加新服务器。
                   </DialogDescription>
                 </DialogHeader>
@@ -460,7 +460,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
             </Dialog>
           </FieldLegend>
           <FieldDescription className="text-sm">
-            模型上下文协议 (MCP) 通过集成外部工具来增强 GoodManus 的性能，例如私有域搜索、网页浏览、订餐、PPT 生成等任务。
+            模型上下文协议 (MCP) 通过集成外部工具来增强 PolicyManus 的性能，例如政策库搜索、网页浏览、数据分析和报告生成等任务。
           </FieldDescription>
 
           {/* 加载态 */}
@@ -765,8 +765,8 @@ export function ManusSettings() {
       <DialogContent className="!max-w-[850px]">
         {/* 头部 */}
         <DialogHeader className="border-b pb-4">
-          <DialogTitle className="text-gray-700">GoodManus 设置</DialogTitle>
-          <DialogDescription className="text-gray-500">在此管理您的 GoodManus 设置。</DialogDescription>
+          <DialogTitle className="text-gray-700">PolicyManus 设置</DialogTitle>
+          <DialogDescription className="text-gray-500">在此管理您的 PolicyManus 设置。</DialogDescription>
         </DialogHeader>
 
         {/* 中间主体 */}

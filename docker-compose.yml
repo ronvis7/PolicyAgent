@@ -1,3 +1,5 @@
+name: policy-manus
+
 services:
   # ==================== 基础设施 ====================
 
@@ -27,13 +29,13 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-manus}
+      POSTGRES_DB: ${POSTGRES_DB:-policy_manus}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - policy-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-manus}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-policy_manus}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -60,6 +62,17 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      POSTGRES_HOST: policy-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-policy_manus}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: policy-redis
+      REDIS_PORT: 6379
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-policy-sandbox}
+      SANDBOX_NETWORK: ${SANDBOX_NETWORK:-policy-network}
+      SANDBOX_NAME_PREFIX: ${SANDBOX_NAME_PREFIX:-policy-sandbox}
     # 如需动态创建沙箱容器，取消以下注释以挂载 Docker Socket
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -125,8 +138,10 @@ services:
 # ==================== 数据卷 ====================
 volumes:
   redis_data:
+    name: policy-manus-redis-data
     driver: local
   postgres_data:
+    name: policy-manus-postgres-data
     driver: local
 
 # ==================== 网络 ====================

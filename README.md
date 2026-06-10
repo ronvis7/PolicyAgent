@@ -1,12 +1,12 @@
-# GoodManus - 通用 AI Agent 系统
+# PolicyManus - 企业政策咨询 AI Agent
 
-GoodManus 是一个通用的 AI Agent 系统，支持完全私有化部署，使用 A2A + MCP 连接 Agent/Tool，同时支持在沙箱中运行各种内置工具和操作。
-![GoodManus 架构图](./architecture.png)
+PolicyManus 是一个面向企业政策咨询场景的 AI Agent 系统，支持完全私有化部署，可用于政策检索、解读、匹配与报告生成，并使用 A2A + MCP 连接 Agent/Tool。
+![PolicyManus 架构图](./architecture.png)
 
 ## 项目结构
 
 ```
-good-manus/
+policy-manus/
 ├── api/              # 后端 API 服务（FastAPI）
 ├── ui/               # 前端服务（Next.js）
 ├── sandbox/          # 沙箱服务（Ubuntu + Chrome + VNC）
@@ -80,7 +80,7 @@ good-manus/
    docker compose up -d --build
 
    # 执行数据库迁移（首次部署需要）
-   docker compose exec manus-api alembic upgrade head
+   docker compose exec policy-api alembic upgrade head
    ```
 
 4. **访问系统**
@@ -116,18 +116,18 @@ good-manus/
 
 | 容器名称 | 服务 | 说明 |
 |---------|------|------|
-| manus-nginx | Nginx | 反向代理网关，唯一对外暴露端口 |
-| manus-ui | Next.js | 前端 UI 服务 |
-| manus-api | FastAPI | 后端 API 服务 |
-| manus-postgres | PostgreSQL | 数据库 |
-| manus-redis | Redis | 缓存 |
-| manus-sandbox | Sandbox | 沙箱环境（Chrome + VNC） |
+| policy-nginx | Nginx | 反向代理网关，唯一对外暴露端口 |
+| policy-ui | Next.js | 前端 UI 服务 |
+| policy-api | FastAPI | 后端 API 服务 |
+| policy-postgres | PostgreSQL | 数据库 |
+| policy-redis | Redis | 缓存 |
+| policy-sandbox | Sandbox | 沙箱环境（Chrome + VNC） |
 
 ### 网络安全
 
 - 只有 Nginx（端口 8888）对外暴露
 - Redis、PostgreSQL、API、UI、Sandbox 仅在容器网络内部可访问
-- 所有内部服务通过 Docker 网络 `manus-network` 通信
+- 所有内部服务通过 Docker 网络 `policy-network` 通信
 
 ### 部署脚本
 
@@ -164,11 +164,11 @@ docker compose ps
 
 # 查看服务日志
 docker compose logs -f              # 所有服务
-docker compose logs -f manus-api    # 仅 API 服务
-docker compose logs -f manus-ui     # 仅 UI 服务
+docker compose logs -f policy-api    # 仅 API 服务
+docker compose logs -f policy-ui     # 仅 UI 服务
 
 # 重启单个服务
-docker compose restart manus-api
+docker compose restart policy-api
 
 # 停止所有服务
 docker compose down
@@ -177,10 +177,10 @@ docker compose down
 docker compose down -v
 
 # 执行数据库迁移
-docker compose exec manus-api alembic upgrade head
+docker compose exec policy-api alembic upgrade head
 
 # 创建新的迁移
-docker compose exec manus-api alembic revision --autogenerate -m "描述"
+docker compose exec policy-api alembic revision --autogenerate -m "描述"
 ```
 
 ### 启用 HTTPS
@@ -202,7 +202,7 @@ docker compose exec manus-api alembic revision --autogenerate -m "描述"
 4. **重启 Nginx**
 
    ```bash
-   docker compose restart manus-nginx
+   docker compose restart policy-nginx
    ```
 
 ## 本地开发
@@ -229,16 +229,16 @@ docker stats
 
 ```bash
 # 检查 PostgreSQL 状态
-docker compose exec manus-postgres pg_isready -U postgres
+docker compose exec policy-postgres pg_isready -U postgres -d policy_manus
 
 # 重新执行迁移
-docker compose exec manus-api alembic upgrade head
+docker compose exec policy-api alembic upgrade head
 ```
 
 ### VNC 连接失败
 
 - 确保沙箱服务已启动并正常运行
-- 检查 API 服务能否连接到沙箱：`docker compose exec manus-api curl http://manus-sandbox:8080/api/supervisor/status`
+- 检查 API 服务能否连接到沙箱：`docker compose exec policy-api curl http://policy-sandbox:8080/api/supervisor/status`
 
 ## 许可证
 

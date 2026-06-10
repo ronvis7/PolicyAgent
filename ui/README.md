@@ -1,4 +1,4 @@
-# GoodManus 前端 UI
+# PolicyManus 前端 UI
 
 基于 Next.js 构建的前端用户界面，提供会话管理、AI 对话、远程桌面（VNC）等交互功能。
 
@@ -136,10 +136,10 @@ UI 服务通过根目录的 `docker-compose.yml` 统一部署。
 
 ```bash
 # 本地构建测试
-docker build --build-arg NEXT_PUBLIC_API_BASE_URL=/api -t manus-ui .
+docker build --build-arg NEXT_PUBLIC_API_BASE_URL=/api -t policy-manus-ui .
 
 # 运行测试
-docker run -p 3000:3000 manus-ui
+docker run -p 3000:3000 policy-manus-ui
 ```
 
 ## Next.js 配置

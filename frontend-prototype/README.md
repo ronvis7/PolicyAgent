@@ -1,10 +1,10 @@
 ﻿# Frontend Prototype
 
-This directory contains the extracted GoodManus frontend prototype.
+This directory contains the extracted PolicyManus frontend prototype.
 
 ## Contents
 
-- `ui-source/`: Next.js frontend source copied from `E:\workspace\good_manus\ui`.
+- `ui-source/`: Next.js frontend source used as the PolicyManus UI prototype.
 - Design screenshots are included under `ui-source/docs/design`.
 
 ## Excluded
@@ -29,7 +29,7 @@ npm run dev
 
 The extracted prototype uses a local mock session API by default, so the task list,
 new task flow, session detail view, and chat streaming demo can run without the
-GoodManus backend.
+PolicyManus backend.
 
 To switch session APIs back to a real backend, create `ui-source/.env.local`:
 

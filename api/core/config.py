@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """GoodManus后端中控配置信息，从.env或者环境变量中加载数据"""
+    """PolicyManus后端中控配置信息，从.env或者环境变量中加载数据"""
 
     # 项目基础配置
     env: str = "development"
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
     postgres_user: str = Field(default="postgres", alias="POSTGRES_USER")
     postgres_password: str = Field(default="postgres", alias="POSTGRES_PASSWORD")
-    postgres_db: str = Field(default="manus", alias="POSTGRES_DB")
+    postgres_db: str = Field(default="policy_manus", alias="POSTGRES_DB")
 
     @property
     def sqlalchemy_database_uri(self) -> str:
@@ -66,6 +66,6 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """获取当前GoodManus项目的配置信息，并对内容进行缓存，避免重复读取"""
+    """获取当前PolicyManus项目的配置信息，并对内容进行缓存，避免重复读取"""
     settings = Settings()
     return settings

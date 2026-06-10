@@ -10,7 +10,7 @@ from app.domain.repositories.uow import IUnitOfWork
 
 
 class FileService:
-    """GoodManus文件系统服务"""
+    """PolicyManus文件系统服务"""
 
     def __init__(
             self,

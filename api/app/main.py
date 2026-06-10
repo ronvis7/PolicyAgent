@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
 
     # 1.日志打印代码已经开始执行了
-    logger.info("GoodManus正在初始化")
+    logger.info("PolicyManus正在初始化")
 
     # 2.运行数据库迁移(将数据同步到生产环境)
     alembic_cfg = Config("alembic.ini")
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     finally:
         try:
             # 5.等待agent服务关闭
-            logger.info("GoodManus正在关闭")
+            logger.info("PolicyManus正在关闭")
             await asyncio.wait_for(get_agent_service().shutdown(), timeout=30.0)
             logger.info("Agent服务成功关闭")
         except asyncio.TimeoutError:
@@ -69,13 +69,13 @@ async def lifespan(app: FastAPI):
         await get_postgres().shutdown()
         await get_cos().shutdown()
 
-        logger.info("Manus应用关闭成功")
+        logger.info("PolicyManus应用关闭成功")
 
 
-# 4.创建GoodManusFastAPI应用程序实例
+# 4.创建PolicyManus FastAPI应用程序实例
 app = FastAPI(
-    title="GoodManus通用智能体",
-    description="GoodManus是一个通用的AI Agent系统，可以完全私有部署，使用A2A+MCP连接Agent/Tool，同时支持在沙箱中运行各种内置工具和操作",
+    title="PolicyManus 企业政策咨询智能体",
+    description="PolicyManus 是面向企业的政策咨询 AI Agent，支持政策检索、解读、匹配与报告生成，并可通过 A2A、MCP 和沙箱工具扩展能力。",
     lifespan=lifespan,
     openapi_tags=openapi_tags,
     version="1.0.0",

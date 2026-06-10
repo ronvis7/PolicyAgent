@@ -40,7 +40,7 @@ class DockerSandbox(Sandbox):
     def id(self) -> str:
         """获取沙箱的唯一id，使用容器名字作为唯一id"""
         if not self._container_name:
-            return "mooc-manus-sandbox"
+            return "policy-sandbox"
         return self._container_name
 
     @property

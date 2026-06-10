@@ -7,8 +7,8 @@ import './globals.css'
 import {LeftPanel} from '@/components/left-panel'
 
 export const metadata: Metadata = {
-  title: 'GoodManus',
-  description: 'GoodManus 是一个行动引擎，它超越了答案的范畴，可以执行任务、自动化工作流程，并扩展您的能力。',
+  title: 'PolicyManus',
+  description: 'PolicyManus 是面向企业的政策咨询智能体，提供政策检索、解读、匹配与报告生成能力。',
   icons: {
     icon: '/icon.png',
   },
