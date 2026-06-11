@@ -7,6 +7,7 @@ from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.auth_service import AuthService
 from app.application.services.file_service import FileService
+from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
 from app.domain.external.password_hasher import PasswordHasher
@@ -17,6 +18,8 @@ from app.infrastructure.external.file_storage.cos_file_storage import CosFileSto
 from app.infrastructure.external.health_checker.postgres_health_checker import PostgresHealthChecker
 from app.infrastructure.external.health_checker.redis_health_checker import RedisHealthChecker
 from app.infrastructure.external.json_parser.repair_json_parser import RepairJSONParser
+from app.infrastructure.external.document_parser.pymupdf_parser import PyMuPDFParser
+from app.infrastructure.external.embedding.openai_embedding import OpenAIEmbedding
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.external.search.bing_search import BingSearchEngine
@@ -70,6 +73,30 @@ def get_file_service(
         uow_factory=get_uow,
         file_storage=file_storage,
     )
+
+def get_knowledge_service(
+        cos: Cos = Depends(get_cos),
+) -> KnowledgeService:
+    """获取知识库服务(含 COS 文件存储 + Embedding + 文档解析)"""
+    # 1. 实时读取应用配置(embed_config 的 base_url/model/dimension)
+    app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
+
+    # 2. 构建依赖：COS 文件存储 + Embedding 提供商(api_key 来自 .env) + 解析器
+    file_storage = CosFileStorage(
+        bucket=settings.cos_bucket,
+        cos=cos,
+        uow_factory=get_uow,
+    )
+    embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
+
+    # 3. 构建知识库服务并返回
+    return KnowledgeService(
+        uow_factory=get_uow,
+        file_storage=file_storage,
+        embedding=embedding,
+        parser=PyMuPDFParser(),
+    )
+
 
 def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
