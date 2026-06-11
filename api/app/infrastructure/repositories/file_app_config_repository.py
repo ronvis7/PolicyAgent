@@ -10,7 +10,7 @@ import yaml
 from filelock import FileLock
 
 from app.application.errors.exceptions import ServerRequestsError
-from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig
+from app.domain.models.app_config import AppConfig, LLMConfig, EmbedConfig, AgentConfig, MCPConfig, A2AConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ class FileAppConfigRepository(AppConfigRepository):
         if not self._config_path.exists():
             default_app_config = AppConfig(
                 llm_config=LLMConfig(),
+                embed_config=EmbedConfig(),
                 agent_config=AgentConfig(),
                 mcp_config=MCPConfig(),
                 a2a_config=A2AConfig(),

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     def sqlalchemy_database_uri(self) -> str:
         return f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
 
+    # Embedding(向量化)机密配置
+    # base_url/model_name/dimension 等运营参数在 config.yaml 的 embed_config 中维护，
+    # 此处仅承载机密 api_key，经 .env 注入，不入库。
+    embed_api_key: str = Field(default="", alias="EMBED_API_KEY")
+
     # Redis缓存配置
     redis_host: str = Field(default="localhost", alias="REDIS_HOST")
     redis_port: int = Field(default=6379, alias="REDIS_PORT")
