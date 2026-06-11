@@ -23,7 +23,9 @@ services:
       retries: 5
 
   policy-postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector:pg16 = 标准 PG16 + pgvector 扩展，用于 RAG 向量检索；
+    # 与 postgres:16 数据目录兼容(同 PG16 大版本)
+    image: pgvector/pgvector:pg16
     container_name: policy-postgres
     restart: unless-stopped
     environment:

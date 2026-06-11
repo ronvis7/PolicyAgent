@@ -1,0 +1,4 @@
+# Shell scripts must use LF endings so they run inside Linux containers.
+# Without this, a Windows checkout rewrites run.sh to CRLF and the container
+# fails at startup with a misleading "exec ./run.sh: no such file or directory".
+*.sh text eol=lf

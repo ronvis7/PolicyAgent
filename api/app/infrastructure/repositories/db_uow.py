@@ -27,6 +27,16 @@ class DBUnitOfWork(IUnitOfWork):
         """提交数据库持久化"""
         await self.db_session.commit()
 
+    async def flush(self):
+        """将挂起的变更下发到数据库(不提交事务)
+
+        会话配置了autoflush=False，且ORM模型间未声明relationship，
+        因此跨表的父子行(如user/tenant与membership)在同一次commit的flush中
+        排序不可靠，可能子行先insert而违反外键约束。在保存子行前显式flush
+        父行可确保写入顺序正确。
+        """
+        await self.db_session.flush()
+
     async def rollback(self):
         """数据库回退操作"""
         await self.db_session.rollback()
@@ -62,7 +72,11 @@ class DBUnitOfWork(IUnitOfWork):
             # 记录警告但不让异常传播，避免后续close操作也被跳过
             logger.warning("UoW提交/回滚操作被取消(可能是客户端断开连接)")
         except Exception as e:
-            logger.warning(f"UoW提交/回滚操作失败: {e}")
+            logger.error(f"UoW提交/回滚操作失败: {e}")
+            # 提交失败必须向上抛出，否则会向客户端返回"成功"却未持久化数据；
+            # 若已在回滚(exc_type存在)，则不再覆盖触发回滚的原始异常
+            if exc_type is None:
+                raise
         finally:
             try:
                 await self.db_session.close()

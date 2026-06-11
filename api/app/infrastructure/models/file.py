@@ -86,7 +86,7 @@ class FileModel(Base):
     @classmethod
     def from_domain(cls, file: File) -> "FileModel":
         """从领域模型创建ORM模型"""
-        return cls(**file.model_dump(mode="json"))
+        return cls(**file.model_dump())
 
     def to_domain(self) -> File:
         """将ORM模型转换为领域模型"""
@@ -94,6 +94,6 @@ class FileModel(Base):
 
     def update_from_domain(self, file: File) -> None:
         """从领域模型更新数据"""
-        file_data = file.model_dump(mode="json")
+        file_data = file.model_dump()
         for field, value in file_data.items():
             setattr(self, field, value)

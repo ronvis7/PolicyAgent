@@ -69,7 +69,7 @@ class TenantModel(Base):
     @classmethod
     def from_domain(cls, tenant: Tenant) -> "TenantModel":
         """从领域模型创建ORM模型"""
-        return cls(**tenant.model_dump(mode="json"))
+        return cls(**tenant.model_dump())
 
     def to_domain(self) -> Tenant:
         """将ORM模型转换为领域模型"""
@@ -77,5 +77,5 @@ class TenantModel(Base):
 
     def update_from_domain(self, tenant: Tenant) -> None:
         """从领域模型更新数据"""
-        for field, value in tenant.model_dump(mode="json").items():
+        for field, value in tenant.model_dump().items():
             setattr(self, field, value)

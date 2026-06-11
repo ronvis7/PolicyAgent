@@ -25,6 +25,11 @@ class IUnitOfWork(ABC):
         ...
 
     @abstractmethod
+    async def flush(self):
+        """将挂起的变更下发到数据库(不提交事务)，用于在同一事务内确保父行先于子行写入"""
+        ...
+
+    @abstractmethod
     async def rollback(self):
         """数据库回滚"""
         ...

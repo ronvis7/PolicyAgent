@@ -1,12 +1,28 @@
 import type { ApiResponse } from "./types";
+import { API_BASE_URL, API_TIMEOUT } from "./base";
+import { getAccessToken } from "../auth-storage";
+import { refreshAccessToken } from "./token-refresh";
 
 /**
  * API 配置
  */
 const API_CONFIG = {
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api",
-  timeout: 30000, // 30秒
+  baseURL: API_BASE_URL,
+  timeout: API_TIMEOUT,
 } as const;
+
+/**
+ * 注入 Authorization 头（若本地存在访问令牌）
+ */
+function withAuthHeaders(
+  headers: Record<string, string>
+): Record<string, string> {
+  const token = getAccessToken();
+  if (token) {
+    return { ...headers, Authorization: `Bearer ${token}` };
+  }
+  return headers;
+}
 
 /**
  * 自定义错误类
@@ -28,6 +44,10 @@ export class ApiError extends Error {
 type RequestOptions = RequestInit & {
   timeout?: number;
   skipErrorHandler?: boolean;
+  /** 跳过 401 自动刷新令牌逻辑（用于认证接口自身，避免递归） */
+  skipAuthRefresh?: boolean;
+  /** 内部标记：当前请求是否已因刷新令牌而重试过 */
+  _isAuthRetry?: boolean;
 };
 
 /**
@@ -116,19 +136,21 @@ export async function request<T = unknown>(
   const {
     timeout = API_CONFIG.timeout,
     skipErrorHandler = false,
+    skipAuthRefresh = false,
+    _isAuthRetry = false,
     headers = {},
     ...fetchOptions
   } = options;
 
-  // 合并请求头
-  const mergedHeaders: HeadersInit = {
+  // 合并请求头（并注入 Authorization）
+  const mergedHeaders: Record<string, string> = withAuthHeaders({
     "Content-Type": "application/json",
-    ...headers,
-  };
+    ...(headers as Record<string, string>),
+  });
 
   // 如果是 FormData，删除 Content-Type 让浏览器自动设置
   if (fetchOptions.body instanceof FormData) {
-    delete (mergedHeaders as Record<string, string>)["Content-Type"];
+    delete mergedHeaders["Content-Type"];
   }
 
   try {
@@ -140,6 +162,18 @@ export async function request<T = unknown>(
       },
       timeout
     );
+
+    // 401 未授权：尝试刷新令牌后重试一次
+    if (
+      response.status === 401 &&
+      !skipAuthRefresh &&
+      !_isAuthRetry
+    ) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        return request<T>(endpoint, { ...options, _isAuthRetry: true });
+      }
+    }
 
     // 处理 HTTP 错误状态码
     if (!response.ok) {
@@ -291,11 +325,11 @@ export async function createSSEStream(
     ...fetchOptions
   } = options || {};
 
-  const mergedHeaders: HeadersInit = {
+  const mergedHeaders: Record<string, string> = withAuthHeaders({
     "Content-Type": "application/json",
     Accept: "text/event-stream",
-    ...headers,
-  };
+    ...(headers as Record<string, string>),
+  });
 
   const controller = new AbortController();
   // 只对初始连接设置超时，连接建立后会清除
@@ -332,6 +366,17 @@ export async function createSSEStream(
 
     // 连接已建立，清除初始连接的超时
     clearTimeout(timeoutId);
+
+    // 401 未授权：刷新令牌后重试一次
+    if (response.status === 401 && !options?._isAuthRetry) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        return createSSEStream(endpoint, data, {
+          ...options,
+          _isAuthRetry: true,
+        });
+      }
+    }
 
     if (!response.ok) {
       await handleErrorResponse(response);

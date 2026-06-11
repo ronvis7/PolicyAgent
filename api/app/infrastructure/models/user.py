@@ -73,7 +73,7 @@ class UserModel(Base):
     @classmethod
     def from_domain(cls, user: User) -> "UserModel":
         """从领域模型创建ORM模型"""
-        return cls(**user.model_dump(mode="json"))
+        return cls(**user.model_dump())
 
     def to_domain(self) -> User:
         """将ORM模型转换为领域模型"""
@@ -81,5 +81,5 @@ class UserModel(Base):
 
     def update_from_domain(self, user: User) -> None:
         """从领域模型更新数据"""
-        for field, value in user.model_dump(mode="json").items():
+        for field, value in user.model_dump().items():
             setattr(self, field, value)

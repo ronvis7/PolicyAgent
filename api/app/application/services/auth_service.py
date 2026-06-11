@@ -88,7 +88,10 @@ class AuthService:
             )
             await uow.user.save(user)
 
-            # 4.创建owner成员关系
+            # 4.先flush租户与用户，确保父行已写入，避免membership外键约束失败
+            await uow.flush()
+
+            # 5.创建owner成员关系
             membership = Membership(
                 user_id=user.id,
                 tenant_id=tenant.id,
@@ -97,7 +100,7 @@ class AuthService:
             )
             await uow.membership.save(membership)
 
-        # 5.事务提交后签发令牌
+        # 6.事务提交后签发令牌
         tokens = await self._issue_tokens(user.id, tenant.id, MembershipRole.OWNER.value)
         return AuthResult(
             user=user,

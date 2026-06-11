@@ -66,7 +66,7 @@ class MembershipModel(Base):
     @classmethod
     def from_domain(cls, membership: Membership) -> "MembershipModel":
         """从领域模型创建ORM模型"""
-        return cls(**membership.model_dump(mode="json"))
+        return cls(**membership.model_dump())
 
     def to_domain(self) -> Membership:
         """将ORM模型转换为领域模型"""
@@ -74,5 +74,5 @@ class MembershipModel(Base):
 
     def update_from_domain(self, membership: Membership) -> None:
         """从领域模型更新数据"""
-        for field, value in membership.model_dump(mode="json").items():
+        for field, value in membership.model_dump().items():
             setattr(self, field, value)

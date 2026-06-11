@@ -1,11 +1,21 @@
 'use client'
 
 import {useRouter} from 'next/navigation'
-import {Sidebar, SidebarContent, SidebarHeader, SidebarTrigger} from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Plus} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
+import {TenantSwitcher} from '@/components/tenant-switcher'
+import {UserMenu} from '@/components/user-menu'
 
 export function LeftPanel() {
   const router = useRouter()
@@ -34,6 +44,17 @@ export function LeftPanel() {
         {/* 会话列表 */}
         <SessionList/>
       </SidebarContent>
+      {/* 底部：组织切换 + 用户菜单 */}
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <TenantSwitcher/>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <UserMenu/>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   )
 }

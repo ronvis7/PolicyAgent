@@ -51,7 +51,18 @@ export type {
   ViewShellParams,
 } from "./types";
 
+// 认证类型
+export type {
+  AuthUser,
+  AuthTenant,
+  AuthData,
+  MeData,
+  RegisterParams,
+  LoginParams,
+} from "./auth";
+
 // 模块 API
+export { authApi } from "./auth";
 export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
