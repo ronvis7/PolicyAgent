@@ -20,6 +20,7 @@ dependencies = [
     "markdownify>=1.2.2",
     "mcp>=1.27.0",
     "openai>=2.30.0",
+    "pgvector>=0.3.6",
     "playwright>=1.58.0",
     "psycopg2-binary>=2.9.11",
     "pydantic>=2.12.5",

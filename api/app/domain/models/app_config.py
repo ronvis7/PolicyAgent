@@ -14,6 +14,19 @@ class LLMConfig(BaseModel):
     max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制
 
 
+class EmbedConfig(BaseModel):
+    """Embedding(向量化)提供商配置
+
+    DeepSeek 无 embedding 端点，故与 llm_config 拆开独立配置。base_url/model_name/
+    dimension 为可入库的运营参数(写在 config.yaml)；api_key 属机密，config.yaml 中
+    保持占位空串，真实值经 .env 注入(见 core/config.Settings.embed_api_key)。
+    """
+    base_url: HttpUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # Embedding服务基础URL
+    api_key: str = ""  # API秘钥(占位，真实值走.env不入库)
+    model_name: str = "text-embedding-v3"  # Embedding模型名
+    dimension: int = Field(1024, gt=0)  # 向量维度，与pgvector列维度严格一致
+
+
 class AgentConfig(BaseModel):
     """Agent通用配置"""
     max_iterations: int = Field(default=100, gt=0, lt=1000)  # Agent最大迭代次数
@@ -81,8 +94,9 @@ class A2AConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    """应用配置信息，包含Agent配置、LLM提供商配置、MCP配置、A2A配置"""
+    """应用配置信息，包含Agent配置、LLM提供商配置、Embedding配置、MCP配置、A2A配置"""
     llm_config: LLMConfig  # 语言模型配置
+    embed_config: EmbedConfig = Field(default_factory=EmbedConfig)  # Embedding提供商配置
     agent_config: AgentConfig  # Agent通用配置
     mcp_config: MCPConfig  # MCP服务配置
     a2a_config: A2AConfig  # A2A服务配置
