@@ -1,6 +1,6 @@
 'use client'
 
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Wrench} from 'lucide-react'
 import {
@@ -117,6 +117,12 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
       <FieldGroup>
         <FieldSet>
           <FieldLegend className="text-lg font-bold text-gray-700">模型提供商</FieldLegend>
+          <FieldDescription className="text-sm">
+            API Key 状态：
+            <span className={config.api_key_configured ? 'text-green-600' : 'text-amber-600'}>
+              {config.api_key_configured ? ' 已配置' : ' 未配置'}
+            </span>
+          </FieldDescription>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="base_url">提供商基础地址(base_url)</FieldLabel>
@@ -136,12 +142,13 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
               <Input
                 id="api_key"
                 type="password"
-                placeholder="请填写提供商API密钥"
+                autoComplete="new-password"
+                placeholder="填写新密钥；留空则保留当前密钥"
                 value={config.api_key ?? ''}
                 onChange={(e) => handleChange('api_key', e.target.value)}
               />
               <FieldDescription className="text-xs">
-                请填写模型提供商密钥信息。
+                密钥仅保存到服务端配置文件，页面不会读取或展示已保存的密钥。
               </FieldDescription>
             </Field>
             <Field>
@@ -243,7 +250,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
                   <DialogDescription className="text-gray-500">
                     PolicyManus 使用标准的 A2A 协议来连接远程 Agent。
                     <br/>
-                    请将您的配置粘贴到下方，然后点击"添加"即可添加 Agent。
+                    请将您的配置粘贴到下方，然后点击“添加”即可添加 Agent。
                   </DialogDescription>
                 </DialogHeader>
                 <form
@@ -422,7 +429,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
                   <DialogTitle className="text-gray-700">添加新的 MCP 服务器</DialogTitle>
                   <DialogDescription className="text-gray-500">
                     PolicyManus 使用标准的 JSON MCP 配置来创建新服务器。
-                    请将您的配置粘贴到下方，然后点击"添加"即可添加新服务器。
+                    请将您的配置粘贴到下方，然后点击“添加”即可添加新服务器。
                   </DialogDescription>
                 </DialogHeader>
                 <form
@@ -541,14 +548,22 @@ const SETTING_MENUS: Array<{
   {key: 'mcp-setting', icon: Wrench, title: 'MCP 服务器'},
 ]
 
-export function ManusSettings() {
+type ManusSettingsProps = {
+  defaultSetting?: SettingTab
+  trigger?: ReactNode
+}
+
+export function ManusSettings({
+  defaultSetting = 'common-setting',
+  trigger,
+}: ManusSettingsProps = {}) {
   // ---- 防止 SSR hydration 不匹配（Radix Dialog 在服务端/客户端生成不同的 aria-controls ID）----
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
   // ---- 弹窗 & 导航 ----
   const [open, setOpen] = useState(false)
-  const [activeSetting, setActiveSetting] = useState<SettingTab>('common-setting')
+  const [activeSetting, setActiveSetting] = useState<SettingTab>(defaultSetting)
 
   // ---- 数据 ----
   const [agentConfig, setAgentConfig] = useState<AgentConfig>({})
@@ -634,7 +649,8 @@ export function ManusSettings() {
         await configApi.updateAgentConfig(agentConfig)
         toast.success('通用配置保存成功')
       } else if (activeSetting === 'llm-setting') {
-        await configApi.updateLLMConfig(llmConfig)
+        const updatedConfig = await configApi.updateLLMConfig(llmConfig)
+        setLlmConfig({...updatedConfig, api_key: ''})
         toast.success('模型提供商配置保存成功')
       }
     } catch (err) {
@@ -745,7 +761,7 @@ export function ManusSettings() {
 
   // 客户端挂载前，仅渲染普通按钮占位，避免 Radix Dialog SSR hydration 不匹配
   if (!mounted) {
-    return (
+    return trigger ?? (
       <Button variant="outline" size="icon-sm" className="cursor-pointer">
         <Settings/>
       </Button>
@@ -756,9 +772,9 @@ export function ManusSettings() {
     <Dialog open={open} onOpenChange={setOpen}>
       {/* 触发按钮 */}
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon-sm" className="cursor-pointer">
+        {trigger ?? <Button variant="outline" size="icon-sm" className="cursor-pointer">
           <Settings/>
-        </Button>
+        </Button>}
       </DialogTrigger>
 
       {/* 弹窗内容 */}

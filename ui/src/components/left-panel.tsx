@@ -7,18 +7,22 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {Plus} from 'lucide-react'
+import {KeyRound, Plus} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
 import {UserMenu} from '@/components/user-menu'
+import {ManusSettings} from '@/components/manus-settings'
+import {useAuth} from '@/providers/auth-provider'
 
 export function LeftPanel() {
   const router = useRouter()
+  const {user} = useAuth()
 
   return (
     <Sidebar>
@@ -47,6 +51,19 @@ export function LeftPanel() {
       {/* 底部：组织切换 + 用户菜单 */}
       <SidebarFooter>
         <SidebarMenu>
+          {user?.is_platform_admin && (
+            <SidebarMenuItem>
+              <ManusSettings
+                defaultSetting="llm-setting"
+                trigger={
+                  <SidebarMenuButton className="cursor-pointer">
+                    <KeyRound className="size-4"/>
+                    <span>模型 API 配置</span>
+                  </SidebarMenuButton>
+                }
+              />
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <TenantSwitcher/>
           </SidebarMenuItem>

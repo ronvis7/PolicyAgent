@@ -2,9 +2,18 @@
 
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 from app.domain.models.app_config import MCPTransport
+
+
+class PublicLLMConfig(BaseModel):
+    """可安全返回给前端的LLM配置，不包含密钥明文"""
+    base_url: HttpUrl
+    model_name: str
+    temperature: float
+    max_tokens: int
+    api_key_configured: bool
 
 
 class ListMCPServerItem(BaseModel):

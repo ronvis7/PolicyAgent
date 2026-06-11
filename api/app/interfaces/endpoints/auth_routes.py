@@ -27,7 +27,12 @@ def _to_auth_data(result: AuthResult) -> AuthData:
     return AuthData(
         access_token=result.tokens.access_token,
         refresh_token=result.tokens.refresh_token,
-        user=UserInfo(id=result.user.id, email=result.user.email, display_name=result.user.display_name),
+        user=UserInfo(
+            id=result.user.id,
+            email=result.user.email,
+            display_name=result.user.display_name,
+            is_platform_admin=result.user.is_platform_admin,
+        ),
         active_tenant_id=result.active_tenant.id,
         role=result.role,
         tenants=[_to_tenant_info(t) for t in result.tenants],
@@ -133,7 +138,12 @@ async def me(
         tenant_id=current_user.tenant_id,
     )
     data = MeData(
-        user=UserInfo(id=result.user.id, email=result.user.email, display_name=result.user.display_name),
+        user=UserInfo(
+            id=result.user.id,
+            email=result.user.email,
+            display_name=result.user.display_name,
+            is_platform_admin=result.user.is_platform_admin,
+        ),
         active_tenant_id=result.active_tenant.id,
         role=result.role,
         tenants=[_to_tenant_info(t) for t in result.tenants],

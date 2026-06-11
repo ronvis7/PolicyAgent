@@ -40,6 +40,7 @@ class UserInfo(BaseModel):
     id: str
     email: str
     display_name: str
+    is_platform_admin: bool = False
 
 
 class TenantInfo(BaseModel):
