@@ -15,10 +15,19 @@ class OpenAILLM(LLM):
 
     def __init__(self, llm_config: LLMConfig, **kwargs) -> None:
         """构造函数，完成异步OpenAI客户端的创建和参数初始化"""
+        api_key = llm_config.api_key.strip()
+        if not api_key or api_key.lower() in {
+            "local-placeholder",
+            "sk-your_deepseek_api_key_here",
+        }:
+            raise ServerRequestsError(
+                "语言模型 API Key 未配置，请在 api/config.yaml 或系统设置中填写有效密钥"
+            )
+
         # 1.初始化异步客户端
         self._client = AsyncOpenAI(
             base_url=str(llm_config.base_url),
-            api_key=llm_config.api_key,
+            api_key=api_key,
             **kwargs,
         )
 

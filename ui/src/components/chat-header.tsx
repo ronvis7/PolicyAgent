@@ -3,9 +3,11 @@
 import Link from 'next/link'
 import {SidebarTrigger, useSidebar} from '@/components/ui/sidebar'
 import {ManusSettings} from '@/components/manus-settings'
+import {useAuth} from '@/providers/auth-provider'
 
 export function ChatHeader() {
   const {open, isMobile} = useSidebar()
+  const {user} = useAuth()
 
   return (
     <header className="flex justify-between items-center w-full py-2 px-4 z-50">
@@ -17,7 +19,7 @@ export function ChatHeader() {
         <Link href="/" className="block bg-white w-[80px] h-9 rounded-md"/>
       </div>
       {/* 右侧设置模态窗 */}
-      <ManusSettings/>
+      {user?.is_platform_admin && <ManusSettings/>}
     </header>
   )
 }

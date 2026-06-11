@@ -52,7 +52,8 @@ RUN add-apt-repository ppa:xtradeb/apps -y && \
     rm -rf /var/lib/apt/lists/*
 
 # 11.安装中文字体和语言支持
-RUN apt-get update && apt-get install -y \
+RUN sed -i 's|http://mirrors.aliyun.com/ubuntu-ports/|http://ports.ubuntu.com/ubuntu-ports/|g' /etc/apt/sources.list && \
+    apt-get -o Acquire::Retries=5 update && apt-get -o Acquire::Retries=5 install -y \
     fonts-noto-cjk \
     fonts-noto-color-emoji \
     language-pack-zh-hans \

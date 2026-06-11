@@ -58,7 +58,29 @@
 
 ### `GET /api/auth/me`
 
-返回当前用户、当前租户、角色和可访问租户列表。
+返回当前用户、当前租户、角色和可访问租户列表。用户对象包含
+`is_platform_admin`，前端据此显示平台级配置入口。
+
+## 平台模型配置
+
+以下接口仅允许平台管理员访问：
+
+- `GET /api/app-config/llm`
+- `POST /api/app-config/llm`
+
+读取响应不包含 `api_key`，仅返回：
+
+```json
+{
+  "base_url": "https://api.deepseek.com/",
+  "model_name": "deepseek-chat",
+  "temperature": 0.7,
+  "max_tokens": 8192,
+  "api_key_configured": false
+}
+```
+
+更新时可提交 `api_key`；空字符串表示保留当前密钥。密钥不得通过读取接口回传。
 
 ## 待实现知识库接口
 
@@ -111,4 +133,3 @@
 - 先修改本文档，再提交后端和前端代码。
 - 删除字段或改变语义属于破坏性变更，必须在 PR 中明确标记。
 - 数据库内部字段不应直接泄露为前端契约。
-

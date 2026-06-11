@@ -38,6 +38,7 @@ export type LLMConfig = {
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
+  api_key_configured?: boolean;
   [key: string]: unknown;
 };
 
@@ -304,4 +305,3 @@ export type ViewShellParams = {
   shell_session_id: string;
   [key: string]: unknown;
 };
-

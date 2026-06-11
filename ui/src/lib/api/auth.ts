@@ -7,6 +7,7 @@ export type AuthUser = {
   id: string;
   email: string;
   display_name: string;
+  is_platform_admin: boolean;
 };
 
 /** 组织（租户）信息 */

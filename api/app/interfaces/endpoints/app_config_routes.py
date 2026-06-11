@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Body
 from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig
 from app.interfaces.auth_dependencies import require_platform_admin
-from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse
+from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse, PublicLLMConfig
 from app.interfaces.schemas.base import Response
 from app.interfaces.service_dependencies import get_app_config_service
 
@@ -21,35 +21,50 @@ router = APIRouter(
     dependencies=[Depends(require_platform_admin)],
 )
 
+
+def _to_public_llm_config(llm_config: LLMConfig) -> PublicLLMConfig:
+    api_key = llm_config.api_key.strip().lower()
+    return PublicLLMConfig(
+        base_url=llm_config.base_url,
+        model_name=llm_config.model_name,
+        temperature=llm_config.temperature,
+        max_tokens=llm_config.max_tokens,
+        api_key_configured=bool(api_key) and api_key not in {
+            "local-placeholder",
+            "sk-your_deepseek_api_key_here",
+        },
+    )
+
+
 @router.get(
     path="/llm",
-    response_model=Response[LLMConfig],
+    response_model=Response[PublicLLMConfig],
     summary="获取LLM配置信息",
     description="包含LLM提供商的base_url、temperature、model_name、max_tokens"
 )
 async def get_llm_config(
         app_config_service: AppConfigService = Depends(get_app_config_service)
-) -> Response[LLMConfig]:
+) -> Response[PublicLLMConfig]:
     """获取LLM配置信息"""
     llm_config = await app_config_service.get_llm_config()
-    return Response.success(data=llm_config.model_dump(exclude={"api_key"}))
+    return Response.success(data=_to_public_llm_config(llm_config))
 
 
 @router.post(
     path="/llm",
-    response_model=Response[LLMConfig],
+    response_model=Response[PublicLLMConfig],
     summary="更新LLM配置信息",
     description="更新LLM配置信息，当api_key为空的时候表示不更新该字段"
 )
 async def update_llm_config(
         new_llm_config: LLMConfig,
         app_config_service: AppConfigService = Depends(get_app_config_service)
-) -> Response[LLMConfig]:
+) -> Response[PublicLLMConfig]:
     """更新LLM配置信息"""
     updated_llm_config = await app_config_service.update_llm_config(new_llm_config)
     return Response.success(
         msg="更新LLM信息配置成功",
-        data=updated_llm_config.model_dump(exclude={"api_key"})
+        data=_to_public_llm_config(updated_llm_config)
     )
 
 @router.get(
