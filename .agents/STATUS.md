@@ -1,23 +1,22 @@
 # 当前状态
 
-最后更新：2026-06-09
+最后更新：2026-06-11
 
 ## 仓库状态
 
 - 主仓库：`policy_manus`
-- 当前分支：`main`
-- 当前工作区存在尚未提交的 PolicyManus 品牌和 Docker 隔离改动。
-- 不应在这些改动提交或暂存前执行会覆盖工作区的操作。
+- 当前分支：`main`，工作区干净，已与 `origin/main` 同步。
+- 品牌、Docker 隔离和协作记忆改动已提交（最新 `c2c33c9`）。
 
 ## 已完成
 
-- 多租户基础表：tenants、users、memberships。
-- JWT 注册、登录、刷新、退出和租户切换后端。
-- sessions 租户隔离。
-- files 租户隔离。
-- 平台配置的 platform admin 权限保护。
-- Docker 资源逐步改为 `policy-*`，数据库默认名改为 `policy_manus`。
-- 前端原型已放入 `frontend-prototype/`，正式前端仍在 `ui/`。
+> 细节以 `git log` 为准，本节只记里程碑。
+
+- 多租户后端闭环：tenants/users/memberships 表 + JWT 全流程 + 租户切换。
+- 租户隔离：sessions、files、平台配置（platform admin 保护）。
+- Docker 资源改为 `policy-*`，默认库名 `policy_manus`。
+- 前端原型入 `frontend-prototype/`，正式前端仍在 `ui/`。
+- `.agents/` 协作记忆体系落地。
 
 ## 未完成
 
@@ -34,10 +33,9 @@
 
 ## 当前最高优先级
 
-1. 提交现有品牌和 Docker 隔离改动。
-2. 建立 `develop`、Issue、PR 和 CI 工作流。
-3. 并行完成前端认证闭环与 RAG 数据模型。
-4. 尽快打通一份政策文件的上传、索引、检索和引用回答。
+1. 建立 `develop`、Issue、PR 和 CI 工作流。
+2. 并行完成前端认证闭环与 RAG 数据模型。
+3. 尽快打通一份政策文件的上传、索引、检索和引用回答。
 
 ## 已知风险
 
