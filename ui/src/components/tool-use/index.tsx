@@ -8,6 +8,7 @@ import { MessageTool } from './message-tool'
 import { FileTool } from './file-tool'
 import { BashTool } from './bash-tool'
 import { SearchTool } from './search-tool'
+import { KnowledgeTool } from './knowledge-tool'
 import { BrowserTool } from './browser-tool'
 import { McpTool } from './mcp-tool'
 import { A2aTool } from './a2a-tool'
@@ -19,6 +20,7 @@ export { MessageTool } from './message-tool'
 export { FileTool } from './file-tool'
 export { BashTool } from './bash-tool'
 export { SearchTool } from './search-tool'
+export { KnowledgeTool } from './knowledge-tool'
 export { BrowserTool } from './browser-tool'
 export { McpTool } from './mcp-tool'
 export { A2aTool } from './a2a-tool'
@@ -35,6 +37,7 @@ const TOOL_COMPONENTS: Record<ToolKind, ComponentType<{ label: string; onClick?:
   bash: BashTool,
   file: FileTool,
   search: SearchTool,
+  knowledge: KnowledgeTool,
   browser: BrowserTool,
   mcp: McpTool,
   a2a: A2aTool,

@@ -144,6 +144,7 @@ def get_agent_service(
         cos=cos,
         uow_factory=get_uow,
     )
+    embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
 
     # 3.实例Agent服务并返回
     return AgentService(
@@ -156,5 +157,6 @@ def get_agent_service(
         task_cls=RedisStreamTask,
         json_parser=RepairJSONParser(),
         search_engine=BingSearchEngine(),
+        embedding=embedding,
         file_storage=file_storage,
     )

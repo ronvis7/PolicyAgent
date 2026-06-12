@@ -10,6 +10,7 @@ from fastapi import UploadFile
 from pydantic import TypeAdapter
 
 from app.domain.external.browser import Browser
+from app.domain.external.embedding import EmbeddingProvider
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.json_parser import JSONParser
 from app.domain.external.llm import LLM
@@ -19,8 +20,9 @@ from app.domain.external.task import TaskRunner, Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
     BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, MCPToolContent, A2AToolContent, \
-    TitleEvent, WaitEvent, DoneEvent
+    KnowledgeToolContent, TitleEvent, WaitEvent, DoneEvent
 from app.domain.models.file import File
+from app.domain.models.knowledge_search import KnowledgeSearchResults
 from app.domain.models.message import Message
 from app.domain.models.search import SearchResults
 from app.domain.models.session import SessionStatus
@@ -49,6 +51,7 @@ class AgentTaskRunner(TaskRunner):
             json_parser: JSONParser,  # json解析器
             browser: Browser,  # 浏览器
             search_engine: SearchEngine,  # 搜索引擎
+            embedding: EmbeddingProvider,  # 文本向量化(知识库检索)
             sandbox: Sandbox,  # 沙箱
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
@@ -75,6 +78,7 @@ class AgentTaskRunner(TaskRunner):
             browser=browser,
             sandbox=sandbox,
             search_engine=search_engine,
+            embedding=embedding,
             mcp_tool=self._mcp_tool,
             a2a_tool=self._a2a_tool,
         )
@@ -273,6 +277,11 @@ class AgentTaskRunner(TaskRunner):
                     search_results: ToolResult[SearchResults] = event.function_result
                     logger.info(f"搜索工具结果: {search_results}")
                     event.tool_content = SearchToolContent(results=search_results.data.results)
+                elif event.tool_name == "knowledge":
+                    # 知识库检索：注入引用内容供前端渲染来源卡片
+                    kb_result: ToolResult[KnowledgeSearchResults] = event.function_result
+                    citations = kb_result.data.citations if kb_result and kb_result.data else []
+                    event.tool_content = KnowledgeToolContent(citations=citations)
                 elif event.tool_name == "shell":
                     # 4.工具为shell则生成shell工具内容
                     if "session_id" in event.function_args:
