@@ -85,6 +85,20 @@ class DBSessionRepository(SessionRepository):
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
 
+    async def update_knowledge_base_id(self, session_id: str, knowledge_base_id: Optional[str]) -> None:
+        """更新会话绑定的知识库id(None 表示解绑/全库检索)"""
+        # 1.构建更新语句并执行
+        stmt = (
+            update(SessionModel)
+            .where(SessionModel.id == session_id)
+            .values(knowledge_base_id=knowledge_base_id)
+        )
+        result = await self.db_session.execute(stmt)
+
+        # 2.检查是否更新成功
+        if result.rowcount == 0:
+            raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """更新会话最新消息"""
         # 1.构建更新语句并执行

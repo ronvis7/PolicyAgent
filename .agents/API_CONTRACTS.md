@@ -100,6 +100,13 @@
 
 **检索不走独立 REST**（ADR-002）：政策检索作为 Agent 工具 `knowledge_base_search` 在聊天流中调用，引用经 SSE `tool_content` 透传渲染来源卡片。详见 R3 交接。
 
+### 会话级知识库 scope 绑定
+
+- `POST /api/sessions/{session_id}/knowledge-base` — 绑定/解绑会话检索范围，body `{ knowledge_base_id: string | null }`；传 `null` 表示解绑（全库检索）。校验会话与目标知识库均归属当前租户。
+- `GET /api/sessions/{session_id}` 响应新增 `knowledge_base_id` 字段（`null` = 全库）。
+
+**绑定为硬限定**：会话绑定某库后，`knowledge_base_search` 工具忽略 Agent 自传的 `knowledge_base_id`，检索只在绑定库内进行；未绑定时维持默认全库检索。删除知识库会经 FK `ON DELETE SET NULL` 自动解绑相关会话。
+
 ## 待实现报告接口
 
 - `POST /api/reports`

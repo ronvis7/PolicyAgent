@@ -22,6 +22,7 @@ from app.interfaces.schemas.session import (
     ListSessionResponse,
     ListSessionItem,
     ChatRequest,
+    BindKnowledgeBaseRequest,
     GetSessionResponse, GetSessionFilesResponse, FileReadResponse, FileReadRequest, ShellReadResponse, ShellReadRequest,
 )
 from app.interfaces.service_dependencies import get_session_service, get_agent_service, get_token_service
@@ -215,9 +216,31 @@ async def get_session(
             session_id=session.id,
             title=session.title,
             status=session.status,
+            knowledge_base_id=session.knowledge_base_id,
             events=EventMapper.events_to_sse_events(session.events),
         )
     )
+
+
+@router.post(
+    path="/{session_id}/knowledge-base",
+    response_model=Response[Optional[Dict]],
+    summary="绑定会话检索知识库范围",
+    description="将会话检索范围硬限定到指定知识库；knowledge_base_id 传 null 表示解绑(全库检索)",
+)
+async def bind_knowledge_base(
+        session_id: str,
+        request: BindKnowledgeBaseRequest,
+        current_user: CurrentUser = Depends(get_current_user),
+        session_service: SessionService = Depends(get_session_service),
+) -> Response[Optional[Dict]]:
+    """绑定/解绑会话的检索知识库范围(校验会话与知识库均归属当前租户)"""
+    await session_service.bind_knowledge_base(
+        session_id=session_id,
+        tenant_id=current_user.tenant_id,
+        knowledge_base_id=request.knowledge_base_id,
+    )
+    return Response.success(msg="设置会话知识库范围成功")
 
 
 @router.post(

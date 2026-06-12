@@ -203,6 +203,7 @@ export type ChatParams = {
  */
 export type SessionDetail = Session & {
   events?: SSEEventData[];
+  knowledge_base_id?: string | null; // 会话绑定的知识库id(null=全库检索)
 };
 
 /**

@@ -44,6 +44,12 @@ class SessionModel(Base):
         nullable=True,
         index=True,
     )  # 创建者用户id
+    knowledge_base_id: Mapped[str] = mapped_column(
+        String(255),
+        ForeignKey("knowledge_bases.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )  # 会话绑定的知识库id(检索硬限定范围；删库时自动SET NULL解绑)
     sandbox_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 沙箱id
     task_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 任务id
     title: Mapped[str] = mapped_column(

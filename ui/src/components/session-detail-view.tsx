@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SessionHeader } from '@/components/session-header'
 import { ChatInput } from '@/components/chat-input'
+import { KnowledgeScopeSelector } from '@/components/knowledge-scope-selector'
 import { PlanPanel } from '@/components/plan-panel'
 import { ChatMessage } from '@/components/chat-message'
 import { FilePreviewPanel } from '@/components/file-preview-panel'
@@ -297,6 +298,13 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
 
             <div className="flex-shrink-0 bg-[#f8f8f7] py-4">
               <PlanPanel className="mb-2" steps={planSteps} />
+              <div className="mb-2 flex items-center">
+                <KnowledgeScopeSelector
+                  sessionId={sessionId}
+                  value={session.knowledge_base_id ?? null}
+                  disabled={session?.status === 'running'}
+                />
+              </div>
               <ChatInput
                 onSend={handleSend}
                 sessionId={sessionId}

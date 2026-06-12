@@ -1,7 +1,7 @@
 
 
 import logging
-from typing import List, Callable, Type
+from typing import List, Callable, Optional, Type
 
 from app.application.errors.exceptions import NotFoundError, ServerRequestsError
 from app.domain.external.sandbox import Sandbox
@@ -70,6 +70,28 @@ class SessionService:
         """获取指定会话详情信息(校验租户归属)"""
         async with self._uow:
             return await self._uow.session.get_by_id(session_id, tenant_id=tenant_id)
+
+    async def bind_knowledge_base(
+        self, session_id: str, tenant_id: str, knowledge_base_id: Optional[str],
+    ) -> None:
+        """将会话绑定到指定知识库作为检索硬限定范围(None 表示解绑/全库)
+
+        校验会话归属当前租户；若指定了知识库，再校验该库同样归属当前租户，
+        防止跨租户绑定。绑定后检索工具将把范围硬限定到该库(见 ADR-002)。
+        """
+        logger.info(f"会话[{session_id}]绑定知识库[{knowledge_base_id}]")
+        # 1.校验会话归属当前租户
+        await self.ensure_access(session_id, tenant_id)
+
+        async with self._uow:
+            # 2.若指定知识库则校验其归属当前租户(None 为解绑，跳过校验)
+            if knowledge_base_id:
+                kb = await self._uow.knowledge_base.get_by_id(knowledge_base_id, tenant_id=tenant_id)
+                if not kb:
+                    raise NotFoundError(f"知识库[{knowledge_base_id}]不存在，请核实后重试")
+
+            # 3.写入绑定
+            await self._uow.session.update_knowledge_base_id(session_id, knowledge_base_id)
 
     async def get_session_files(self, session_id: str, tenant_id: str) -> List[File]:
         """根据传递的会话id获取指定会话的文件列表信息(校验租户归属)"""

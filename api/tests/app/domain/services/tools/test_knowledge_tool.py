@@ -9,6 +9,7 @@ from typing import List, Optional, Tuple
 from app.domain.models.document_chunk import DocumentChunk
 from app.domain.models.knowledge_base import KnowledgeBase
 from app.domain.models.knowledge_file import KnowledgeFile
+from app.domain.models.session import Session
 from app.domain.services.tools.knowledge import KnowledgeBaseTool
 
 TENANT = "tenant-1"
@@ -37,13 +38,14 @@ class FakeEmbedding:
 
 
 class FakeSessionRepo:
-    def __init__(self, tenant_id: Optional[str]) -> None:
+    def __init__(self, tenant_id: Optional[str], bound_kb_id: Optional[str] = None) -> None:
         self._tenant_id = tenant_id
+        self._bound_kb_id = bound_kb_id
 
     async def get_by_id(self, session_id: str):
         if self._tenant_id is None:
             return None
-        return KnowledgeBase(id=session_id, tenant_id=self._tenant_id)  # 仅需 .tenant_id
+        return Session(id=session_id, tenant_id=self._tenant_id, knowledge_base_id=self._bound_kb_id)
 
 
 class FakeKnowledgeBaseRepo:
@@ -204,3 +206,55 @@ def test_blank_query_is_rejected():
 
     assert result.success is False
     assert chunk_repo.calls == []
+
+
+def test_session_binding_hard_limits_scope_to_bound_kb():
+    """会话绑定了某个库时，默认检索硬限定到该库，不扫描租户下的其它库"""
+    kbs = [
+        KnowledgeBase(id="kb-a", tenant_id=TENANT),
+        KnowledgeBase(id="kb-b", tenant_id=TENANT),
+    ]
+    chunk_repo = FakeDocumentChunkRepo({
+        "kb-a": [(_chunk("f1", 1, "甲库", "kb-a"), 0.8)],
+        "kb-b": [(_chunk("f2", 1, "乙库", "kb-b"), 0.9)],
+    })
+    file_repo = FakeKnowledgeFileRepo({
+        "f1": KnowledgeFile(tenant_id=TENANT, knowledge_base_id="kb-a", filename="甲.pdf"),
+    })
+    # 会话绑定到 kb-a
+    tool = _build_tool(
+        FakeSessionRepo(TENANT, bound_kb_id="kb-a"),
+        FakeKnowledgeBaseRepo(kbs), chunk_repo, file_repo,
+    )
+
+    result = asyncio.run(tool.knowledge_base_search(query="查询"))
+
+    assert result.success is True
+    assert [c.knowledge_base_id for c in result.data.citations] == ["kb-a"]
+    assert {kb for kb, _, _ in chunk_repo.calls} == {"kb-a"}
+
+
+def test_session_binding_overrides_explicit_kb_param():
+    """会话绑定为硬限定：即便 LLM 显式传入另一个 knowledge_base_id 也被忽略"""
+    kbs = [
+        KnowledgeBase(id="kb-a", tenant_id=TENANT),
+        KnowledgeBase(id="kb-b", tenant_id=TENANT),
+    ]
+    chunk_repo = FakeDocumentChunkRepo({
+        "kb-a": [(_chunk("f1", 1, "甲库", "kb-a"), 0.8)],
+        "kb-b": [(_chunk("f2", 1, "乙库", "kb-b"), 0.9)],
+    })
+    file_repo = FakeKnowledgeFileRepo({
+        "f1": KnowledgeFile(tenant_id=TENANT, knowledge_base_id="kb-a", filename="甲.pdf"),
+    })
+    tool = _build_tool(
+        FakeSessionRepo(TENANT, bound_kb_id="kb-a"),
+        FakeKnowledgeBaseRepo(kbs), chunk_repo, file_repo,
+    )
+
+    # LLM 试图把范围改到 kb-b，但会话绑定 kb-a 胜出
+    result = asyncio.run(tool.knowledge_base_search(query="查询", knowledge_base_id="kb-b"))
+
+    assert result.success is True
+    assert [c.knowledge_base_id for c in result.data.citations] == ["kb-a"]
+    assert {kb for kb, _, _ in chunk_repo.calls} == {"kb-a"}

@@ -211,6 +211,20 @@ export const sessionApi = {
   },
 
   /**
+   * 绑定会话检索知识库范围（硬限定）
+   * @param sessionId 会话 ID
+   * @param knowledgeBaseId 目标知识库 ID；传 null 表示解绑（全库检索）
+   */
+  bindKnowledgeBase: (
+    sessionId: string,
+    knowledgeBaseId: string | null
+  ): Promise<void> => {
+    return post<void>(`/sessions/${sessionId}/knowledge-base`, {
+      knowledge_base_id: knowledgeBaseId,
+    });
+  },
+
+  /**
    * 清除未读消息数
    */
   clearUnreadMessageCount: (sessionId: string): Promise<void> => {
