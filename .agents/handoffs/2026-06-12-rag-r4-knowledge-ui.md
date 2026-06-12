@@ -1,7 +1,8 @@
 # RAG R4：知识库管理前端页
 
-Issue：待创建
-分支：`feat/rag-r4-knowledge-ui`（从含 R1+R2+R3 的 `main` 切出，即 `388b49b`）
+PR：[#4](https://github.com/ronvis7/policy_manus/pull/4)（已开，待审/合）
+分支：`feat/rag-r4-knowledge-ui`（从含 R1+R2+R3 的 `main` 切出，即 `388b49b`；提交 `d4c7ff1`）
+状态：真机联调通过，已推送开 PR；待 review + merge
 负责人：项目组
 更新时间：2026-06-12
 
