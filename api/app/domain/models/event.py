@@ -6,6 +6,7 @@ from typing import Literal, List, Union, Optional, Any, Dict, Annotated
 from pydantic import BaseModel, Field
 
 from .file import File
+from .knowledge_search import KnowledgeCitation
 from .plan import Plan, Step
 from .search import SearchResultItem
 from .tool_result import ToolResult
@@ -96,6 +97,11 @@ class A2AToolContent(BaseModel):
     a2a_result: Any  # A2A智能体调用结果
 
 
+class KnowledgeToolContent(BaseModel):
+    """知识库检索工具内容(供前端渲染来源引用卡片)"""
+    citations: List[KnowledgeCitation]  # 命中切片引用列表(文件名/页码/相似度)
+
+
 ToolContent = Union[
     BrowserToolContent,
     SearchToolContent,
@@ -103,6 +109,7 @@ ToolContent = Union[
     FileToolContent,
     MCPToolContent,
     A2AToolContent,
+    KnowledgeToolContent,
 ]
 
 

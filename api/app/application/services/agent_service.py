@@ -6,6 +6,7 @@ from typing import AsyncGenerator, Optional, List, Type, Callable
 
 from pydantic import TypeAdapter
 
+from app.domain.external.embedding import EmbeddingProvider
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.json_parser import JSONParser
 from app.domain.external.llm import LLM
@@ -35,6 +36,7 @@ class AgentService:
             task_cls: Type[Task],
             json_parser: JSONParser,
             search_engine: SearchEngine,
+            embedding: EmbeddingProvider,
             file_storage: FileStorage,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
@@ -48,6 +50,7 @@ class AgentService:
         self._task_cls = task_cls
         self._json_parser = json_parser
         self._search_engine = search_engine
+        self._embedding = embedding
         self._file_storage = file_storage
         logger.info(f"AgentService初始化成功")
 
@@ -95,6 +98,7 @@ class AgentService:
             json_parser=self._json_parser,
             browser=browser,
             search_engine=self._search_engine,
+            embedding=self._embedding,
             sandbox=sandbox,
         )
 

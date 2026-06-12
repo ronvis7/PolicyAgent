@@ -3,6 +3,7 @@ import logging
 from typing import AsyncGenerator, Optional, Callable
 
 from app.domain.external.browser import Browser
+from app.domain.external.embedding import EmbeddingProvider
 from app.domain.external.json_parser import JSONParser
 from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
@@ -18,6 +19,7 @@ from app.domain.services.agents.react import ReActAgent
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.browser import BrowserTool
 from app.domain.services.tools.file import FileTool
+from app.domain.services.tools.knowledge import KnowledgeBaseTool
 from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.message import MessageTool
 from app.domain.services.tools.search import SearchTool
@@ -41,6 +43,7 @@ class PlannerReActFlow(BaseFlow):
             browser: Browser,  # 浏览器
             sandbox: Sandbox,  # 沙箱
             search_engine: SearchEngine,  # 搜索引擎
+            embedding: EmbeddingProvider,  # 文本向量化(知识库检索)
             mcp_tool: MCPTool,  # mcp工具
             a2a_tool: A2ATool,  # a2a远程agent
     ) -> None:
@@ -58,6 +61,11 @@ class PlannerReActFlow(BaseFlow):
             ShellTool(sandbox=sandbox),
             BrowserTool(browser=browser),
             SearchTool(search_engine=search_engine),
+            KnowledgeBaseTool(
+                uow_factory=uow_factory,
+                embedding=embedding,
+                session_id=session_id,
+            ),
             MessageTool(),
             mcp_tool,
             a2a_tool,

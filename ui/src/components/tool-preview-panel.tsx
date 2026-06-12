@@ -17,6 +17,7 @@ import {
   Wrench,
   Bot,
   Sparkles,
+  BookOpen,
 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
@@ -34,6 +35,16 @@ type ConsoleRecord = { ps1: string; command: string; output: string }
 
 type SearchResultItem = { url: string; title: string; snippet: string }
 
+type KnowledgeCitation = {
+  chunk_id?: string
+  knowledge_base_id?: string
+  knowledge_file_id?: string
+  filename?: string
+  page?: number | null
+  content?: string
+  score?: number
+}
+
 /* ------------------------------------------------------------------ */
 /*  Content extractors                                                 */
 /* ------------------------------------------------------------------ */
@@ -49,6 +60,7 @@ function getToolDescription(kind: ToolKind): string {
     bash: '终端',
     browser: '浏览器',
     search: '搜索',
+    knowledge: '知识库',
     file: '文件',
     mcp: 'MCP 服务',
     a2a: 'A2A 智能体',
@@ -63,6 +75,7 @@ function getToolIcon(kind: ToolKind) {
     bash: Terminal,
     browser: Globe,
     search: Search,
+    knowledge: BookOpen,
     file: FileSearch,
     mcp: Wrench,
     a2a: Bot,
@@ -211,6 +224,60 @@ function SearchPreview({ tool }: { tool: ToolEvent }) {
           </a>
         )) : (
           <div className="text-sm text-gray-500 text-center py-8">暂无搜索结果</div>
+        )}
+      </div>
+    </ScrollArea>
+  )
+}
+
+function KnowledgePreview({ tool }: { tool: ToolEvent }) {
+  const content = getToolContent(tool)
+  const rawCitations = content?.citations
+
+  const citations: KnowledgeCitation[] = useMemo(() => {
+    if (Array.isArray(rawCitations)) return rawCitations as KnowledgeCitation[]
+    return []
+  }, [rawCitations])
+
+  const query = getArg(tool.args, 'query', 'q')
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-2 p-4">
+        {query && (
+          <div className="text-sm text-gray-500 mb-2">
+            知识库检索&ldquo;{query}&rdquo; · 命中 {citations.length} 条
+          </div>
+        )}
+        {citations.length > 0 ? citations.map((item, i) => (
+          <div
+            key={item.chunk_id || i}
+            className="rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <BookOpen size={13} className="text-amber-600 flex-shrink-0" />
+                <span className="text-sm font-medium text-gray-800 truncate">
+                  {item.filename || '未知来源'}
+                </span>
+                {item.page != null && (
+                  <span className="text-xs text-gray-500 flex-shrink-0">第 {item.page} 页</span>
+                )}
+              </div>
+              {typeof item.score === 'number' && (
+                <span className="text-xs text-gray-400 flex-shrink-0 tabular-nums">
+                  {item.score.toFixed(3)}
+                </span>
+              )}
+            </div>
+            {item.content && (
+              <div className="text-xs text-gray-600 whitespace-pre-wrap break-words line-clamp-4">
+                {item.content}
+              </div>
+            )}
+          </div>
+        )) : (
+          <div className="text-sm text-gray-500 text-center py-8">知识库中暂无相关内容</div>
         )}
       </div>
     </ScrollArea>
@@ -376,6 +443,7 @@ export function ToolPreviewPanel({
         {kind === 'bash' && <ShellPreview tool={tool} />}
         {kind === 'browser' && <BrowserPreview tool={tool} onOpenVNC={onOpenVNC} />}
         {kind === 'search' && <SearchPreview tool={tool} />}
+        {kind === 'knowledge' && <KnowledgePreview tool={tool} />}
         {kind === 'file' && <FileToolPreview tool={tool} />}
         {kind === 'mcp' && <MCPPreview tool={tool} />}
         {kind === 'a2a' && <A2APreview tool={tool} />}

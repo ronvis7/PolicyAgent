@@ -5,6 +5,7 @@ export type ToolKind =
   | 'bash'
   | 'file'
   | 'search'
+  | 'knowledge'
   | 'browser'
   | 'mcp'
   | 'a2a'
@@ -33,6 +34,9 @@ export function getToolKind(data: ToolEvent | null | undefined): ToolKind {
   }
   if (name === 'shell' || name.includes('bash') || fn === 'shell_execute' || fn === 'run' || fn === 'execute' || fn === 'run_command') {
     return 'bash'
+  }
+  if (name === 'knowledge' || fn === 'knowledge_base_search') {
+    return 'knowledge'
   }
   if (name === 'file' || name.includes('file')) {
     return 'file'
@@ -126,6 +130,10 @@ export function getFriendlyToolLabel(data: ToolEvent | null | undefined): string
 
   if (name === 'search' || fn === 'search_web' || fn.includes('search_web')) {
     return query ? `正在搜索 ${truncate(query, 60)}` : '正在搜索'
+  }
+
+  if (name === 'knowledge' || fn === 'knowledge_base_search') {
+    return query ? `正在检索知识库 ${truncate(query, 60)}` : '正在检索知识库'
   }
 
   if (name === 'shell') {
