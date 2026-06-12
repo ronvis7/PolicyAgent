@@ -61,9 +61,18 @@ export type {
   LoginParams,
 } from "./auth";
 
+// 知识库类型
+export type {
+  FileStatus,
+  KnowledgeBase,
+  KnowledgeFile,
+  CreateKnowledgeBaseParams,
+} from "./knowledge";
+
 // 模块 API
 export { authApi } from "./auth";
 export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
+export { knowledgeApi, isFileProcessing, isFileFailed } from "./knowledge";
 
