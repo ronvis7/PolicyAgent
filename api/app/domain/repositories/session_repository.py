@@ -30,6 +30,10 @@ class SessionRepository(Protocol):
         """根据传递的会话id+标题更新会话信息"""
         ...
 
+    async def update_knowledge_base_id(self, session_id: str, knowledge_base_id: Optional[str]) -> None:
+        """更新会话绑定的知识库id(None 表示解绑/全库检索)"""
+        ...
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """根据传递的信息更新最新消息"""
         ...

@@ -26,6 +26,7 @@ class Session(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 会话id
     tenant_id: Optional[str] = None  # 所属租户id(多租户隔离)
     owner_id: Optional[str] = None  # 创建者用户id
+    knowledge_base_id: Optional[str] = None  # 会话绑定的知识库id(检索硬限定范围，None=全库)
     sandbox_id: Optional[str] = None  # 沙箱id
     task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题

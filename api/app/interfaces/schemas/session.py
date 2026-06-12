@@ -41,7 +41,13 @@ class GetSessionResponse(BaseModel):
     session_id: str
     title: Optional[str] = None
     status: SessionStatus
+    knowledge_base_id: Optional[str] = None  # 会话绑定的知识库id(None=全库检索)
     events: List[AgentSSEEvent] = Field(default_factory=list)
+
+
+class BindKnowledgeBaseRequest(BaseModel):
+    """会话绑定知识库请求结构"""
+    knowledge_base_id: Optional[str] = None  # 目标知识库id；None 表示解绑/全库检索
 
 
 class GetSessionFilesResponse(BaseModel):

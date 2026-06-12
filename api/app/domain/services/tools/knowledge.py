@@ -37,17 +37,23 @@ class KnowledgeBaseTool(BaseTool):
         self._uow_factory = uow_factory
         self._embedding = embedding
         self._session_id = session_id
-        # 会话租户懒加载缓存(检索范围边界)
+        # 会话范围懒加载缓存：租户id(隔离边界) + 绑定知识库id(检索硬限定范围)
         self._tenant_id: Optional[str] = None
+        self._bound_kb_id: Optional[str] = None
         self._scope_loaded = False
 
-    async def _get_tenant_id(self) -> Optional[str]:
-        """懒加载当前会话所属租户id，作为检索的租户隔离边界"""
+    async def _load_scope(self) -> None:
+        """懒加载当前会话的租户id与绑定知识库id，作为检索的范围边界"""
         if not self._scope_loaded:
             async with self._uow_factory() as uow:
                 session = await uow.session.get_by_id(self._session_id)
             self._tenant_id = session.tenant_id if session else None
+            self._bound_kb_id = session.knowledge_base_id if session else None
             self._scope_loaded = True
+
+    async def _get_tenant_id(self) -> Optional[str]:
+        """懒加载并返回当前会话所属租户id，作为检索的租户隔离边界"""
+        await self._load_scope()
         return self._tenant_id
 
     @tool(
@@ -89,6 +95,11 @@ class KnowledgeBaseTool(BaseTool):
         tenant_id = await self._get_tenant_id()
         if not tenant_id:
             return ToolResult(success=False, message="当前会话缺少租户上下文，无法检索知识库")
+
+        # 1.5 会话绑定库为硬限定：存在时忽略 LLM 传入的 knowledge_base_id，
+        #     确保用户在会话级选定的范围不被 Agent 绕过(见 ADR-002 scope 选择器)
+        if self._bound_kb_id:
+            knowledge_base_id = self._bound_kb_id
 
         # 2. 规整 top_k 到合法区间
         top_k = max(MIN_TOP_K, min(MAX_TOP_K, top_k or DEFAULT_TOP_K))
