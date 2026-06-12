@@ -50,15 +50,20 @@ async def get_knowledge_base(
     return Response.success(msg="获取知识库成功", data=kb)
 
 
-@router.delete(path="/{kb_id}", response_model=Response[None], summary="删除知识库")
+@router.delete(path="/{kb_id}", response_model=Response, summary="删除知识库")
 async def delete_knowledge_base(
         kb_id: str,
         current_user: CurrentUser = Depends(get_current_user),
         service: KnowledgeService = Depends(get_knowledge_service),
-) -> Response[None]:
-    """删除知识库(级联删除文件与切片)"""
+) -> Response:
+    """删除知识库(级联删除文件与切片)
+
+    返回 response_model 用不带参数的 Response：Response.success 在无数据时会把 data
+    归一为空字典 {}，而 Response[None] 要求 data 必须为 None，二者冲突会触发
+    ResponseValidationError(500)。用通用 Response 与 success 的空字典语义保持一致。
+    """
     await service.delete_knowledge_base(kb_id, current_user.tenant_id)
-    return Response.success(msg="删除知识库成功", data=None)
+    return Response.success(msg="删除知识库成功")
 
 
 @router.post(path="/{kb_id}/files", response_model=Response[KnowledgeFile], summary="上传文件到知识库")

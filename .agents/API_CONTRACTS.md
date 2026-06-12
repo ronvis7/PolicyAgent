@@ -82,41 +82,23 @@
 
 更新时可提交 `api_key`；空字符串表示保留当前密钥。密钥不得通过读取接口回传。
 
-## 待实现知识库接口
+## 知识库接口（已实现 R1+R2+R4）
 
-以下为前后端并行开发基线，PR 实现前可细化字段，但不得静默改变资源语义。
+均需登录，租户上下文来自访问令牌。资源以租户隔离。
 
-- `GET /api/knowledge-bases`
-- `POST /api/knowledge-bases`
-- `GET /api/knowledge-bases/{kb_id}`
-- `DELETE /api/knowledge-bases/{kb_id}`
-- `POST /api/knowledge-bases/{kb_id}/documents`
-- `GET /api/knowledge-bases/{kb_id}/documents`
-- `GET /api/knowledge-bases/{kb_id}/documents/{document_id}`
-- `POST /api/knowledge-bases/{kb_id}/search`
+- `GET /api/knowledge-bases` — 列出当前租户知识库
+- `POST /api/knowledge-bases` — 新建，body `{ name, description? }`
+- `GET /api/knowledge-bases/{kb_id}` — 详情
+- `DELETE /api/knowledge-bases/{kb_id}` — 删除（级联清文件与切片）
+- `POST /api/knowledge-bases/{kb_id}/files` — 上传文件（multipart `file`），后台异步解析入库
+- `GET /api/knowledge-bases/{kb_id}/files` — 文件列表（含处理状态）
 
-检索请求建议：
+`KnowledgeBase` 返回：`{ id, tenant_id, owner_id, name, description, type, embedding_model, updated_at, created_at }`。
 
-```json
-{
-  "query": "企业申请该政策需要满足什么条件？",
-  "top_k": 5
-}
-```
+`KnowledgeFile` 返回：`{ id, tenant_id, knowledge_base_id, owner_id, file_id, filename, status, error_message, chunk_count, updated_at, created_at }`。
+`status` 状态机：`uploaded → parsing → parsed → indexing → indexed`，失败分支 `error_parsing` / `error_indexing`。前端在存在处理中状态时轮询列表刷新进度。
 
-检索结果至少返回：
-
-```json
-{
-  "chunk_id": "chunk-id",
-  "document_id": "document-id",
-  "document_name": "policy.pdf",
-  "content": "命中的政策片段",
-  "score": 0.91,
-  "page": 3,
-  "source_url": null
-}
-```
+**检索不走独立 REST**（ADR-002）：政策检索作为 Agent 工具 `knowledge_base_search` 在聊天流中调用，引用经 SSE `tool_content` 透传渲染来源卡片。详见 R3 交接。
 
 ## 待实现报告接口
 
