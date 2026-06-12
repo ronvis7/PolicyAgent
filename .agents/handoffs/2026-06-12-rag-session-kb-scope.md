@@ -57,8 +57,14 @@ Issue：待创建
 - **后端**：`compileall app core` 通过；`import app.main` 通过（端点/schema 接线 OK）。
 - **前端**：`tsc --noEmit` 零错误；`npm run lint` 0 error（31 warning 均既有技术债）；
   `npm run build` 成功。
-- **未做**：真机端到端联调（Docker 全栈 + 真实 embedding）。迁移仅离线编写，**未对真库
-  跑过 `alembic upgrade head`**。
+- **迁移已真机执行**：Docker 全栈重建 api+ui 后 `alembic upgrade head` → `a1b2c3d4e5f6 (head)`；
+  `\d sessions` 确认 `knowledge_base_id` 列 + 索引 `ix_sessions_knowledge_base_id` + 外键
+  `fk_sessions_knowledge_base_id ... ON DELETE SET NULL` 均落库。网关 `GET /`、`GET /api/status`
+  返回 200。
+- **待人工验证**：UI 端到端绑定→提问→来源限定、删库自动解绑等功能性回归由项目组在
+  `http://127.0.0.1:8888/` 自测。
+- **部署注意**：`docker compose up -d --build`（全量）会因 `policy-sandbox` 中文字体安装
+  拉取失败而中止——只重建本刀涉及的服务：`docker compose up -d --build policy-api policy-ui`。
 
 ## 未完成 / 下一步
 
@@ -70,8 +76,7 @@ Issue：待创建
 
 ## 风险
 
-- **迁移未对真库执行**：合并前务必在联调环境 `alembic upgrade head` 验证，注意 FK
-  目标表 `knowledge_bases` 须已存在（R1 迁移 `f6a7b8c9d0e1` 已建，本迁移依赖其后）。
 - **硬限定的副作用**：绑定到一个**空库或无关库**时，检索将稳定返回空，用户可能误以为
   「知识库没内容」。属预期语义，但 UX 上后续可加范围提示。
-- **提交纪律**：走 `feat/rag-session-kb-scope` 分支 + PR，勿直推 `main`。CI 门禁会自动跑。
+- **sandbox 镜像未随本刀重建**：沿用旧镜像（字体安装 flaky，与本功能无关），不影响
+  scope 功能；需动态沙箱的 Agent 任务链路另行验证。
