@@ -25,6 +25,7 @@ class Tenant(BaseModel):
     slug: str = ""  # 唯一标识，未来用于子域名/URL
     plan: TenantPlan = TenantPlan.FREE  # 套餐
     status: TenantStatus = TenantStatus.ACTIVE  # 状态
+    is_personal: bool = False  # 是否为个人工作区(个人工作区不参与组织名唯一约束、不可被他人加入)
     monthly_token_limit: int = 0  # 月度token配额，0表示不限制
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间

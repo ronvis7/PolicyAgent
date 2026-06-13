@@ -58,6 +58,9 @@ export type {
   AuthData,
   MeData,
   RegisterParams,
+  RegisterMode,
+  OrgOption,
+  ListOrgsData,
   LoginParams,
 } from "./auth";
 
@@ -69,10 +72,19 @@ export type {
   CreateKnowledgeBaseParams,
 } from "./knowledge";
 
+// 成员管理类型
+export type {
+  MembershipRole,
+  MemberItem,
+  ListMembersData,
+  AddMemberParams,
+} from "./membership";
+
 // 模块 API
 export { authApi } from "./auth";
 export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
 export { knowledgeApi, isFileProcessing, isFileFailed } from "./knowledge";
+export { membershipApi } from "./membership";
 

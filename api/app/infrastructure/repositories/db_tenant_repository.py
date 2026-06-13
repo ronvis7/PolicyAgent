@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.tenant import Tenant
@@ -40,3 +40,24 @@ class DBTenantRepository(TenantRepository):
         result = await self.db_session.execute(stmt)
         record = result.scalar_one_or_none()
         return record.to_domain() if record is not None else None
+
+    async def get_shared_by_name(self, name: str) -> Optional[Tenant]:
+        """按规范化名称(忽略大小写与首尾空格)查询共享组织(非个人工作区)"""
+        normalized = name.strip().lower()
+        stmt = select(TenantModel).where(
+            TenantModel.is_personal.is_(False),
+            func.lower(func.trim(TenantModel.name)) == normalized,
+        )
+        result = await self.db_session.execute(stmt)
+        record = result.scalars().first()
+        return record.to_domain() if record is not None else None
+
+    async def list_shared(self, query: str = "", limit: int = 20) -> List[Tenant]:
+        """按名称模糊检索共享组织(供注册时选择加入)"""
+        stmt = select(TenantModel).where(TenantModel.is_personal.is_(False))
+        normalized = query.strip().lower()
+        if normalized:
+            stmt = stmt.where(func.lower(TenantModel.name).like(f"%{normalized}%"))
+        stmt = stmt.order_by(TenantModel.created_at.asc()).limit(limit)
+        result = await self.db_session.execute(stmt)
+        return [record.to_domain() for record in result.scalars().all()]

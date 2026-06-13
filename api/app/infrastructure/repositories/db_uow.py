@@ -13,6 +13,7 @@ from .db_knowledge_file_repository import DBKnowledgeFileRepository
 from .db_membership_repository import DBMembershipRepository
 from .db_session_repository import DBSessionRepository
 from .db_tenant_repository import DBTenantRepository
+from .db_tenant_settings_repository import DBTenantSettingsRepository
 from .db_user_repository import DBUserRepository
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.session = DBSessionRepository(db_session=self.db_session)
         self.user = DBUserRepository(db_session=self.db_session)
         self.tenant = DBTenantRepository(db_session=self.db_session)
+        self.tenant_settings = DBTenantSettingsRepository(db_session=self.db_session)
         self.membership = DBMembershipRepository(db_session=self.db_session)
         self.knowledge_base = DBKnowledgeBaseRepository(db_session=self.db_session)
         self.knowledge_file = DBKnowledgeFileRepository(db_session=self.db_session)

@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     String,
     Integer,
     DateTime,
@@ -49,6 +50,11 @@ class TenantModel(Base):
         nullable=False,
         server_default=text("'active'::character varying"),
     )  # 状态
+    is_personal: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+    )  # 是否为个人工作区
     monthly_token_limit: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

@@ -22,7 +22,8 @@ import {useAuth} from '@/providers/auth-provider'
 
 export function LeftPanel() {
   const router = useRouter()
-  const {user} = useAuth()
+  const {user, role} = useAuth()
+  const canOpenSettings = role === 'owner' || role === 'admin' || !!user?.is_platform_admin
 
   return (
     <Sidebar>
@@ -60,7 +61,7 @@ export function LeftPanel() {
       {/* 底部：组织切换 + 用户菜单 */}
       <SidebarFooter>
         <SidebarMenu>
-          {user?.is_platform_admin && (
+          {canOpenSettings && (
             <SidebarMenuItem>
               <ManusSettings
                 defaultSetting="llm-setting"

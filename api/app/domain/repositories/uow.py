@@ -9,6 +9,7 @@ from .knowledge_file_repository import KnowledgeFileRepository
 from .membership_repository import MembershipRepository
 from .session_repository import SessionRepository
 from .tenant_repository import TenantRepository
+from .tenant_settings_repository import TenantSettingsRepository
 from .user_repository import UserRepository
 
 T = TypeVar("T", bound="IUnitOfWork")
@@ -20,6 +21,7 @@ class IUnitOfWork(ABC):
     session: SessionRepository
     user: UserRepository
     tenant: TenantRepository
+    tenant_settings: TenantSettingsRepository
     membership: MembershipRepository
     knowledge_base: KnowledgeBaseRepository
     knowledge_file: KnowledgeFileRepository

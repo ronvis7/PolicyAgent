@@ -13,7 +13,7 @@ from app.infrastructure.storage.postgres import get_postgres
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
-from app.interfaces.service_dependencies import get_agent_service
+from app.interfaces.service_dependencies import get_default_agent_service
 from core.config import get_settings
 
 
@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
         try:
             # 5.等待agent服务关闭
             logger.info("PolicyManus正在关闭")
-            await asyncio.wait_for(get_agent_service().shutdown(), timeout=30.0)
+            await asyncio.wait_for(get_default_agent_service().shutdown(), timeout=30.0)
             logger.info("Agent服务成功关闭")
         except asyncio.TimeoutError:
             logger.warning("Agent服务关闭超时, 强制关闭, 部分任务将被释放")

@@ -7,9 +7,11 @@ from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.auth import (
     AuthData,
+    ListOrgsResponse,
     LoginRequest,
     LogoutRequest,
     MeData,
+    OrgOption,
     RefreshRequest,
     RegisterRequest,
     SwitchTenantRequest,
@@ -58,9 +60,27 @@ async def register(
         email=request.email,
         password=request.password,
         display_name=request.display_name,
+        mode=request.mode,
         org_name=request.org_name,
+        org_id=request.org_id,
     )
-    return Response.success(msg="注册成功", data=_to_auth_data(result))
+    msg = "注册成功，加入申请已提交，待组织管理员审批" if request.mode == "join" else "注册成功"
+    return Response.success(msg=msg, data=_to_auth_data(result))
+
+
+@router.get(
+    path="/orgs",
+    response_model=Response[ListOrgsResponse],
+    summary="检索可加入的组织",
+    description="按名称模糊检索共享组织，供注册时选择加入(无需登录)",
+)
+async def list_joinable_orgs(
+        q: str = "",
+        auth_service: AuthService = Depends(get_auth_service),
+) -> Response[ListOrgsResponse]:
+    orgs = await auth_service.list_joinable_orgs(query=q)
+    data = ListOrgsResponse(orgs=[OrgOption(id=t.id, name=t.name) for t in orgs])
+    return Response.success(data=data)
 
 
 @router.post(

@@ -37,11 +37,29 @@ export type MeData = {
   tenants: AuthTenant[];
 };
 
+/** 注册模式：创建新组织 / 加入已有组织 */
+export type RegisterMode = "create" | "join";
+
 export type RegisterParams = {
   email: string;
   password: string;
   display_name?: string;
+  mode: RegisterMode;
+  /** 创建模式：新组织名 */
   org_name?: string;
+  /** 加入模式：目标组织 id */
+  org_id?: string;
+};
+
+/** 可加入的组织选项 */
+export type OrgOption = {
+  id: string;
+  name: string;
+};
+
+/** 可加入组织列表响应 */
+export type ListOrgsData = {
+  orgs: OrgOption[];
 };
 
 export type LoginParams = {
@@ -86,5 +104,11 @@ export const authApi = {
   /** 获取当前登录上下文 */
   me: (): Promise<MeData> => {
     return get<MeData>("/auth/me");
+  },
+
+  /** 检索可加入的组织（无需登录，注册时选择加入用） */
+  listOrgs: (query: string): Promise<ListOrgsData> => {
+    const params = query.trim() ? { q: query.trim() } : undefined;
+    return get<ListOrgsData>("/auth/orgs", params, { skipAuthRefresh: true });
   },
 };
