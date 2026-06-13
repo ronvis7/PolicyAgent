@@ -14,6 +14,7 @@ class PublicLLMConfig(BaseModel):
     temperature: float
     max_tokens: int
     api_key_configured: bool
+    is_custom: bool = False  # 是否为当前组织自定义(False表示正在使用平台默认配置)
 
 
 class ListMCPServerItem(BaseModel):

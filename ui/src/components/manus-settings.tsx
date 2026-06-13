@@ -2,7 +2,7 @@
 
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Wrench} from 'lucide-react'
+import {LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -23,6 +23,8 @@ import {Switch} from '@/components/ui/switch'
 import {Textarea} from '@/components/ui/textarea'
 import {configApi} from '@/lib/api'
 import type {AgentConfig, LLMConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
+import {MembersSetting} from '@/components/members-setting'
+import {useAuth} from '@/providers/auth-provider'
 
 // ==================== 通用配置 ====================
 
@@ -535,17 +537,22 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
 
 // ==================== 设置弹窗主组件 ====================
 
-type SettingTab = 'common-setting' | 'llm-setting' | 'a2a-setting' | 'mcp-setting'
+type SettingTab = 'common-setting' | 'llm-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+
+// scope 决定可见性：'org' 对组织 owner/admin 开放；'platform' 仅平台管理员
+type SettingScope = 'org' | 'platform'
 
 const SETTING_MENUS: Array<{
   key: SettingTab
   icon: typeof Settings
   title: string
+  scope: SettingScope
 }> = [
-  {key: 'common-setting', icon: Settings, title: '通用配置'},
-  {key: 'llm-setting', icon: Languages, title: '模型提供商'},
-  {key: 'a2a-setting', icon: LayoutGrid, title: 'A2A Agent 配置'},
-  {key: 'mcp-setting', icon: Wrench, title: 'MCP 服务器'},
+  {key: 'llm-setting', icon: Languages, title: '模型提供商', scope: 'org'},
+  {key: 'members-setting', icon: Users, title: '组织成员', scope: 'org'},
+  {key: 'common-setting', icon: Settings, title: '通用配置', scope: 'platform'},
+  {key: 'a2a-setting', icon: LayoutGrid, title: 'A2A Agent 配置', scope: 'platform'},
+  {key: 'mcp-setting', icon: Wrench, title: 'MCP 服务器', scope: 'platform'},
 ]
 
 type ManusSettingsProps = {
@@ -554,16 +561,26 @@ type ManusSettingsProps = {
 }
 
 export function ManusSettings({
-  defaultSetting = 'common-setting',
+  defaultSetting = 'llm-setting',
   trigger,
 }: ManusSettingsProps = {}) {
   // ---- 防止 SSR hydration 不匹配（Radix Dialog 在服务端/客户端生成不同的 aria-controls ID）----
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
+  // ---- 角色：决定可见的设置项 ----
+  const {user, role} = useAuth()
+  const isOrgAdmin = role === 'owner' || role === 'admin'
+  const isPlatformAdmin = !!user?.is_platform_admin
+  const visibleMenus = SETTING_MENUS.filter((menu) =>
+    menu.scope === 'platform' ? isPlatformAdmin : isOrgAdmin,
+  )
+
   // ---- 弹窗 & 导航 ----
   const [open, setOpen] = useState(false)
-  const [activeSetting, setActiveSetting] = useState<SettingTab>(defaultSetting)
+  const fallbackTab = visibleMenus[0]?.key ?? 'llm-setting'
+  const initialTab = visibleMenus.some((m) => m.key === defaultSetting) ? defaultSetting : fallbackTab
+  const [activeSetting, setActiveSetting] = useState<SettingTab>(initialTab)
 
   // ---- 数据 ----
   const [agentConfig, setAgentConfig] = useState<AgentConfig>({})
@@ -585,24 +602,30 @@ export function ManusSettings({
     if (fetchingRef.current) return
     fetchingRef.current = true
 
-    // 1. Agent + LLM 配置（通常很快）
-    setLoadingConfig(true)
-    Promise.all([
-      configApi.getAgentConfig(),
-      configApi.getLLMConfig(),
-    ])
-      .then(([agent, llm]) => {
-        setAgentConfig(agent)
-        setLlmConfig(llm)
-      })
+    // 1. LLM 配置：组织 owner/admin 可读(租户级)
+    if (isOrgAdmin) {
+      setLoadingConfig(true)
+      configApi
+        .getLLMConfig()
+        .then((llm) => setLlmConfig(llm))
+        .catch((err) => {
+          console.error('[Settings] 获取 LLM 配置失败:', err)
+        })
+        .finally(() => {
+          setLoadingConfig(false)
+        })
+    }
+
+    // 2~4. 平台级配置(通用参数 / MCP / A2A)：仅平台管理员可读
+    if (!isPlatformAdmin) return
+
+    configApi
+      .getAgentConfig()
+      .then((agent) => setAgentConfig(agent))
       .catch((err) => {
-        console.error('[Settings] 获取基础配置失败:', err)
-      })
-      .finally(() => {
-        setLoadingConfig(false)
+        console.error('[Settings] 获取通用配置失败:', err)
       })
 
-    // 2. MCP 服务器列表（可能较慢）
     setLoadingMCP(true)
     configApi
       .getMCPServers()
@@ -616,7 +639,6 @@ export function ManusSettings({
         setLoadingMCP(false)
       })
 
-    // 3. A2A 服务器列表
     setLoadingA2A(true)
     configApi
       .getA2AServers()
@@ -629,7 +651,7 @@ export function ManusSettings({
       .finally(() => {
         setLoadingA2A(false)
       })
-  }, [])
+  }, [isOrgAdmin, isPlatformAdmin])
 
   // 弹窗打开时拉取数据
   useEffect(() => {
@@ -790,7 +812,7 @@ export function ManusSettings({
           {/* 左侧导航菜单 */}
           <div className="max-w-[180px]">
             <div className="flex flex-col gap-0">
-              {SETTING_MENUS.map((menu) => (
+              {visibleMenus.map((menu) => (
                 <Button
                   key={menu.key}
                   variant={activeSetting === menu.key ? 'default' : 'ghost'}
@@ -823,6 +845,7 @@ export function ManusSettings({
                 )}
               </>
             )}
+            {activeSetting === 'members-setting' && <MembersSetting/>}
             {activeSetting === 'a2a-setting' && (
               <A2ASetting
                 servers={a2aServers}
@@ -849,14 +872,16 @@ export function ManusSettings({
           <DialogClose asChild>
             <Button variant="outline" className="cursor-pointer">取消</Button>
           </DialogClose>
-          <Button
-            className="cursor-pointer"
-            disabled={saving}
-            onClick={handleSave}
-          >
-            {saving && <Loader2 className="animate-spin"/>}
-            保存
-          </Button>
+          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting') && (
+            <Button
+              className="cursor-pointer"
+              disabled={saving}
+              onClick={handleSave}
+            >
+              {saving && <Loader2 className="animate-spin"/>}
+              保存
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

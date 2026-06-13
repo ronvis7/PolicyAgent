@@ -7,7 +7,8 @@ import {useAuth} from '@/providers/auth-provider'
 
 export function ChatHeader() {
   const {open, isMobile} = useSidebar()
-  const {user} = useAuth()
+  const {user, role} = useAuth()
+  const canOpenSettings = role === 'owner' || role === 'admin' || !!user?.is_platform_admin
 
   return (
     <header className="flex justify-between items-center w-full py-2 px-4 z-50">
@@ -18,8 +19,8 @@ export function ChatHeader() {
         {/* Logo占位符 */}
         <Link href="/" className="block bg-white w-[80px] h-9 rounded-md"/>
       </div>
-      {/* 右侧设置模态窗 */}
-      {user?.is_platform_admin && <ManusSettings/>}
+      {/* 右侧设置模态窗（组织 owner/admin 或平台管理员可见） */}
+      {canOpenSettings && <ManusSettings/>}
     </header>
   )
 }
