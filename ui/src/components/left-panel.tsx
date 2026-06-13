@@ -12,7 +12,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {Database, KeyRound, Plus} from 'lucide-react'
+import {Building2, Database, KeyRound, Plus} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
@@ -45,6 +45,15 @@ export function LeftPanel() {
             <Kbd>⌘</Kbd>
             <Kbd>K</Kbd>
           </KbdGroup>
+        </Button>
+        {/* 企业档案入口 */}
+        <Button
+          variant="ghost"
+          className="cursor-pointer justify-start mb-1"
+          onClick={() => router.push('/enterprise-profile')}
+        >
+          <Building2 className="size-4"/>
+          企业档案
         </Button>
         {/* 知识库管理入口 */}
         <Button

@@ -3,6 +3,7 @@
 from typing import Callable, Dict, List, Optional
 
 from app.domain.models.app_config import AgentConfig, AppConfig, A2AConfig, LLMConfig, MCPConfig
+from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.membership import Membership
 from app.domain.models.tenant import Tenant
 from app.domain.models.tenant_settings import TenantSettings
@@ -85,6 +86,17 @@ class FakeTenantSettingsRepository:
         self._store[settings.tenant_id] = settings
 
 
+class FakeEnterpriseProfileRepository:
+    def __init__(self, store: Dict[str, EnterpriseProfile]) -> None:
+        self._store = store
+
+    async def get_by_tenant(self, tenant_id: str) -> Optional[EnterpriseProfile]:
+        return self._store.get(tenant_id)
+
+    async def save(self, profile: EnterpriseProfile) -> None:
+        self._store[profile.tenant_id] = profile
+
+
 class FakeUnitOfWork:
     """共享底层 store 的内存级 UoW，commit/flush/rollback 均为空操作。"""
 
@@ -94,11 +106,13 @@ class FakeUnitOfWork:
             memberships: Dict[str, Membership],
             tenant_settings: Dict[str, TenantSettings],
             tenants: Dict[str, Tenant],
+            enterprise_profiles: Dict[str, EnterpriseProfile],
     ) -> None:
         self.user = FakeUserRepository(users)
         self.membership = FakeMembershipRepository(memberships)
         self.tenant_settings = FakeTenantSettingsRepository(tenant_settings)
         self.tenant = FakeTenantRepository(tenants)
+        self.enterprise_profile = FakeEnterpriseProfileRepository(enterprise_profiles)
 
     async def commit(self) -> None: ...
     async def flush(self) -> None: ...
@@ -116,15 +130,17 @@ def make_uow_factory(
         memberships: Optional[Dict[str, Membership]] = None,
         tenant_settings: Optional[Dict[str, TenantSettings]] = None,
         tenants: Optional[Dict[str, Tenant]] = None,
+        enterprise_profiles: Optional[Dict[str, EnterpriseProfile]] = None,
 ) -> Callable[[], FakeUnitOfWork]:
     """构造一个每次返回新 UoW、但共享同一底层 store 的工厂(模拟跨事务持久化)。"""
     users = users if users is not None else {}
     memberships = memberships if memberships is not None else {}
     tenant_settings = tenant_settings if tenant_settings is not None else {}
     tenants = tenants if tenants is not None else {}
+    enterprise_profiles = enterprise_profiles if enterprise_profiles is not None else {}
 
     def factory() -> FakeUnitOfWork:
-        return FakeUnitOfWork(users, memberships, tenant_settings, tenants)
+        return FakeUnitOfWork(users, memberships, tenant_settings, tenants, enterprise_profiles)
 
     return factory
 

@@ -80,6 +80,13 @@ export type {
   AddMemberParams,
 } from "./membership";
 
+// 企业档案类型
+export type {
+  EnterpriseScale,
+  EnterpriseProfile,
+  UpdateEnterpriseProfileParams,
+} from "./profile";
+
 // 模块 API
 export { authApi } from "./auth";
 export { configApi } from "./config";
@@ -87,4 +94,5 @@ export { fileApi } from "./file";
 export { sessionApi } from "./session";
 export { knowledgeApi, isFileProcessing, isFileFailed } from "./knowledge";
 export { membershipApi } from "./membership";
+export { profileApi } from "./profile";
 

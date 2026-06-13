@@ -5,6 +5,7 @@ from .tenant import TenantModel
 from .user import UserModel
 from .membership import MembershipModel
 from .tenant_settings import TenantSettingsModel
+from .enterprise_profile import EnterpriseProfileModel
 from .knowledge_base import KnowledgeBaseModel
 from .knowledge_file import KnowledgeFileModel
 from .document_chunk import DocumentChunkModel
@@ -17,6 +18,7 @@ __all__ = [
     "UserModel",
     "MembershipModel",
     "TenantSettingsModel",
+    "EnterpriseProfileModel",
     "KnowledgeBaseModel",
     "KnowledgeFileModel",
     "DocumentChunkModel",

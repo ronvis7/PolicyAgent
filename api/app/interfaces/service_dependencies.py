@@ -9,6 +9,7 @@ from app.application.errors.exceptions import UnauthorizedError
 from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.auth_service import AuthService
+from app.application.services.enterprise_profile_service import EnterpriseProfileService
 from app.application.services.file_service import FileService
 from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.membership_service import MembershipService
@@ -223,3 +224,8 @@ def get_tenant_settings_service() -> TenantSettingsService:
 def get_membership_service() -> MembershipService:
     """获取组织成员管理服务"""
     return MembershipService(uow_factory=get_uow)
+
+
+def get_enterprise_profile_service() -> EnterpriseProfileService:
+    """获取企业档案服务(按租户读写结构化档案)"""
+    return EnterpriseProfileService(uow_factory=get_uow)
