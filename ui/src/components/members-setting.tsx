@@ -37,6 +37,7 @@ const ROLE_LABEL: Record<MembershipRole, string> = {
 export function MembersSetting() {
   const {user} = useAuth()
   const [members, setMembers] = useState<MemberItem[]>([])
+  const [requests, setRequests] = useState<MemberItem[]>([])
   const [loading, setLoading] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [addEmail, setAddEmail] = useState('')
@@ -50,11 +51,13 @@ export function MembersSetting() {
     if (fetchingRef.current) return
     fetchingRef.current = true
     setLoading(true)
-    membershipApi
-      .list()
-      .then((data) => setMembers(data?.members ?? []))
+    Promise.all([membershipApi.list(), membershipApi.listRequests()])
+      .then(([memberData, requestData]) => {
+        setMembers(memberData?.members ?? [])
+        setRequests(requestData?.members ?? [])
+      })
       .catch((err) => {
-        console.error('[Members] 获取成员列表失败:', err)
+        console.error('[Members] 获取成员/申请列表失败:', err)
         toast.error(err instanceof Error ? err.message : '获取成员列表失败')
       })
       .finally(() => {
@@ -85,6 +88,32 @@ export function MembersSetting() {
       toast.error(err instanceof Error ? err.message : '添加成员失败')
     } finally {
       setAdding(false)
+    }
+  }
+
+  const handleApprove = async (member: MemberItem) => {
+    setBusyId(member.membership_id)
+    try {
+      await membershipApi.approve(member.membership_id)
+      toast.success(`已批准 ${member.email} 加入`)
+      fetchMembers()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '批准失败')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleReject = async (member: MemberItem) => {
+    setBusyId(member.membership_id)
+    try {
+      await membershipApi.reject(member.membership_id)
+      toast.success(`已拒绝 ${member.email} 的申请`)
+      setRequests((prev) => prev.filter((m) => m.membership_id !== member.membership_id))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '拒绝失败')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -182,6 +211,54 @@ export function MembersSetting() {
           <FieldDescription className="text-sm">
             管理本组织成员：添加已注册用户、将成员设为管理员或移除。所有者不可被变更或移除。
           </FieldDescription>
+
+          {/* 待审批的加入申请 */}
+          {!loading && requests.length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50/60 p-3">
+              <div className="mb-2 text-sm font-semibold text-amber-700">
+                待审批的加入申请（{requests.length}）
+              </div>
+              <ItemGroup className="gap-2">
+                {requests.map((req) => {
+                  const busy = busyId === req.membership_id
+                  return (
+                    <Item key={req.membership_id} variant="outline" className="bg-white">
+                      <ItemContent>
+                        <ItemTitle className="w-full flex justify-between items-center text-sm font-medium text-gray-700">
+                          <div className="flex flex-col">
+                            <span>{req.display_name || req.email}</span>
+                            <span className="text-xs text-muted-foreground">{req.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="xs"
+                              className="cursor-pointer"
+                              disabled={busy}
+                              onClick={() => handleApprove(req)}
+                            >
+                              {busy && <Loader2 className="animate-spin"/>}
+                              批准
+                            </Button>
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              className="cursor-pointer"
+                              disabled={busy}
+                              onClick={() => handleReject(req)}
+                            >
+                              拒绝
+                            </Button>
+                          </div>
+                        </ItemTitle>
+                      </ItemContent>
+                    </Item>
+                  )
+                })}
+              </ItemGroup>
+            </div>
+          )}
 
           {loading && (
             <div className="flex justify-center py-8">

@@ -56,6 +56,59 @@ async def list_members(
     return Response.success(data=ListMembersResponse(members=[_to_item(v) for v in views]))
 
 
+@router.get(
+    path="/requests",
+    response_model=Response[ListMembersResponse],
+    summary="获取待审批的加入申请",
+    description="返回当前组织 pending 状态的加入申请(仅 owner/admin)",
+)
+async def list_requests(
+        current_user: CurrentUser = Depends(_require_org_admin),
+        membership_service: MembershipService = Depends(get_membership_service),
+) -> Response[ListMembersResponse]:
+    """获取待审批的加入申请"""
+    views = await membership_service.list_pending_requests(current_user.tenant_id)
+    return Response.success(data=ListMembersResponse(members=[_to_item(v) for v in views]))
+
+
+@router.post(
+    path="/{membership_id}/approve",
+    response_model=Response[MemberItem],
+    summary="批准加入申请",
+    description="批准一条 pending 加入申请，成员转为正式成员(仅 owner/admin)",
+)
+async def approve_request(
+        membership_id: str,
+        current_user: CurrentUser = Depends(_require_org_admin),
+        membership_service: MembershipService = Depends(get_membership_service),
+) -> Response[MemberItem]:
+    """批准加入申请"""
+    view = await membership_service.approve_request(
+        tenant_id=current_user.tenant_id,
+        membership_id=membership_id,
+    )
+    return Response.success(msg="已批准加入申请", data=_to_item(view))
+
+
+@router.post(
+    path="/{membership_id}/reject",
+    response_model=Response[dict],
+    summary="拒绝加入申请",
+    description="拒绝一条 pending 加入申请(仅 owner/admin)",
+)
+async def reject_request(
+        membership_id: str,
+        current_user: CurrentUser = Depends(_require_org_admin),
+        membership_service: MembershipService = Depends(get_membership_service),
+) -> Response[dict]:
+    """拒绝加入申请"""
+    await membership_service.reject_request(
+        tenant_id=current_user.tenant_id,
+        membership_id=membership_id,
+    )
+    return Response.success(msg="已拒绝加入申请")
+
+
 @router.post(
     path="",
     response_model=Response[MemberItem],

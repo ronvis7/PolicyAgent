@@ -16,6 +16,7 @@ class MembershipStatus(str, Enum):
     """成员关系状态枚举"""
     ACTIVE = "active"  # 已加入
     INVITED = "invited"  # 已邀请待接受
+    PENDING = "pending"  # 用户自助申请加入，待 owner/admin 审批
     DISABLED = "disabled"  # 已移除/禁用
 
 

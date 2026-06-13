@@ -22,11 +22,13 @@
 - **会话级 KB scope 选择器**：Session 加 `knowledge_base_id` 列 + 迁移（FK ON DELETE SET NULL）+ 绑定端点 `POST /sessions/{id}/knowledge-base` + 聊天输入区选择器。绑定为**硬限定**（覆盖 Agent 自选）。门禁全绿，迁移已真机执行落库（`a1b2c3d4e5f6 head`），UI 功能性回归由项目组自测。
 - **共享开发数据库**：远程 PostgreSQL + pgvector 通过 SSH 隧道接入；统一启动脚本支持远程优先、本地强制和远程不可用自动回退。
 - **租户级 LLM key + 成员管理（P4 BYO key / P6 RBAC）**：LLM 配置由平台统一改为按租户隔离（`tenant_settings` 表 + 迁移 `b2c3d4e5f6a7`），组织 owner/admin 在设置页配自己组织的 key，未配回落平台默认；Agent 运行时按当前登录租户取 key。`/app-config/llm` 门禁从平台管理员改为组织 owner/admin（拆到 `tenant_llm_routes`）。新增成员管理 `/members`（列表/按邮箱加已注册用户/改角色/移除，`MembershipService`）。前端：设置弹窗按角色过滤标签页 + 新增「组织成员」页，设置入口对 owner/admin 开放。16 个离线单元测试绿，后端导入/前端 tsc+eslint 全绿。**分支 `feat/tenant-llm-key-and-membership`，迁移未在真机执行**（需 DB 连通后随 api 启动自动 upgrade）。
+- **注册重构 + 加入审批（同分支）**：注册拆「创建组织/加入组织」两入口；共享组织名应用层唯一、首个创建者永久 owner；加入＝自动建个人工作区（owner，未批准前用自己 key）+ 对目标组织建 `pending` 申请，owner/admin 审批通过才成正式成员。新增 `Tenant.is_personal`（迁移 `c4d5e6f7a8b9`，现 head）、`MembershipStatus.PENDING`、公开 `GET /auth/orgs` 检索、`/members/requests|approve|reject`。前端注册页 create/join 切换 + 组织检索、成员页待审批区。服务层单测 28 绿、前端 tsc/eslint 绿。**存量重复同名组织待 DB 连通后人工去重**。
 
 ## 未完成
 - 可选：聊天内问政策验证引用、单文件删除端点、上传前端校验、app 日志输出到 stdout。
 - 前端认证闭环真机联调；多租户自动化测试。
-- 成员管理已实现基础闭环（加/改角色/移除），尚缺：邀请待接受流程（无邮件系统，当前仅能加已注册用户）、所有权转移、最后一名 owner 保护的更细规则。
+- 成员管理已实现基础闭环（加/改角色/移除/审批加入申请），尚缺：所有权转移、最后一名 owner 保护的更细规则。
+- **存量重复同名组织清理**（历史 register 产生的同名租户，如两个「重庆理工大学」）待 DB 连通后人工去重；组织名 DB 唯一索引待去重后补。
 - 政策爬取；报告生成流水线；GitHub Actions 与分支保护。
 
 ## 当前最高优先级

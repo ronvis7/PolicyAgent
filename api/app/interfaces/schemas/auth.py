@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Literal
 
 from pydantic import BaseModel, Field
 
@@ -7,11 +7,28 @@ EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 
 class RegisterRequest(BaseModel):
-    """注册请求"""
+    """注册请求。
+
+    mode="create"：填 org_name 创建新组织(注册者为 owner)。
+    mode="join"：填 org_id 申请加入已有组织(待审批，先在个人工作区使用)。
+    """
     email: str = Field(pattern=EMAIL_PATTERN, description="邮箱")
     password: str = Field(min_length=8, max_length=128, description="密码(至少8位)")
     display_name: str = Field(default="", max_length=255, description="显示名称")
-    org_name: str = Field(default="", max_length=255, description="组织名称")
+    mode: Literal["create", "join"] = Field(default="create", description="注册模式")
+    org_name: str = Field(default="", max_length=255, description="组织名称(创建模式)")
+    org_id: str = Field(default="", max_length=255, description="目标组织id(加入模式)")
+
+
+class OrgOption(BaseModel):
+    """可加入的组织选项(注册页选择用)"""
+    id: str
+    name: str
+
+
+class ListOrgsResponse(BaseModel):
+    """可加入组织列表响应"""
+    orgs: List[OrgOption] = Field(default_factory=list)
 
 
 class LoginRequest(BaseModel):

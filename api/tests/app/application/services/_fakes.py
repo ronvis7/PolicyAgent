@@ -4,6 +4,7 @@ from typing import Callable, Dict, List, Optional
 
 from app.domain.models.app_config import AgentConfig, AppConfig, A2AConfig, LLMConfig, MCPConfig
 from app.domain.models.membership import Membership
+from app.domain.models.tenant import Tenant
 from app.domain.models.tenant_settings import TenantSettings
 from app.domain.models.user import User
 
@@ -43,6 +44,36 @@ class FakeMembershipRepository:
         return sorted(items, key=lambda m: m.created_at)
 
 
+class FakeTenantRepository:
+    def __init__(self, store: Dict[str, Tenant]) -> None:
+        self._store = store
+
+    async def save(self, tenant: Tenant) -> None:
+        self._store[tenant.id] = tenant
+
+    async def get_by_id(self, tenant_id: str) -> Optional[Tenant]:
+        return self._store.get(tenant_id)
+
+    async def get_by_slug(self, slug: str) -> Optional[Tenant]:
+        return next((t for t in self._store.values() if t.slug == slug), None)
+
+    async def get_shared_by_name(self, name: str) -> Optional[Tenant]:
+        normalized = name.strip().lower()
+        return next(
+            (t for t in self._store.values()
+             if not t.is_personal and t.name.strip().lower() == normalized),
+            None,
+        )
+
+    async def list_shared(self, query: str = "", limit: int = 20) -> List[Tenant]:
+        normalized = query.strip().lower()
+        items = [
+            t for t in self._store.values()
+            if not t.is_personal and (not normalized or normalized in t.name.lower())
+        ]
+        return sorted(items, key=lambda t: t.created_at)[:limit]
+
+
 class FakeTenantSettingsRepository:
     def __init__(self, store: Dict[str, TenantSettings]) -> None:
         self._store = store
@@ -62,10 +93,12 @@ class FakeUnitOfWork:
             users: Dict[str, User],
             memberships: Dict[str, Membership],
             tenant_settings: Dict[str, TenantSettings],
+            tenants: Dict[str, Tenant],
     ) -> None:
         self.user = FakeUserRepository(users)
         self.membership = FakeMembershipRepository(memberships)
         self.tenant_settings = FakeTenantSettingsRepository(tenant_settings)
+        self.tenant = FakeTenantRepository(tenants)
 
     async def commit(self) -> None: ...
     async def flush(self) -> None: ...
@@ -82,14 +115,16 @@ def make_uow_factory(
         users: Optional[Dict[str, User]] = None,
         memberships: Optional[Dict[str, Membership]] = None,
         tenant_settings: Optional[Dict[str, TenantSettings]] = None,
+        tenants: Optional[Dict[str, Tenant]] = None,
 ) -> Callable[[], FakeUnitOfWork]:
     """构造一个每次返回新 UoW、但共享同一底层 store 的工厂(模拟跨事务持久化)。"""
     users = users if users is not None else {}
     memberships = memberships if memberships is not None else {}
     tenant_settings = tenant_settings if tenant_settings is not None else {}
+    tenants = tenants if tenants is not None else {}
 
     def factory() -> FakeUnitOfWork:
-        return FakeUnitOfWork(users, memberships, tenant_settings)
+        return FakeUnitOfWork(users, memberships, tenant_settings, tenants)
 
     return factory
 

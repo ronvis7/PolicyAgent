@@ -8,8 +8,10 @@ from typing import Callable, List
 from pydantic import BaseModel
 
 from app.application.errors.exceptions import (
+    BadRequestError,
     ConflictError,
     ForbiddenError,
+    NotFoundError,
     UnauthorizedError,
 )
 from app.domain.external.password_hasher import PasswordHasher
@@ -65,50 +67,103 @@ class AuthService:
             email: str,
             password: str,
             display_name: str,
-            org_name: str,
+            mode: str,
+            org_name: str = "",
+            org_id: str = "",
     ) -> AuthResult:
-        """注册：创建用户 + 组织 + owner成员关系，并签发令牌"""
+        """注册：创建用户，并按 mode 创建新组织或申请加入已有组织，签发令牌。
+
+        - mode="create"：组织名规范化后唯一，注册者成为该组织 owner。
+        - mode="join"：自动创建个人工作区(owner)作为激活租户，并对目标组织建立
+          pending 加入申请，待该组织 owner/admin 审批后才成为正式成员。
+        """
         email = self._normalize_email(email)
         async with self.uow_factory() as uow:
             # 1.邮箱唯一性校验
             if await uow.user.get_by_email(email):
                 raise ConflictError("该邮箱已注册，请直接登录")
 
-            # 2.创建租户(组织)
-            base_name = org_name.strip() or f"{display_name or email.split('@')[0]} 的组织"
-            slug = await self._generate_unique_slug(uow, org_name or display_name or email.split("@")[0])
-            tenant = Tenant(name=base_name, slug=slug, plan=TenantPlan.FREE)
-            await uow.tenant.save(tenant)
-
-            # 3.创建用户
+            # 2.创建用户
             user = User(
                 email=email,
                 password_hash=self.password_hasher.hash(password),
                 display_name=display_name.strip() or email.split("@")[0],
             )
             await uow.user.save(user)
+            await uow.flush()  # 先 flush 父行，避免 membership 外键约束失败
 
-            # 4.先flush租户与用户，确保父行已写入，避免membership外键约束失败
-            await uow.flush()
+            # 3.按模式创建组织/工作区与成员关系
+            if mode == "create":
+                active_tenant = await self._register_create_org(uow, user, org_name)
+            elif mode == "join":
+                active_tenant = await self._register_join_org(uow, user, org_id)
+            else:
+                raise BadRequestError("无效的注册模式")
 
-            # 5.创建owner成员关系
-            membership = Membership(
-                user_id=user.id,
-                tenant_id=tenant.id,
-                role=MembershipRole.OWNER,
-                status=MembershipStatus.ACTIVE,
-            )
-            await uow.membership.save(membership)
-
-        # 6.事务提交后签发令牌
-        tokens = await self._issue_tokens(user.id, tenant.id, MembershipRole.OWNER.value)
+        # 4.事务提交后签发令牌(激活租户内注册者均为 owner)
+        role = MembershipRole.OWNER.value
+        tokens = await self._issue_tokens(user.id, active_tenant.id, role)
         return AuthResult(
             user=user,
-            active_tenant=tenant,
-            role=MembershipRole.OWNER.value,
-            tenants=[tenant],
+            active_tenant=active_tenant,
+            role=role,
+            tenants=[active_tenant],
             tokens=tokens,
         )
+
+    async def _register_create_org(self, uow: IUnitOfWork, user: User, org_name: str) -> Tenant:
+        """创建新共享组织并将注册者设为 owner，返回该组织"""
+        name = (org_name or "").strip()
+        if not name:
+            raise BadRequestError("请填写组织名称")
+        if await uow.tenant.get_shared_by_name(name):
+            raise ConflictError("该组织名已被占用；若要加入请选择『加入已有组织』")
+
+        slug = await self._generate_unique_slug(uow, name)
+        tenant = Tenant(name=name, slug=slug, plan=TenantPlan.FREE, is_personal=False)
+        await uow.tenant.save(tenant)
+        await uow.flush()
+
+        await uow.membership.save(Membership(
+            user_id=user.id,
+            tenant_id=tenant.id,
+            role=MembershipRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+        ))
+        return tenant
+
+    async def _register_join_org(self, uow: IUnitOfWork, user: User, org_id: str) -> Tenant:
+        """创建个人工作区(owner，作为激活租户)并对目标组织建立 pending 申请，返回工作区"""
+        target = await uow.tenant.get_by_id(org_id) if org_id else None
+        if target is None or target.is_personal:
+            raise NotFoundError("目标组织不存在，请重新选择")
+
+        # 个人工作区：注册者 owner、激活租户，未获批准前在此用自己的 key
+        workspace_name = f"{user.display_name} 的工作区"
+        slug = await self._generate_unique_slug(uow, user.email.split("@")[0])
+        workspace = Tenant(name=workspace_name, slug=slug, plan=TenantPlan.FREE, is_personal=True)
+        await uow.tenant.save(workspace)
+        await uow.flush()
+
+        await uow.membership.save(Membership(
+            user_id=user.id,
+            tenant_id=workspace.id,
+            role=MembershipRole.OWNER,
+            status=MembershipStatus.ACTIVE,
+        ))
+        # 对目标组织的 pending 加入申请(待 owner/admin 审批)
+        await uow.membership.save(Membership(
+            user_id=user.id,
+            tenant_id=target.id,
+            role=MembershipRole.MEMBER,
+            status=MembershipStatus.PENDING,
+        ))
+        return workspace
+
+    async def list_joinable_orgs(self, query: str = "") -> List[Tenant]:
+        """检索可申请加入的共享组织(供注册页选择)"""
+        async with self.uow_factory() as uow:
+            return await uow.tenant.list_shared(query=query, limit=20)
 
     async def login(self, email: str, password: str) -> AuthResult:
         """登录：校验密码，默认激活第一个组织并签发令牌"""

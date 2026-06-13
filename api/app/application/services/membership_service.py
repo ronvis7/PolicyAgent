@@ -43,18 +43,46 @@ class MembershipService:
         self.uow_factory = uow_factory
 
     async def list_members(self, tenant_id: str) -> List[MemberView]:
-        """列出某组织的全部有效成员(按加入时间升序)"""
+        """列出某组织的全部正式成员(active，按加入时间升序)"""
+        return await self._list_by_status(tenant_id, MembershipStatus.ACTIVE)
+
+    async def list_pending_requests(self, tenant_id: str) -> List[MemberView]:
+        """列出某组织待审批的加入申请(pending)"""
+        return await self._list_by_status(tenant_id, MembershipStatus.PENDING)
+
+    async def _list_by_status(self, tenant_id: str, status: MembershipStatus) -> List[MemberView]:
+        """按状态列出某组织成员关系并聚合用户信息"""
         async with self.uow_factory() as uow:
             memberships = await uow.membership.list_by_tenant(tenant_id)
             views: List[MemberView] = []
             for membership in memberships:
-                if membership.status == MembershipStatus.DISABLED:
+                if membership.status != status:
                     continue
                 user = await uow.user.get_by_id(membership.user_id)
                 if user is None:
                     continue
                 views.append(self._to_view(membership, user))
         return views
+
+    async def approve_request(self, tenant_id: str, membership_id: str) -> MemberView:
+        """批准一条加入申请：pending → active"""
+        async with self.uow_factory() as uow:
+            membership, user = await self._load_pending(uow, tenant_id, membership_id)
+            approved = membership.model_copy(
+                update={"status": MembershipStatus.ACTIVE, "updated_at": datetime.now()}
+            )
+            await uow.membership.save(approved)
+            view = self._to_view(approved, user)
+        return view
+
+    async def reject_request(self, tenant_id: str, membership_id: str) -> None:
+        """拒绝一条加入申请：pending → disabled"""
+        async with self.uow_factory() as uow:
+            membership, _ = await self._load_pending(uow, tenant_id, membership_id)
+            rejected = membership.model_copy(
+                update={"status": MembershipStatus.DISABLED, "updated_at": datetime.now()}
+            )
+            await uow.membership.save(rejected)
 
     async def add_member_by_email(
             self,
@@ -156,6 +184,22 @@ class MembershipService:
         user = await uow.user.get_by_id(membership.user_id)
         if user is None:
             raise NotFoundError("成员对应的用户不存在")
+        return membership, user
+
+    @staticmethod
+    async def _load_pending(
+            uow: IUnitOfWork,
+            tenant_id: str,
+            membership_id: str,
+    ) -> tuple[Membership, User]:
+        """按 membership_id 在本组织范围内加载一条 pending 加入申请"""
+        memberships = await uow.membership.list_by_tenant(tenant_id)
+        membership = next((m for m in memberships if m.id == membership_id), None)
+        if membership is None or membership.status != MembershipStatus.PENDING:
+            raise NotFoundError("加入申请不存在或已处理")
+        user = await uow.user.get_by_id(membership.user_id)
+        if user is None:
+            raise NotFoundError("申请对应的用户不存在")
         return membership, user
 
     @staticmethod

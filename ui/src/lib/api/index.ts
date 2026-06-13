@@ -58,6 +58,9 @@ export type {
   AuthData,
   MeData,
   RegisterParams,
+  RegisterMode,
+  OrgOption,
+  ListOrgsData,
   LoginParams,
 } from "./auth";
 

@@ -125,3 +125,62 @@ def test_readd_removed_member_reactivates() -> None:
 
     assert view.role == "admin"
     assert view.status == "active"
+
+
+# ---------- 加入申请审批流程 ----------
+
+def _seed_with_pending():
+    """在 _seed 基础上追加一名 pending 申请者 dave"""
+    service, users, memberships = _seed()
+    dave = User(id="u-dave", email="dave@x.com", display_name="Dave")
+    users[dave.id] = dave
+    pending = Membership(
+        id="m-dave", user_id=dave.id, tenant_id=TENANT,
+        role=MembershipRole.MEMBER, status=MembershipStatus.PENDING,
+    )
+    memberships[pending.id] = pending
+    return service
+
+
+def test_list_pending_requests_only_pending() -> None:
+    service = _seed_with_pending()
+
+    requests = asyncio.run(service.list_pending_requests(TENANT))
+
+    assert {r.email for r in requests} == {"dave@x.com"}
+
+
+def test_pending_not_in_member_list() -> None:
+    service = _seed_with_pending()
+
+    members = asyncio.run(service.list_members(TENANT))
+
+    assert "dave@x.com" not in {m.email for m in members}
+
+
+def test_approve_request_activates() -> None:
+    service = _seed_with_pending()
+
+    view = asyncio.run(service.approve_request(TENANT, "m-dave"))
+
+    assert view.status == "active"
+    members = asyncio.run(service.list_members(TENANT))
+    assert "dave@x.com" in {m.email for m in members}
+
+
+def test_reject_request_disables() -> None:
+    service = _seed_with_pending()
+
+    asyncio.run(service.reject_request(TENANT, "m-dave"))
+
+    members = asyncio.run(service.list_members(TENANT))
+    assert "dave@x.com" not in {m.email for m in members}
+    pending = asyncio.run(service.list_pending_requests(TENANT))
+    assert pending == []
+
+
+def test_approve_nonexistent_request_raises() -> None:
+    service = _seed_with_pending()
+
+    with pytest.raises(NotFoundError):
+        asyncio.run(service.approve_request(TENANT, "m-carol"))  # carol 是 active，非 pending

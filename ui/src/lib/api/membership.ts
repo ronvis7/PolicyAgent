@@ -49,4 +49,19 @@ export const membershipApi = {
   remove: (membershipId: string): Promise<void> => {
     return post<void>(`/members/${membershipId}/delete`, {});
   },
+
+  /** 获取待审批的加入申请 */
+  listRequests: (): Promise<ListMembersData> => {
+    return get<ListMembersData>("/members/requests");
+  },
+
+  /** 批准加入申请 */
+  approve: (membershipId: string): Promise<MemberItem> => {
+    return post<MemberItem>(`/members/${membershipId}/approve`, {});
+  },
+
+  /** 拒绝加入申请 */
+  reject: (membershipId: string): Promise<void> => {
+    return post<void>(`/members/${membershipId}/reject`, {});
+  },
 };

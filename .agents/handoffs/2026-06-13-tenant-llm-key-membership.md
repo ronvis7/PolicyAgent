@@ -50,3 +50,32 @@ Issue：待创建
 
 - `get_agent_service` 改 async：已确认仅 session 路由（DI 注入）与 main.py（改用 `get_default_agent_service`）两处消费，无遗漏。
 - 多分支并发对共享库迁移的约束仍适用；本迁移为纯新增表，冲突风险低。
+
+---
+
+## 追加：注册重构 + 加入审批（2026-06-13 同分支）
+
+### 背景
+用户实测发现：注册时填已存在的组织名（如「重庆理工大学」），会**新建一个同名组织并让你当 owner**，而非加入已有组织——因为 `register` 一律新建租户、组织名无唯一约束。
+
+### 决策
+- 注册拆「**创建组织 / 加入组织**」两入口；共享组织名规范化后唯一，首个创建者永久 owner。
+- 加入＝自助申请：注册时自动建**个人工作区**（owner、激活租户，未批准前用自己的 key），并对目标组织建 `pending` 申请，owner/admin 审批通过才成正式成员。
+- 已存在的重复同名组织：保留最早、清掉重复（**待 DB 连通后人工执行**，未做）。
+
+### 已完成
+- `Tenant` 加 `is_personal`（domain+ORM+迁移 `c4d5e6f7a8b9`，down=`b2c3d4e5f6a7`，现 head）；`MembershipStatus` 加 `PENDING`。
+- `TenantRepository.get_shared_by_name`（规范化唯一性）/`list_shared`（加入检索）+ DB 实现。
+- `AuthService.register(mode, org_name, org_id)` 拆 `_register_create_org`/`_register_join_org`；`list_joinable_orgs`。组织名唯一在**应用层**校验（存量有历史重复，暂不加 DB 唯一索引以免阻塞启动）。
+- 公开端点 `GET /auth/orgs?q=`（免登录检索可加入组织）。
+- `MembershipService` 加 `list_pending_requests`/`approve_request`/`reject_request`；`list_members` 改为只列 active。路由 `GET /members/requests`、`POST /members/{id}/approve|reject`（owner/admin）。
+- 前端：注册页 create/join 切换 + 组织防抖检索选择；成员页顶部「待审批加入申请」区（批准/拒绝）；`authApi.listOrgs`、`membershipApi.listRequests/approve/reject`、`RegisterParams.mode/org_id`。
+
+### 验证
+- 后端 `py_compile`/导入 OK；`alembic heads` 单一 `c4d5e6f7a8b9`；服务层单测 **28 passed**（新增 register 7 + 审批 5）。
+- 前端 `tsc`/`eslint` exit 0。
+
+### 剩余/注意
+- **存量重复同名组织未清理**（待 DB 连通）；DB 唯一索引待去重后另起迁移补。
+- 加入获批后，用户需重新登录/`/auth/me` 刷新才会在租户切换器看到新组织（pending 不进 active 列表）。
+- 组织名唯一仅应用层校验，并发创建同名有极小竞态（小规模可接受）。
