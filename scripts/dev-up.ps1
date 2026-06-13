@@ -89,13 +89,19 @@ function Start-RemoteTunnel {
     $sshOptions = @(
         "-p", $sshPort,
         "-o", "BatchMode=yes",
-        "-o", "ConnectTimeout=8"
+        "-o", "ConnectTimeout=8",
+        # 首次连接新主机时自动信任其 host key（自愈）：服务器重建或换开发机后，
+        # 缺失的 host key 在 BatchMode 下会让 SSH 静默失败，被误报成"PG 不可用"。
+        # accept-new 只补新增、不覆盖变更，host key 被篡改仍会拒绝，安全。
+        "-o", "StrictHostKeyChecking=accept-new"
     )
     if ($env:REMOTE_SSH_KEY) {
         $keyPath = [Environment]::ExpandEnvironmentVariables($env:REMOTE_SSH_KEY)
         $sshOptions += @("-i", $keyPath)
     }
 
+    # 探测 SSH 上的远程 PostgreSQL 端口；失败时再单独判一次 SSH 连通性，
+    # 以区分"SSH 连不上(网络/密钥/host key)"和"SSH 通但 PG 没起来"。
     $probeCommand = "timeout 3 bash -c '</dev/tcp/${remoteDbHost}/${remoteDbPort}'"
     $previousErrorActionPreference = $ErrorActionPreference
     try {
@@ -107,7 +113,22 @@ function Start-RemoteTunnel {
         $ErrorActionPreference = $previousErrorActionPreference
     }
     if ($probeExitCode -ne 0) {
-        Write-Warning "Remote server or PostgreSQL is unavailable."
+        # 用一次最轻量的命令判断 SSH 本身是否能登录，给出可定位的报错
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            & $ssh.Source @sshOptions $target "true" 2>$null
+            $sshExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($sshExitCode -ne 0) {
+            Write-Warning "Cannot SSH to $target (check network, key '$($env:REMOTE_SSH_KEY)', or a changed host key in ~/.ssh/known_hosts)."
+        }
+        else {
+            Write-Warning "SSH OK, but remote PostgreSQL ${remoteDbHost}:${remoteDbPort} is unreachable (is the policy-postgres container running on the server?)."
+        }
         return $false
     }
 
