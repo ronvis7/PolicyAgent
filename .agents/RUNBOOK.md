@@ -18,6 +18,34 @@ docker compose config --no-env-resolution -q
 
 ## Docker 启动
 
+推荐使用统一开发启动脚本。默认 `Auto` 模式优先连接远程共享数据库，远程服务器或 SSH 隧道不可用时自动回退到本地 PostgreSQL：
+
+```powershell
+.\dev-up.cmd -Build
+```
+
+可显式选择数据库模式：
+
+```powershell
+.\dev-up.cmd -Mode Remote -Build
+.\dev-up.cmd -Mode Local -Build
+```
+
+拉取当前分支后启动（仅在工作区干净时执行）：
+
+```powershell
+.\dev-up.cmd -Pull -Build
+```
+
+停止服务：
+
+```powershell
+.\dev-down.cmd
+.\dev-down.cmd -StopTunnel
+```
+
+仍可直接使用标准 Compose 启动本地数据库模式：
+
 ```powershell
 docker compose up -d --build
 docker compose ps
@@ -41,6 +69,24 @@ docker compose exec policy-api alembic revision --autogenerate -m "change descri
 ```
 
 必须人工检查自动生成的迁移内容。
+
+## 通过 SSH 隧道连接远程 PostgreSQL
+
+远程 PostgreSQL 应只绑定服务器回环地址，不直接暴露公网 `5432`。每台开发机首次使用时：
+
+```powershell
+Copy-Item .env.remote.example .env.remote
+```
+
+填写 `.env.remote` 中的服务器、SSH 私钥和数据库凭据。SSH 公钥必须提前加入服务器的 `authorized_keys`；自动模式使用 `BatchMode=yes`，不会保存或交互输入 SSH 密码。
+
+```powershell
+.\dev-up.cmd -Build
+```
+
+脚本会复用现有 `15432` 隧道；没有隧道时在后台自动创建。远程模式会停止未使用的本地 `policy-postgres`，自动回退或 `Local` 模式会重新启动它并使用 `.env` 中的本地数据库配置。
+
+多台开发机共享数据库时必须保持 Alembic 版本一致，禁止让不同迁移分支同时修改共享数据库。
 
 ## 后端验证
 
@@ -85,4 +131,3 @@ npm.cmd run build
 - 最关键错误。
 - 已排除原因。
 - 下一步复现命令。
-

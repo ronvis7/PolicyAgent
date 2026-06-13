@@ -1,0 +1,9 @@
+services:
+  policy-postgres:
+    profiles:
+      - local-database
+
+  policy-api:
+    depends_on: !override
+      policy-redis:
+        condition: service_healthy
