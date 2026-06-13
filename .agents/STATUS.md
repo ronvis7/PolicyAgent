@@ -1,6 +1,6 @@
 # 当前状态
 
-最后更新：2026-06-12
+最后更新：2026-06-13
 
 ## 仓库状态
 
@@ -20,6 +20,7 @@
 - **RAG R3**：`KnowledgeBaseTool` 接入 Agent，自主检索 + 带来源（文件名/页码/相似度）作答，引用经 SSE 渲染来源卡片。
 - **RAG R4**：知识库管理前端页（`/knowledge`：建库/上传/FileStatus 进度轮询/删除，独立非聊天模块）。已真机联调通过（建库→上传→indexed、级联删除、页面 SSR 均 OK），并修复删除端点 `Response[None]` 致 500 的后端 bug（`feat/rag-r4-knowledge-ui` 分支）。
 - **会话级 KB scope 选择器**：Session 加 `knowledge_base_id` 列 + 迁移（FK ON DELETE SET NULL）+ 绑定端点 `POST /sessions/{id}/knowledge-base` + 聊天输入区选择器。绑定为**硬限定**（覆盖 Agent 自选）。门禁全绿，迁移已真机执行落库（`a1b2c3d4e5f6 head`），UI 功能性回归由项目组自测。
+- **共享开发数据库**：远程 PostgreSQL + pgvector 通过 SSH 隧道接入；统一启动脚本支持远程优先、本地强制和远程不可用自动回退。
 
 ## 未完成
 - 可选：聊天内问政策验证引用、单文件删除端点、上传前端校验、app 日志输出到 stdout。
@@ -36,6 +37,7 @@
 
 - 后端多租户测试覆盖不足，跨租户读取风险未系统验证。
 - `.env`（腾讯 COS、`EMBED_API_KEY`）与 `api/config.yaml` 是 Docker 启动前置；含真实机密，保持 gitignored。
+- 共享远程数据库依赖每台开发机的一次性 SSH 密钥和 `.env.remote` 配置；不同分支不得并发执行不兼容迁移。
 - 检索默认全库，租户库多时为顺序循环，规模大需批量/并发或会话级 scope 收窄。
 - 十天范围紧，新增基础设施须直接服务主链路。
 
