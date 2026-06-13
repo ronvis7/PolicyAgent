@@ -1,8 +1,8 @@
 # 企业档案 ①（结构化档案：表单 + 存储 + 档案页）
 
 Issue：待创建
-分支：`feat/enterprise-profile`（未合并；迁移未真机执行）
-更新时间：2026-06-13
+分支：`feat/enterprise-profile`（PR 待合并；迁移已真机执行）
+更新时间：2026-06-14
 
 ## 目标
 
@@ -45,11 +45,12 @@ Issue：待创建
 - 后端 `py_compile` 全过；`import app.interfaces.endpoints.routes; import app.main` 无循环导入；`alembic heads` 单一 `d5e6f7a8b9c0`。
 - 单测 `tests/.../test_enterprise_profile_service.py` **6 passed**；服务层全量 **34 passed**（含既有 28）。
 - 前端 `tsc --noEmit` exit 0、`eslint`（改动文件）exit 0。
+- 真机：`dev-up.cmd -Mode Remote -Build` 启动成功，远程库已升级到 `d5e6f7a8b9c0`、`enterprise_profiles` 表已建（2026-06-14 SSH 核验）。
 
 ## 未完成 / 下一步
 
-- **迁移未真机执行**：DB 连通后随 api 启动自动 `upgrade head`（`dev-up.cmd -Mode Remote -Build`）。
-- 真机联调：owner 填写保存→刷新仍在；切 member 账号确认只读；跨租户隔离。
+- **迁移已真机执行**：远程库 `alembic_head=d5e6f7a8b9c0`、`enterprise_profiles` 表已存在（2026-06-14 经 `dev-up.cmd -Mode Remote -Build` 随 api 启动自动 upgrade）。
+- 真机 UI 联调（待项目组自测）：owner 填写保存→刷新仍在；切 member 账号确认只读；跨租户隔离。
 - 下一步主线：①b Agent 联网增强档案 → ② 无锡新吴区公开政策爬取/结构化入库（全局库）→ ③ 匹配 → ④ 工作台 Feed。
 
 ## 风险
