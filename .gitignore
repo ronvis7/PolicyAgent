@@ -33,6 +33,11 @@ api/config.yaml
 *.key
 *.crt
 
+# 数据库备份快照(含真实数据，绝不入库)
+backups/
+*.dump
+*.sql.gz
+
 # Local tool / IDE configs
 .claude/
 .cursor/
