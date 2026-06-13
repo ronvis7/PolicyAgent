@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import TypeVar
 
 from .document_chunk_repository import DocumentChunkRepository
+from .enterprise_profile_repository import EnterpriseProfileRepository
 from .file_repository import FileRepository
 from .knowledge_base_repository import KnowledgeBaseRepository
 from .knowledge_file_repository import KnowledgeFileRepository
@@ -22,6 +23,7 @@ class IUnitOfWork(ABC):
     user: UserRepository
     tenant: TenantRepository
     tenant_settings: TenantSettingsRepository
+    enterprise_profile: EnterpriseProfileRepository
     membership: MembershipRepository
     knowledge_base: KnowledgeBaseRepository
     knowledge_file: KnowledgeFileRepository
