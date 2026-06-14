@@ -140,8 +140,11 @@ class ProfileEnrichmentService:
         for _ in range(self._max_steps):
             message = await self._llm.invoke(self._messages, tools=schemas, tool_choice="auto")
             tool_calls = (message or {}).get("tool_calls") or []
-            # 记录助手消息(一次只处理一个工具调用，对齐既有 ReAct 约定)
+            # 记录助手消息(一次只处理一个工具调用，对齐既有 ReAct 约定)。
+            # 思考模型(如 DeepSeek)返回的 reasoning_content 必须原样带回，否则下一轮被 400 拒绝。
             assistant: Dict[str, Any] = {"role": "assistant", "content": (message or {}).get("content") or ""}
+            if (message or {}).get("reasoning_content"):
+                assistant["reasoning_content"] = message["reasoning_content"]
             if not tool_calls:
                 self._messages.append(assistant)
                 break

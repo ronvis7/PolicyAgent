@@ -61,13 +61,15 @@ class FakeSearchEngine:
 
 
 class FakeLLM:
-    """按脚本依次返回消息的 LLM；记录调用次数。"""
+    """按脚本依次返回消息的 LLM；记录调用次数与每次收到的消息(深拷贝)。"""
     def __init__(self, scripted: List[Dict[str, Any]]) -> None:
         self._scripted = list(scripted)
         self.calls = 0
+        self.received: List[List[Dict[str, Any]]] = []
 
     async def invoke(self, messages, tools=None, response_format=None, tool_choice=None) -> Dict[str, Any]:
         self.calls += 1
+        self.received.append([dict(m) for m in messages])
         return self._scripted.pop(0) if self._scripted else {"role": "assistant", "content": "{}"}
 
     @property
@@ -184,6 +186,24 @@ def test_tolerates_malformed_extraction_json() -> None:
     assert result.industry.value == ""
     assert result.qualifications.values == []
     assert "https://www.tianyancha.com/company/123" in result.sources
+
+
+def test_reasoning_content_passed_back_to_next_turn() -> None:
+    """思考模型的 reasoning_content 必须在下一轮原样带回(否则 DeepSeek 400)"""
+    llm = FakeLLM([
+        {"role": "assistant", "content": "", "reasoning_content": "先查天眼查",
+         "tool_calls": [{"id": "c1", "function": {"name": "search_web", "arguments": "{\"query\":\"x\"}"}}]},
+        {"role": "assistant", "content": "够了"},
+        {"role": "assistant", "content": _EXTRACTION},
+    ])
+    asyncio.run(_service(llm).enrich("某公司"))
+
+    # 第二次调用的消息里应含带 reasoning_content 的助手消息
+    second_turn_messages = llm.received[1]
+    assert any(
+        m.get("role") == "assistant" and m.get("reasoning_content") == "先查天眼查"
+        for m in second_turn_messages
+    )
 
 
 def test_coerces_bad_scale_to_unspecified() -> None:
