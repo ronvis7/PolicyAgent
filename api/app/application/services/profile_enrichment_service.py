@@ -108,8 +108,9 @@ class ProfileEnrichmentService:
             parsed = await self._extract_structured()
             return self._build_enrichment(parsed, visited)
         except Exception as e:  # 沙箱/浏览器/网络等失败统一降级，不向用户抛 500
-            logger.exception(f"企业档案联网研究失败[{company_name}]: {type(e).__name__}: {e}")
-            return EnterpriseProfileEnrichment(note="联网研究失败，请稍后重试或手动填写档案")
+            reason = f"{type(e).__name__}: {str(e) or '未知错误'}"
+            logger.exception(f"企业档案联网研究失败[{company_name}]: {reason}")
+            return EnterpriseProfileEnrichment(note=f"联网研究失败（{reason[:300]}），请稍后重试或手动填写档案")
         finally:
             if sandbox is not None:
                 try:
