@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     String,
     DateTime,
     ForeignKey,
@@ -54,6 +55,12 @@ class KnowledgeBaseModel(Base):
         nullable=False,
         server_default=text("'general'::character varying"),
     )  # 知识库类型(工厂分发)
+    is_public: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default=text("false"),
+        index=True,
+    )  # 是否为全局公开库(跨租户共享)
     embedding_model: Mapped[str] = mapped_column(
         String(255),
         nullable=False,

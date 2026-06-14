@@ -87,6 +87,14 @@ export type {
   UpdateEnterpriseProfileParams,
 } from "./profile";
 
+// 公开政策库类型
+export type {
+  PolicyListItem,
+  PolicyDetail,
+  PolicyListResponse,
+  ListPoliciesParams,
+} from "./policy";
+
 // 模块 API
 export { authApi } from "./auth";
 export { configApi } from "./config";
@@ -95,4 +103,5 @@ export { sessionApi } from "./session";
 export { knowledgeApi, isFileProcessing, isFileFailed } from "./knowledge";
 export { membershipApi } from "./membership";
 export { profileApi } from "./profile";
+export { policyApi } from "./policy";
 

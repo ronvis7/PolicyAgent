@@ -12,6 +12,7 @@ from .db_file_repository import DBFileRepository
 from .db_knowledge_base_repository import DBKnowledgeBaseRepository
 from .db_knowledge_file_repository import DBKnowledgeFileRepository
 from .db_membership_repository import DBMembershipRepository
+from .db_policy_repository import DBPolicyRepository
 from .db_session_repository import DBSessionRepository
 from .db_tenant_repository import DBTenantRepository
 from .db_tenant_settings_repository import DBTenantSettingsRepository
@@ -62,6 +63,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.knowledge_base = DBKnowledgeBaseRepository(db_session=self.db_session)
         self.knowledge_file = DBKnowledgeFileRepository(db_session=self.db_session)
         self.document_chunk = DBDocumentChunkRepository(db_session=self.db_session)
+        self.policy = DBPolicyRepository(db_session=self.db_session)
 
         return self
 
