@@ -1,4 +1,4 @@
-import { get } from "./fetch";
+import { get, post } from "./fetch";
 
 // ==================== 公开政策库类型 ====================
 
@@ -57,5 +57,10 @@ export const policyApi = {
   /** 查看政策详情 */
   get: (policyId: string): Promise<PolicyDetail> => {
     return get<PolicyDetail>(`/policies/${policyId}`);
+  },
+
+  /** 后台触发抓取入库（仅 owner/admin，立即返回，约 1-2 分钟后数据可见） */
+  ingest: (maxPages = 3): Promise<{ max_pages: number }> => {
+    return post<{ max_pages: number }>(`/policies/ingest?max_pages=${maxPages}`);
   },
 };
