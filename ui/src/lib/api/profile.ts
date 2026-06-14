@@ -68,8 +68,10 @@ export const profileApi = {
     return put<EnterpriseProfile>("/enterprise-profile", params);
   },
 
-  /** 联网增强：以企业名联网检索 + AI 抽取建议字段（不落库，仅 owner/admin） */
+  /** 联网增强：agentic 研究(起浏览器多步翻页)较慢，单独放宽超时到 4 分钟 */
   enrich: (params: EnrichProfileParams): Promise<EnterpriseProfileEnrichment> => {
-    return post<EnterpriseProfileEnrichment>("/enterprise-profile/enrich", params);
+    return post<EnterpriseProfileEnrichment>("/enterprise-profile/enrich", params, {
+      timeout: 240000,
+    });
   },
 };
