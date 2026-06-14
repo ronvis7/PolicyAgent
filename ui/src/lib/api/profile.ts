@@ -1,4 +1,4 @@
-import { get, put } from "./fetch";
+import { get, post, put } from "./fetch";
 
 // ==================== 企业档案类型 ====================
 
@@ -23,6 +23,38 @@ export type EnterpriseProfile = {
 /** 更新企业档案参数（不含服务端维护的时间戳） */
 export type UpdateEnterpriseProfileParams = Omit<EnterpriseProfile, "updated_at">;
 
+/** 联网增强请求参数（以企业名 + 可选地区为线索） */
+export type EnrichProfileParams = {
+  company_name: string;
+  province?: string;
+  city?: string;
+  district?: string;
+};
+
+/** 单值增强字段：建议值 + 来源 URL */
+export type EnrichedField = {
+  value: string;
+  source: string;
+};
+
+/** 标签型增强字段：建议值列表 + 来源 URL */
+export type EnrichedTags = {
+  values: string[];
+  source: string;
+};
+
+/** 联网增强建议（逐字段带来源，仅供回填审阅，未落库） */
+export type EnterpriseProfileEnrichment = {
+  industry: EnrichedField;
+  scale: EnrichedField;
+  main_business: EnrichedField;
+  qualifications: EnrichedTags;
+  tech_domains: EnrichedTags;
+  keywords: EnrichedTags;
+  sources: string[];
+  note: string;
+};
+
 // ==================== 企业档案 API ====================
 
 export const profileApi = {
@@ -34,5 +66,12 @@ export const profileApi = {
   /** 整体更新当前组织的企业档案（仅 owner/admin） */
   update: (params: UpdateEnterpriseProfileParams): Promise<EnterpriseProfile> => {
     return put<EnterpriseProfile>("/enterprise-profile", params);
+  },
+
+  /** 联网增强：agentic 研究(起浏览器多步翻页)较慢，单独放宽超时到 4 分钟 */
+  enrich: (params: EnrichProfileParams): Promise<EnterpriseProfileEnrichment> => {
+    return post<EnterpriseProfileEnrichment>("/enterprise-profile/enrich", params, {
+      timeout: 240000,
+    });
   },
 };

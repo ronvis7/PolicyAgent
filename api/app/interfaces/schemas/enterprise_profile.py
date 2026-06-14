@@ -4,6 +4,7 @@ from typing import List
 from pydantic import BaseModel, Field, field_validator
 
 from app.domain.models.enterprise_profile import EnterpriseProfile, EnterpriseScale
+from app.domain.models.enterprise_profile_enrichment import EnterpriseProfileEnrichment
 
 # 字段长度上限(与 ORM 列宽对齐，做输入边界校验)
 _MAX_NAME = 255
@@ -58,6 +59,43 @@ class UpdateEnterpriseProfileRequest(BaseModel):
             tech_domains=self.tech_domains,
             keywords=self.keywords,
         )
+
+
+class EnrichEnterpriseProfileRequest(BaseModel):
+    """联网增强请求体：以企业名(+可选地区)为线索联网补全档案"""
+    company_name: str = Field(min_length=1, max_length=_MAX_NAME)
+    province: str = Field(default="", max_length=_MAX_REGION)
+    city: str = Field(default="", max_length=_MAX_REGION)
+    district: str = Field(default="", max_length=_MAX_REGION)
+
+
+class EnrichedFieldResponse(BaseModel):
+    """单值增强字段响应：建议值 + 来源URL"""
+    value: str = ""
+    source: str = ""
+
+
+class EnrichedTagsResponse(BaseModel):
+    """标签型增强字段响应：建议值列表 + 来源URL"""
+    values: List[str] = Field(default_factory=list)
+    source: str = ""
+
+
+class EnterpriseProfileEnrichmentResponse(BaseModel):
+    """联网增强建议响应(逐字段带来源)：仅作前端回填，不代表已落库"""
+    industry: EnrichedFieldResponse = Field(default_factory=EnrichedFieldResponse)
+    scale: EnrichedFieldResponse = Field(default_factory=EnrichedFieldResponse)
+    main_business: EnrichedFieldResponse = Field(default_factory=EnrichedFieldResponse)
+    qualifications: EnrichedTagsResponse = Field(default_factory=EnrichedTagsResponse)
+    tech_domains: EnrichedTagsResponse = Field(default_factory=EnrichedTagsResponse)
+    keywords: EnrichedTagsResponse = Field(default_factory=EnrichedTagsResponse)
+    sources: List[str] = Field(default_factory=list)
+    note: str = ""
+
+    @classmethod
+    def from_domain(cls, e: EnterpriseProfileEnrichment) -> "EnterpriseProfileEnrichmentResponse":
+        """从领域增强模型构建响应(直接结构同构)"""
+        return cls.model_validate(e.model_dump())
 
 
 class EnterpriseProfileResponse(BaseModel):

@@ -8,14 +8,20 @@ import logging
 from fastapi import APIRouter, Depends
 
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
+from app.application.services.profile_enrichment_service import ProfileEnrichmentService
 from app.domain.models.membership import MembershipRole
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user, require_role
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.enterprise_profile import (
+    EnrichEnterpriseProfileRequest,
+    EnterpriseProfileEnrichmentResponse,
     EnterpriseProfileResponse,
     UpdateEnterpriseProfileRequest,
 )
-from app.interfaces.service_dependencies import get_enterprise_profile_service
+from app.interfaces.service_dependencies import (
+    get_enterprise_profile_service,
+    get_profile_enrichment_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,3 +65,27 @@ async def update_enterprise_profile(
         msg="更新企业档案成功",
         data=EnterpriseProfileResponse.from_domain(profile),
     )
+
+
+@router.post(
+    path="/enrich",
+    response_model=Response[EnterpriseProfileEnrichmentResponse],
+    summary="联网增强企业档案(AI 补全)",
+    description=(
+        "以企业名(+可选地区)为线索联网检索公开信息，由 AI 抽取结构化建议字段返回，"
+        "供前端回填供用户审阅修改。**不落库**，确认后仍需调用 PUT 保存。仅组织 owner/admin 可用。"
+    ),
+)
+async def enrich_enterprise_profile(
+        request: EnrichEnterpriseProfileRequest,
+        current_user: CurrentUser = Depends(_require_org_admin),
+        service: ProfileEnrichmentService = Depends(get_profile_enrichment_service),
+) -> Response[EnterpriseProfileEnrichmentResponse]:
+    """联网增强企业档案(返回建议，不落库)"""
+    enrichment = await service.enrich(
+        company_name=request.company_name,
+        province=request.province,
+        city=request.city,
+        district=request.district,
+    )
+    return Response.success(data=EnterpriseProfileEnrichmentResponse.from_domain(enrichment))
