@@ -20,6 +20,13 @@ import { profileApi } from '@/lib/api'
 import type { EnterpriseProfile, EnterpriseScale } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 
+/**
+ * AI 联网补全（①b）功能开关。当前**暂停**：agentic 研究链路已打通，但缺可靠数据源
+ * （Bing 抓取失效 + 天眼查/企查查等强反爬），实测查不到有效信息。待接入正规搜索/企业
+ * 数据 API（需 key）后置 true 即可复活，后端代码与端点保留。
+ */
+const ENRICH_ENABLED = false
+
 /** 企业规模选项 */
 const SCALE_OPTIONS: { value: EnterpriseScale; label: string }[] = [
   { value: 'unspecified', label: '未填写' },
@@ -298,16 +305,18 @@ export default function EnterpriseProfilePage() {
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={handleEnrich}
-              disabled={loading || saving || enriching}
-              title="以企业名联网检索并由 AI 补全档案建议"
-            >
-              {enriching ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              AI 联网补全
-            </Button>
+            {ENRICH_ENABLED && (
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={handleEnrich}
+                disabled={loading || saving || enriching}
+                title="以企业名联网检索并由 AI 补全档案建议"
+              >
+                {enriching ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                AI 联网补全
+              </Button>
+            )}
             <Button className="cursor-pointer" onClick={handleSave} disabled={loading || saving || enriching}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               保存
