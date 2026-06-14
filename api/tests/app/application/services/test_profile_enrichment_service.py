@@ -1,7 +1,7 @@
-"""ProfileEnrichmentService 离线单元测试：企业档案联网增强(①b)。
+"""ProfileEnrichmentService(agentic 研究)离线单元测试。
 
-用 fake LLM / SearchEngine / JSONParser 隔离外部依赖，验证「联网搜索 → LLM 抽取 →
-映射为建议字段」链路及各类降级路径。异步方法用 asyncio.run 驱动(与本仓库其他测试一致)。
+用 fake 沙箱/浏览器/搜索/LLM 驱动 ReAct 研究循环 + 逐字段抽取，不触网、不依赖 docker。
+异步方法用 asyncio.run 驱动(与本仓库其他测试一致)。
 """
 
 import asyncio
@@ -9,59 +9,76 @@ import json
 from typing import Any, Dict, List, Optional
 
 from app.application.services.profile_enrichment_service import ProfileEnrichmentService
-from app.domain.models.enterprise_profile import EnterpriseScale
 from app.domain.models.search import SearchResultItem, SearchResults
 from app.domain.models.tool_result import ToolResult
 
 
-class FakeSearchEngine:
-    """可配置返回结果或失败的搜索引擎假实现，并记录最后一次查询。"""
+# ---------- fakes ----------
 
-    def __init__(self, items: Optional[List[SearchResultItem]] = None, success: bool = True) -> None:
-        self._items = items or []
-        self._success = success
-        self.last_query: Optional[str] = None
+class FakeBrowser:
+    """浏览器假实现：导航/查看返回固定页面文本(ToolResult.message)。"""
+    async def navigate(self, url: str) -> ToolResult:
+        return ToolResult(success=True, message=f"已打开 {url}")
+
+    async def view_page(self) -> ToolResult:
+        return ToolResult(success=True, message="页面：无锡比邻星科技，主营卫星通信终端，国家高新技术企业。")
+
+    async def scroll_down(self, to_bottom: Optional[bool] = None) -> ToolResult:
+        return ToolResult(success=True, message="(已向下滚动)")
+
+
+class FakeSandbox:
+    """沙箱假实现：记录创建/销毁，可配置 browser 是否就绪。"""
+    instances: List["FakeSandbox"] = []
+    browser_ready: bool = True
+
+    def __init__(self) -> None:
+        self.destroyed = False
+
+    @classmethod
+    async def create(cls) -> "FakeSandbox":
+        inst = cls()
+        cls.instances.append(inst)
+        return inst
+
+    async def get_browser(self):
+        return FakeBrowser() if FakeSandbox.browser_ready else None
+
+    async def destroy(self) -> bool:
+        self.destroyed = True
+        return True
+
+
+class FakeSearchEngine:
+    def __init__(self, items: Optional[List[SearchResultItem]] = None) -> None:
+        self._items = items or [
+            SearchResultItem(url="https://www.tianyancha.com/company/123", title="无锡比邻星科技-天眼查", snippet="卫星通信"),
+        ]
 
     async def invoke(self, query: str, date_range: Optional[str] = None) -> ToolResult:
-        self.last_query = query
-        if not self._success:
-            return ToolResult(success=False, message="搜索失败")
-        return ToolResult(
-            success=True,
-            message="ok",
-            data=SearchResults(query=query, total_results=len(self._items), results=self._items),
-        )
+        return ToolResult(success=True, message="ok",
+                          data=SearchResults(query=query, results=self._items))
 
 
 class FakeLLM:
-    """返回预设 content 的 LLM 假实现，并记录是否被调用。"""
-
-    def __init__(self, content: str) -> None:
-        self._content = content
-        self.called = False
-        self.last_response_format: Optional[Dict[str, Any]] = None
+    """按脚本依次返回消息的 LLM；记录调用次数。"""
+    def __init__(self, scripted: List[Dict[str, Any]]) -> None:
+        self._scripted = list(scripted)
+        self.calls = 0
 
     async def invoke(self, messages, tools=None, response_format=None, tool_choice=None) -> Dict[str, Any]:
-        self.called = True
-        self.last_response_format = response_format
-        return {"role": "assistant", "content": self._content, "tool_calls": None}
+        self.calls += 1
+        return self._scripted.pop(0) if self._scripted else {"role": "assistant", "content": "{}"}
 
     @property
-    def model_name(self) -> str:
-        return "fake"
-
+    def model_name(self) -> str: return "fake"
     @property
-    def temperature(self) -> float:
-        return 0.0
-
+    def temperature(self) -> float: return 0.0
     @property
-    def max_tokens(self) -> int:
-        return 1024
+    def max_tokens(self) -> int: return 1024
 
 
 class FakeJSONParser:
-    """容错 JSON 解析器假实现：解析失败时返回 default_value。"""
-
     async def invoke(self, text: str, default_value: Any = None):
         try:
             return json.loads(text)
@@ -69,115 +86,110 @@ class FakeJSONParser:
             return default_value
 
 
-_ITEMS = [
-    SearchResultItem(url="https://a.com", title="无锡某智能制造", snippet="工业机器人研发"),
-    SearchResultItem(url="https://b.com", title="高新技术企业公示", snippet="国家高新技术企业"),
-]
+def _tool_call(name: str, args: dict, cid: str = "c1") -> Dict[str, Any]:
+    return {"role": "assistant", "content": "",
+            "tool_calls": [{"id": cid, "function": {"name": name, "arguments": json.dumps(args)}}]}
 
-_LLM_JSON = json.dumps({
-    "industry": "智能制造",
-    "scale": "small",
-    "main_business": "工业机器人研发与系统集成",
-    "qualifications": ["高新技术企业", "专精特新"],
-    "tech_domains": ["工业机器人", "机器视觉"],
-    "keywords": ["智能制造", "自动化"],
+
+_EXTRACTION = json.dumps({
+    "industry": {"value": "卫星通信", "source": "https://www.tianyancha.com/company/123"},
+    "scale": {"value": "small", "source": "https://www.tianyancha.com/company/123"},
+    "main_business": {"value": "卫星通信终端研发", "source": "https://bilinxing.com"},
+    "qualifications": {"values": ["高新技术企业", "高新技术企业", " "], "source": "https://gov.cn/pub"},
+    "tech_domains": {"values": ["卫星通信"], "source": ""},
+    "keywords": {"values": ["卫星", "通信"], "source": ""},
 }, ensure_ascii=False)
 
 
-def _service(search: FakeSearchEngine, llm: FakeLLM) -> ProfileEnrichmentService:
-    return ProfileEnrichmentService(llm=llm, search_engine=search, json_parser=FakeJSONParser())
+def _service(llm: FakeLLM, search: Optional[FakeSearchEngine] = None, max_steps: int = 8) -> ProfileEnrichmentService:
+    return ProfileEnrichmentService(
+        llm=llm, sandbox_cls=FakeSandbox,
+        search_engine=search or FakeSearchEngine(), json_parser=FakeJSONParser(),
+        max_steps=max_steps,
+    )
 
 
-def test_enrich_extracts_fields_from_search_and_llm() -> None:
-    """正常链路：从搜索摘要 + LLM 抽取出结构化建议字段"""
-    search = FakeSearchEngine(items=_ITEMS)
-    llm = FakeLLM(_LLM_JSON)
-
-    result = asyncio.run(_service(search, llm).enrich("无锡某智能制造有限公司"))
-
-    assert result.industry == "智能制造"
-    assert result.scale is EnterpriseScale.SMALL
-    assert result.main_business == "工业机器人研发与系统集成"
-    assert result.qualifications == ["高新技术企业", "专精特新"]
-    assert result.tech_domains == ["工业机器人", "机器视觉"]
-    assert result.keywords == ["智能制造", "自动化"]
-    assert llm.last_response_format == {"type": "json_object"}
+def setup_function() -> None:
+    FakeSandbox.instances = []
+    FakeSandbox.browser_ready = True
 
 
-def test_enrich_sources_come_from_search_results() -> None:
-    """来源URL取自搜索命中条目，供用户核验"""
-    search = FakeSearchEngine(items=_ITEMS)
-    result = asyncio.run(_service(search, FakeLLM(_LLM_JSON)).enrich("无锡某智能制造"))
+# ---------- tests ----------
 
-    assert result.sources == ["https://a.com", "https://b.com"]
+def test_research_then_extract_per_field_with_sources() -> None:
+    """研究(搜索)→结束→抽取，得到逐字段值与来源，scale 合法、标签去重"""
+    llm = FakeLLM([
+        _tool_call("search_web", {"query": "无锡比邻星科技"}),
+        {"role": "assistant", "content": "已找到天眼查信息"},  # 无 tool_calls → 结束研究
+        {"role": "assistant", "content": _EXTRACTION},  # 抽取
+    ])
+    result = asyncio.run(_service(llm).enrich("无锡比邻星科技有限公司"))
+
+    assert result.industry.value == "卫星通信"
+    assert result.industry.source == "https://www.tianyancha.com/company/123"
+    assert result.scale.value == "small"
+    assert result.main_business.value == "卫星通信终端研发"
+    assert result.qualifications.values == ["高新技术企业"]  # 去重去空
+    assert result.qualifications.source == "https://gov.cn/pub"
+    assert result.keywords.values == ["卫星", "通信"]
+    assert "https://www.tianyancha.com/company/123" in result.sources
 
 
-def test_enrich_empty_company_name_skips_search_and_llm() -> None:
-    """企业名为空时直接返回提示，不调用搜索与 LLM"""
-    search = FakeSearchEngine(items=_ITEMS)
-    llm = FakeLLM(_LLM_JSON)
+def test_browser_navigate_url_collected_as_source() -> None:
+    """LLM 用 browser_navigate 打开的页面进入来源列表"""
+    llm = FakeLLM([
+        _tool_call("browser_navigate", {"url": "https://bilinxing.com/about"}),
+        {"role": "assistant", "content": "看完官网"},
+        {"role": "assistant", "content": _EXTRACTION},
+    ])
+    result = asyncio.run(_service(llm).enrich("无锡比邻星科技有限公司"))
+    assert "https://bilinxing.com/about" in result.sources
 
-    result = asyncio.run(_service(search, llm).enrich("   "))
 
-    assert result.industry == ""
+def test_sandbox_created_and_destroyed() -> None:
+    """研究用的一次性沙箱用完即销毁"""
+    llm = FakeLLM([{"role": "assistant", "content": "无需工具"}, {"role": "assistant", "content": _EXTRACTION}])
+    asyncio.run(_service(llm).enrich("某公司"))
+    assert len(FakeSandbox.instances) == 1
+    assert FakeSandbox.instances[0].destroyed is True
+
+
+def test_empty_company_name_skips_sandbox() -> None:
+    """空企业名直接返回提示，不创建沙箱、不调用 LLM"""
+    llm = FakeLLM([])
+    result = asyncio.run(_service(llm).enrich("   "))
     assert result.note != ""
-    assert search.last_query is None
-    assert llm.called is False
+    assert FakeSandbox.instances == []
+    assert llm.calls == 0
 
 
-def test_enrich_no_search_results_returns_note_without_llm() -> None:
-    """搜索无结果时给出提示并跳过 LLM(无证据不臆造)"""
-    search = FakeSearchEngine(items=[])
-    llm = FakeLLM(_LLM_JSON)
-
-    result = asyncio.run(_service(search, llm).enrich("查无此企业"))
-
+def test_browser_unavailable_returns_note() -> None:
+    """浏览器未就绪时降级为提示，并销毁沙箱"""
+    FakeSandbox.browser_ready = False
+    llm = FakeLLM([{"role": "assistant", "content": _EXTRACTION}])
+    result = asyncio.run(_service(llm).enrich("某公司"))
     assert result.note != ""
-    assert result.industry == ""
-    assert llm.called is False
+    assert result.industry.value == ""
+    assert FakeSandbox.instances[0].destroyed is True
 
 
-def test_enrich_search_failure_returns_note_without_llm() -> None:
-    """搜索引擎失败时降级为提示，不调用 LLM"""
-    search = FakeSearchEngine(success=False)
-    llm = FakeLLM(_LLM_JSON)
-
-    result = asyncio.run(_service(search, llm).enrich("某企业"))
-
-    assert result.note != ""
-    assert llm.called is False
-
-
-def test_enrich_tolerates_malformed_llm_json() -> None:
-    """LLM 返回非 JSON 时容错为空建议(仍带来源)，不抛异常"""
-    search = FakeSearchEngine(items=_ITEMS)
-    result = asyncio.run(_service(search, FakeLLM("抱歉我无法回答")).enrich("某企业"))
-
-    assert result.industry == ""
-    assert result.qualifications == []
-    assert result.sources == ["https://a.com", "https://b.com"]
+def test_tolerates_malformed_extraction_json() -> None:
+    """抽取返回非 JSON 时降级为空建议(不抛)，但保留研究来源"""
+    llm = FakeLLM([
+        _tool_call("search_web", {"query": "x"}),
+        {"role": "assistant", "content": "done"},
+        {"role": "assistant", "content": "抱歉无法输出"},  # 非 JSON
+    ])
+    result = asyncio.run(_service(llm).enrich("某公司"))
+    assert result.industry.value == ""
+    assert result.qualifications.values == []
+    assert "https://www.tianyancha.com/company/123" in result.sources
 
 
-def test_enrich_coerces_unknown_scale_to_unspecified() -> None:
-    """LLM 给出非法规模值时安全回落为 UNSPECIFIED"""
-    bad = json.dumps({"industry": "X", "scale": "巨型企业"}, ensure_ascii=False)
-    search = FakeSearchEngine(items=_ITEMS)
-
-    result = asyncio.run(_service(search, FakeLLM(bad)).enrich("某企业"))
-
-    assert result.scale is EnterpriseScale.UNSPECIFIED
-    assert result.industry == "X"
-
-
-def test_enrich_cleans_and_dedupes_tag_lists() -> None:
-    """资质/技术域/关键词去空去重，防止 LLM 给出脏数据"""
-    dirty = json.dumps({
-        "qualifications": ["高新技术企业", " 高新技术企业 ", "", "专精特新"],
-        "keywords": ["a", "a", "b"],
-    }, ensure_ascii=False)
-    search = FakeSearchEngine(items=_ITEMS)
-
-    result = asyncio.run(_service(search, FakeLLM(dirty)).enrich("某企业"))
-
-    assert result.qualifications == ["高新技术企业", "专精特新"]
-    assert result.keywords == ["a", "b"]
+def test_coerces_bad_scale_to_unspecified() -> None:
+    """抽取出非法规模值时安全回落 unspecified"""
+    bad = json.dumps({"scale": {"value": "巨无霸", "source": "u"}, "industry": {"value": "X"}})
+    llm = FakeLLM([{"role": "assistant", "content": "no tool"}, {"role": "assistant", "content": bad}])
+    result = asyncio.run(_service(llm).enrich("某公司"))
+    assert result.scale.value == "unspecified"
+    assert result.industry.value == "X"

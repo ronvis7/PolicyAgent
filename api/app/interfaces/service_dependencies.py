@@ -249,6 +249,7 @@ async def get_profile_enrichment_service(
     llm_config = await _resolve_tenant_llm_config(app_config_repository, app_config, tenant_id)
     return ProfileEnrichmentService(
         llm=OpenAILLM(llm_config),
+        sandbox_cls=DockerSandbox,
         search_engine=BingSearchEngine(),
         json_parser=RepairJSONParser(),
     )

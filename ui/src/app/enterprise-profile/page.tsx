@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
-import { Building2, Loader2, Save, Sparkles, X } from 'lucide-react'
+import { Building2, ExternalLink, Loader2, Save, Sparkles, X } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -53,6 +53,24 @@ const EMPTY_PROFILE: EnterpriseProfile = {
   updated_at: '',
 }
 
+/** AI 补全来源链接：显示在字段标签旁，点开是引用网址 */
+function SourceLink({ source }: { source?: string }) {
+  if (!source) return null
+  return (
+    <a
+      href={source}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`AI 补全来源：${source}`}
+      className="inline-flex items-center gap-0.5 text-xs text-primary hover:underline"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <ExternalLink className="size-3" />
+      来源
+    </a>
+  )
+}
+
 /** 标签输入：回车或失焦添加，去重；只读时仅展示 */
 function TagInput({
   label,
@@ -61,6 +79,7 @@ function TagInput({
   values,
   presets,
   disabled,
+  source,
   onChange,
 }: {
   label: string
@@ -69,6 +88,7 @@ function TagInput({
   values: string[]
   presets?: string[]
   disabled: boolean
+  source?: string
   onChange: (next: string[]) => void
 }) {
   const [draft, setDraft] = useState('')
@@ -96,7 +116,10 @@ function TagInput({
 
   return (
     <Field>
-      <FieldLabel>{label}</FieldLabel>
+      <FieldLabel className="flex items-center gap-2">
+        {label}
+        <SourceLink source={source} />
+      </FieldLabel>
       {values.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {values.map((tag) => (
@@ -165,6 +188,8 @@ export default function EnterpriseProfilePage() {
   const [saving, setSaving] = useState(false)
   const [enriching, setEnriching] = useState(false)
   const [sources, setSources] = useState<string[]>([])
+  // 逐字段来源：字段名 → 来源 URL（AI 补全填入时记录，展示在字段旁）
+  const [fieldSources, setFieldSources] = useState<Record<string, string>>({})
   const fetchingRef = useRef(false)
 
   const fetchProfile = useCallback(() => {
@@ -214,13 +239,24 @@ export default function EnterpriseProfilePage() {
       // 非破坏式合并：已填标量保留，空缺才回填；标签取并集，供用户审阅后再保存
       setProfile((prev) => ({
         ...prev,
-        industry: prev.industry || e.industry,
-        scale: prev.scale === 'unspecified' ? e.scale : prev.scale,
-        main_business: prev.main_business || e.main_business,
-        qualifications: mergeTags(prev.qualifications, e.qualifications),
-        tech_domains: mergeTags(prev.tech_domains, e.tech_domains),
-        keywords: mergeTags(prev.keywords, e.keywords),
+        industry: prev.industry || e.industry.value,
+        scale: prev.scale === 'unspecified' && e.scale.value
+          ? (e.scale.value as EnterpriseScale)
+          : prev.scale,
+        main_business: prev.main_business || e.main_business.value,
+        qualifications: mergeTags(prev.qualifications, e.qualifications.values),
+        tech_domains: mergeTags(prev.tech_domains, e.tech_domains.values),
+        keywords: mergeTags(prev.keywords, e.keywords.values),
       }))
+      // 记录各字段来源（仅 AI 实际给出值且带来源的字段）
+      const nextSources: Record<string, string> = {}
+      if (e.industry.value && e.industry.source) nextSources.industry = e.industry.source
+      if (e.scale.value && e.scale.source) nextSources.scale = e.scale.source
+      if (e.main_business.value && e.main_business.source) nextSources.main_business = e.main_business.source
+      if (e.qualifications.values.length && e.qualifications.source) nextSources.qualifications = e.qualifications.source
+      if (e.tech_domains.values.length && e.tech_domains.source) nextSources.tech_domains = e.tech_domains.source
+      if (e.keywords.values.length && e.keywords.source) nextSources.keywords = e.keywords.source
+      setFieldSources((prev) => ({ ...prev, ...nextSources }))
       setSources(e.sources)
       toast.success(e.note || 'AI 已补全建议，请审阅后点击保存')
     } catch (err) {
@@ -357,7 +393,10 @@ export default function EnterpriseProfilePage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field>
-                    <FieldLabel htmlFor="industry">所属行业</FieldLabel>
+                    <FieldLabel htmlFor="industry" className="flex items-center gap-2">
+                      所属行业
+                      <SourceLink source={fieldSources.industry} />
+                    </FieldLabel>
                     <Input
                       id="industry"
                       value={profile.industry}
@@ -367,7 +406,10 @@ export default function EnterpriseProfilePage() {
                     />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="scale">企业规模</FieldLabel>
+                    <FieldLabel htmlFor="scale" className="flex items-center gap-2">
+                      企业规模
+                      <SourceLink source={fieldSources.scale} />
+                    </FieldLabel>
                     <select
                       id="scale"
                       className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -385,7 +427,10 @@ export default function EnterpriseProfilePage() {
                 </div>
 
                 <Field>
-                  <FieldLabel htmlFor="main_business">主营业务简介</FieldLabel>
+                  <FieldLabel htmlFor="main_business" className="flex items-center gap-2">
+                    主营业务简介
+                    <SourceLink source={fieldSources.main_business} />
+                  </FieldLabel>
                   <Textarea
                     id="main_business"
                     value={profile.main_business}
@@ -407,6 +452,7 @@ export default function EnterpriseProfilePage() {
                   values={profile.qualifications}
                   presets={QUALIFICATION_PRESETS}
                   disabled={!canEdit}
+                  source={fieldSources.qualifications}
                   onChange={(next) => patch('qualifications', next)}
                 />
 
@@ -415,6 +461,7 @@ export default function EnterpriseProfilePage() {
                   placeholder="输入领域后回车，如：工业机器人"
                   values={profile.tech_domains}
                   disabled={!canEdit}
+                  source={fieldSources.tech_domains}
                   onChange={(next) => patch('tech_domains', next)}
                 />
 
@@ -423,6 +470,7 @@ export default function EnterpriseProfilePage() {
                   placeholder="输入关键词后回车，如：自动化"
                   values={profile.keywords}
                   disabled={!canEdit}
+                  source={fieldSources.keywords}
                   onChange={(next) => patch('keywords', next)}
                 />
               </FieldSet>
