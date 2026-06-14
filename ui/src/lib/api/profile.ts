@@ -31,14 +31,26 @@ export type EnrichProfileParams = {
   district?: string;
 };
 
-/** 联网增强建议（仅供回填审阅，未落库） */
+/** 单值增强字段：建议值 + 来源 URL */
+export type EnrichedField = {
+  value: string;
+  source: string;
+};
+
+/** 标签型增强字段：建议值列表 + 来源 URL */
+export type EnrichedTags = {
+  values: string[];
+  source: string;
+};
+
+/** 联网增强建议（逐字段带来源，仅供回填审阅，未落库） */
 export type EnterpriseProfileEnrichment = {
-  industry: string;
-  scale: EnterpriseScale;
-  main_business: string;
-  qualifications: string[];
-  tech_domains: string[];
-  keywords: string[];
+  industry: EnrichedField;
+  scale: EnrichedField;
+  main_business: EnrichedField;
+  qualifications: EnrichedTags;
+  tech_domains: EnrichedTags;
+  keywords: EnrichedTags;
   sources: string[];
   note: string;
 };
