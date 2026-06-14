@@ -85,6 +85,8 @@ export type {
   EnterpriseScale,
   EnterpriseProfile,
   UpdateEnterpriseProfileParams,
+  EnrichProfileParams,
+  EnterpriseProfileEnrichment,
 } from "./profile";
 
 // 模块 API

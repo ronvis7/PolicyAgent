@@ -13,6 +13,7 @@ from app.application.services.enterprise_profile_service import EnterpriseProfil
 from app.application.services.file_service import FileService
 from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.membership_service import MembershipService
+from app.application.services.profile_enrichment_service import ProfileEnrichmentService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
 from app.application.services.tenant_settings_service import TenantSettingsService
@@ -186,6 +187,17 @@ async def _get_optional_tenant_id(
     return claims.get("tid")
 
 
+async def _resolve_tenant_llm_config(app_config_repository, app_config, tenant_id: Optional[str]) -> LLMConfig:
+    """解析当前租户生效的 LLM 配置：组织自定义优先，无租户上下文(如未认证)回落平台默认"""
+    if tenant_id is None:
+        return app_config.llm_config
+    tenant_settings_service = TenantSettingsService(
+        uow_factory=get_uow,
+        app_config_repository=app_config_repository,
+    )
+    return await tenant_settings_service.get_llm_config(tenant_id)
+
+
 async def get_agent_service(
         cos: Cos = Depends(get_cos),
         tenant_id: Optional[str] = Depends(_get_optional_tenant_id),
@@ -195,14 +207,8 @@ async def get_agent_service(
     app_config_repository = FileAppConfigRepository(config_path=settings.app_config_filepath)
     app_config = app_config_repository.load()
 
-    # 2.解析当前租户生效的 LLM 配置；无租户上下文(如未认证)时用平台默认
-    llm_config = app_config.llm_config
-    if tenant_id is not None:
-        tenant_settings_service = TenantSettingsService(
-            uow_factory=get_uow,
-            app_config_repository=app_config_repository,
-        )
-        llm_config = await tenant_settings_service.get_llm_config(tenant_id)
+    # 2.解析当前租户生效的 LLM 配置
+    llm_config = await _resolve_tenant_llm_config(app_config_repository, app_config, tenant_id)
 
     # 3.组装并返回
     return _build_agent_service(cos, app_config, llm_config)
@@ -229,3 +235,17 @@ def get_membership_service() -> MembershipService:
 def get_enterprise_profile_service() -> EnterpriseProfileService:
     """获取企业档案服务(按租户读写结构化档案)"""
     return EnterpriseProfileService(uow_factory=get_uow)
+
+
+async def get_profile_enrichment_service(
+        tenant_id: Optional[str] = Depends(_get_optional_tenant_id),
+) -> ProfileEnrichmentService:
+    """获取企业档案联网增强服务(①b)：LLM 按当前租户解析 + Bing 搜索 + 容错 JSON 解析"""
+    app_config_repository = FileAppConfigRepository(config_path=settings.app_config_filepath)
+    app_config = app_config_repository.load()
+    llm_config = await _resolve_tenant_llm_config(app_config_repository, app_config, tenant_id)
+    return ProfileEnrichmentService(
+        llm=OpenAILLM(llm_config),
+        search_engine=BingSearchEngine(),
+        json_parser=RepairJSONParser(),
+    )

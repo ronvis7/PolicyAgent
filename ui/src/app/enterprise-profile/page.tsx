@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
-import { Building2, Loader2, Save, X } from 'lucide-react'
+import { Building2, Loader2, Save, Sparkles, X } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -154,7 +154,7 @@ function TagInput({
  * 企业档案页：以企业为主体的主动服务链路源头。
  *
  * 租户内成员均可查看；编辑限组织 owner/admin（后端二次校验）。
- * 默认地区为无锡新吴区。Agent 联网增强（①b）后续接入。
+ * 默认地区为无锡新吴区。owner/admin 可「AI 联网补全」（①b）自动检索建议后审阅保存。
  */
 export default function EnterpriseProfilePage() {
   const { role } = useAuth()
@@ -163,6 +163,8 @@ export default function EnterpriseProfilePage() {
   const [profile, setProfile] = useState<EnterpriseProfile>(EMPTY_PROFILE)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [enriching, setEnriching] = useState(false)
+  const [sources, setSources] = useState<string[]>([])
   const fetchingRef = useRef(false)
 
   const fetchProfile = useCallback(() => {
@@ -189,6 +191,45 @@ export default function EnterpriseProfilePage() {
   const patch = <K extends keyof EnterpriseProfile>(key: K, value: EnterpriseProfile[K]) =>
     setProfile((prev) => ({ ...prev, [key]: value }))
 
+  /** 标签并集去重，保持原顺序后追加新值 */
+  const mergeTags = (existing: string[], incoming: string[]): string[] => {
+    const seen = new Set(existing)
+    return [...existing, ...incoming.filter((t) => !seen.has(t))]
+  }
+
+  const handleEnrich = async () => {
+    const companyName = profile.company_name.trim()
+    if (!companyName) {
+      toast.warning('请先填写企业名称再使用联网补全')
+      return
+    }
+    setEnriching(true)
+    try {
+      const e = await profileApi.enrich({
+        company_name: companyName,
+        province: profile.province,
+        city: profile.city,
+        district: profile.district,
+      })
+      // 非破坏式合并：已填标量保留，空缺才回填；标签取并集，供用户审阅后再保存
+      setProfile((prev) => ({
+        ...prev,
+        industry: prev.industry || e.industry,
+        scale: prev.scale === 'unspecified' ? e.scale : prev.scale,
+        main_business: prev.main_business || e.main_business,
+        qualifications: mergeTags(prev.qualifications, e.qualifications),
+        tech_domains: mergeTags(prev.tech_domains, e.tech_domains),
+        keywords: mergeTags(prev.keywords, e.keywords),
+      }))
+      setSources(e.sources)
+      toast.success(e.note || 'AI 已补全建议，请审阅后点击保存')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '联网补全失败')
+    } finally {
+      setEnriching(false)
+    }
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -213,10 +254,22 @@ export default function EnterpriseProfilePage() {
           <h1 className="text-base font-semibold">企业档案</h1>
         </div>
         {canEdit && (
-          <Button className="cursor-pointer" onClick={handleSave} disabled={loading || saving}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            保存
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={handleEnrich}
+              disabled={loading || saving || enriching}
+              title="以企业名联网检索并由 AI 补全档案建议"
+            >
+              {enriching ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              AI 联网补全
+            </Button>
+            <Button className="cursor-pointer" onClick={handleSave} disabled={loading || saving || enriching}>
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              保存
+            </Button>
+          </div>
         )}
       </header>
 
@@ -232,10 +285,33 @@ export default function EnterpriseProfilePage() {
               <Building2 className="size-5" />
               <span className="text-sm">
                 {canEdit
-                  ? '完善企业档案，作为后续政策匹配与主动推送的依据。'
+                  ? '完善企业档案，作为后续政策匹配与主动推送的依据。可点「AI 联网补全」自动检索后审阅保存。'
                   : '仅组织所有者/管理员可编辑企业档案。'}
               </span>
             </div>
+
+            {sources.length > 0 && (
+              <div className="mb-4 rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
+                <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                  <Sparkles className="size-3.5" />
+                  AI 补全参考来源（请核验后保存）
+                </div>
+                <ul className="space-y-0.5">
+                  {sources.map((url) => (
+                    <li key={url} className="truncate">
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-primary hover:underline"
+                      >
+                        {url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <FieldGroup>
               <FieldSet>
