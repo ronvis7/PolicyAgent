@@ -160,12 +160,14 @@ class ProfileEnrichmentService:
                 args = {}
 
             content = await self._call_tool(tool_map, name, args, visited)
+            logger.info(f"[档案研究] 调用工具 {name} args={args} → 结果{len(content)}字")
             self._messages.append({
                 "role": "tool",
                 "tool_call_id": call.get("id") or name,
                 "content": content[:_TOOL_RESULT_CHAR_LIMIT],
             })
 
+        logger.info(f"[档案研究] 研究结束，访问 {len(visited)} 个URL: {visited}")
         return self._dedupe(visited)[:_MAX_SOURCES]
 
     async def _call_tool(
@@ -199,7 +201,9 @@ class ProfileEnrichmentService:
         """在研究上下文后追加抽取指令，要求 LLM 产出逐字段带来源的 JSON"""
         messages = self._messages + [{"role": "user", "content": _EXTRACTION_INSTRUCTION}]
         message = await self._llm.invoke(messages, response_format={"type": "json_object"})
-        parsed = await self._json_parser.invoke((message or {}).get("content") or "", default_value={})
+        content = (message or {}).get("content") or ""
+        logger.info(f"[档案研究] 抽取原始输出: {content[:1000]}")
+        parsed = await self._json_parser.invoke(content, default_value={})
         return parsed if isinstance(parsed, dict) else {}
 
     def _build_enrichment(self, parsed: Dict[str, Any], visited: List[str]) -> EnterpriseProfileEnrichment:

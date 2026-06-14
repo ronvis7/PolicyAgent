@@ -187,7 +187,6 @@ export default function EnterpriseProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [enriching, setEnriching] = useState(false)
-  const [sources, setSources] = useState<string[]>([])
   // 逐字段来源：字段名 → 来源 URL（AI 补全填入时记录，展示在字段旁）
   const [fieldSources, setFieldSources] = useState<Record<string, string>>({})
   const fetchingRef = useRef(false)
@@ -248,17 +247,25 @@ export default function EnterpriseProfilePage() {
         tech_domains: mergeTags(prev.tech_domains, e.tech_domains.values),
         keywords: mergeTags(prev.keywords, e.keywords.values),
       }))
-      // 记录各字段来源（仅 AI 实际给出值且带来源的字段）
+      // 记录各字段来源（仅 AI 实际给出值的字段；来源缺失则用首个总来源兜底）
+      const fallback = e.sources[0] ?? ''
       const nextSources: Record<string, string> = {}
-      if (e.industry.value && e.industry.source) nextSources.industry = e.industry.source
-      if (e.scale.value && e.scale.source) nextSources.scale = e.scale.source
-      if (e.main_business.value && e.main_business.source) nextSources.main_business = e.main_business.source
-      if (e.qualifications.values.length && e.qualifications.source) nextSources.qualifications = e.qualifications.source
-      if (e.tech_domains.values.length && e.tech_domains.source) nextSources.tech_domains = e.tech_domains.source
-      if (e.keywords.values.length && e.keywords.source) nextSources.keywords = e.keywords.source
+      if (e.industry.value) nextSources.industry = e.industry.source || fallback
+      if (e.scale.value) nextSources.scale = e.scale.source || fallback
+      if (e.main_business.value) nextSources.main_business = e.main_business.source || fallback
+      if (e.qualifications.values.length) nextSources.qualifications = e.qualifications.source || fallback
+      if (e.tech_domains.values.length) nextSources.tech_domains = e.tech_domains.source || fallback
+      if (e.keywords.values.length) nextSources.keywords = e.keywords.source || fallback
       setFieldSources((prev) => ({ ...prev, ...nextSources }))
-      setSources(e.sources)
-      toast.success(e.note || 'AI 已补全建议，请审阅后点击保存')
+
+      const filledCount = Object.keys(nextSources).length
+      if (e.note) {
+        toast.warning(e.note)
+      } else if (filledCount === 0) {
+        toast.warning('AI 未能查到该企业的公开信息，请手动填写')
+      } else {
+        toast.success(`AI 已补全 ${filledCount} 项，请审阅后点击保存`)
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '联网补全失败')
     } finally {
@@ -325,29 +332,6 @@ export default function EnterpriseProfilePage() {
                   : '仅组织所有者/管理员可编辑企业档案。'}
               </span>
             </div>
-
-            {sources.length > 0 && (
-              <div className="mb-4 rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
-                <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
-                  <Sparkles className="size-3.5" />
-                  AI 补全参考来源（请核验后保存）
-                </div>
-                <ul className="space-y-0.5">
-                  {sources.map((url) => (
-                    <li key={url} className="truncate">
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-primary hover:underline"
-                      >
-                        {url}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
             <FieldGroup>
               <FieldSet>
