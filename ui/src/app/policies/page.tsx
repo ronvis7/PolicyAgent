@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, ScrollText, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, DownloadCloud, ExternalLink, Loader2, ScrollText, Search } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,17 +17,22 @@ import {
 } from '@/components/ui/dialog'
 import { policyApi } from '@/lib/api'
 import type { PolicyDetail, PolicyListItem } from '@/lib/api'
+import { useAuth } from '@/providers/auth-provider'
 
 const PAGE_SIZE = 20
 
 /** 公开政策库浏览页：全局共享层，所有登录用户可分页检索浏览政策。 */
 export default function PoliciesPage() {
+  const { role } = useAuth()
+  const canIngest = role === 'owner' || role === 'admin'
+
   const [items, setItems] = useState<PolicyListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [search, setSearch] = useState('') // 已提交的查询词
   const [loading, setLoading] = useState(true)
+  const [ingesting, setIngesting] = useState(false)
 
   const [detail, setDetail] = useState<PolicyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -55,6 +60,18 @@ export default function PoliciesPage() {
   const submitSearch = () => {
     setPage(1)
     setSearch(keyword.trim())
+  }
+
+  const handleIngest = async () => {
+    setIngesting(true)
+    try {
+      const res = await policyApi.ingest(3)
+      toast.success(`已开始后台抓取（最多 ${res.max_pages} 页），约 1-2 分钟后点刷新查看`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '触发抓取失败')
+    } finally {
+      setIngesting(false)
+    }
   }
 
   const openDetail = async (id: string) => {
@@ -89,6 +106,21 @@ export default function PoliciesPage() {
           <Button variant="outline" className="cursor-pointer" onClick={submitSearch}>
             <Search className="size-4" />
             搜索
+          </Button>
+          {canIngest && (
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={handleIngest}
+              disabled={ingesting}
+              title="后台抓取无锡新吴区最新政策入库"
+            >
+              {ingesting ? <Loader2 className="size-4 animate-spin" /> : <DownloadCloud className="size-4" />}
+              抓取政策
+            </Button>
+          )}
+          <Button variant="outline" className="cursor-pointer" onClick={fetchList} disabled={loading}>
+            刷新
           </Button>
         </div>
       </header>
