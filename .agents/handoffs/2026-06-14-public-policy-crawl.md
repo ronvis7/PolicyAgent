@@ -37,10 +37,13 @@ Issue：待创建
 ### 前端
 - `lib/api/policy.ts`（list/get + 类型）；`/policies` 浏览页（搜索/分页/详情 Dialog/原文链接）；左栏「公开政策库」入口。
 
-### 脚本
-- `scripts/crawl_wnd_policies.py --max-pages N`（手动触发，切 api 目录复用服务端配置）。
+### 脚本 / 触发
+- **后台抓取端点 `POST /policies/ingest?max_pages=N`（owner/admin）**：FastAPI BackgroundTasks 在 API 进程内跑 `PolicyIngestService.ingest`，立即返回。复用 API 自身 DB/embedding 连接，**免去主机直连远程库的隧道/端口问题**（脚本在主机直跑会 connection refused：隧道开在主机 127.0.0.1:本地端口，脚本默认却连容器用的 host.docker.internal）。前端 `/policies` 页 owner/admin 可见「抓取政策」+「刷新」按钮。
+- `scripts/crawl_wnd_policies.py --max-pages N`：保留（服务器侧/CI 定时可用；主机手跑需设 `POSTGRES_HOST=127.0.0.1` + 正确本地端口）。
 
 ## 验证
+
+- 真机（2026-06-14）：迁移已落库；经「抓取政策」按钮后台入库成功；`/policies` 列表/搜索/翻页/详情正常。
 
 - 服务层 + 爬虫解析单测全绿：新增爬虫解析 6、PolicyService/入库 6；全量单测 **53 passed**（跳过需真库的 status）。
 - `py_compile` 全过、`import app.main` 无循环、`alembic heads` 单一 `e6f7a8b9c0d1`。
