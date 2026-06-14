@@ -8,6 +8,7 @@ from .file_repository import FileRepository
 from .knowledge_base_repository import KnowledgeBaseRepository
 from .knowledge_file_repository import KnowledgeFileRepository
 from .membership_repository import MembershipRepository
+from .policy_repository import PolicyRepository
 from .session_repository import SessionRepository
 from .tenant_repository import TenantRepository
 from .tenant_settings_repository import TenantSettingsRepository
@@ -28,6 +29,7 @@ class IUnitOfWork(ABC):
     knowledge_base: KnowledgeBaseRepository
     knowledge_file: KnowledgeFileRepository
     document_chunk: DocumentChunkRepository
+    policy: PolicyRepository
 
     @abstractmethod
     async def commit(self):

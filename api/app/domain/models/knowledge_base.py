@@ -19,6 +19,7 @@ class KnowledgeBase(BaseModel):
     name: str = ""  # 知识库名称
     description: str = ""  # 知识库描述
     type: KnowledgeBaseType = KnowledgeBaseType.GENERAL  # 知识库类型(工厂分发)
+    is_public: bool = False  # 是否为全局公开库(跨租户共享，如公开政策库)
     embedding_model: str = ""  # 该库使用的embedding模型名(切片向量与之绑定)
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间

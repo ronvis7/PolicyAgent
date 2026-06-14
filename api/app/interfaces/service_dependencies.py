@@ -13,6 +13,8 @@ from app.application.services.enterprise_profile_service import EnterpriseProfil
 from app.application.services.file_service import FileService
 from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.membership_service import MembershipService
+from app.application.services.policy_ingest_service import PolicyIngestService
+from app.application.services.policy_service import PolicyService
 from app.application.services.profile_enrichment_service import ProfileEnrichmentService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
@@ -30,6 +32,7 @@ from app.infrastructure.external.document_parser.pymupdf_parser import PyMuPDFPa
 from app.infrastructure.external.embedding.openai_embedding import OpenAIEmbedding
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
+from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCrawler
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
@@ -248,4 +251,20 @@ async def get_profile_enrichment_service(
         llm=OpenAILLM(llm_config),
         search_engine=BingSearchEngine(),
         json_parser=RepairJSONParser(),
+    )
+
+
+def get_policy_service() -> PolicyService:
+    """获取公开政策库读服务(全局共享，分页浏览)"""
+    return PolicyService(uow_factory=get_uow)
+
+
+def get_policy_ingest_service() -> PolicyIngestService:
+    """获取公开政策入库编排服务(爬取 + 结构化 upsert + 向量双写)"""
+    app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
+    embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
+    return PolicyIngestService(
+        uow_factory=get_uow,
+        crawler=WndPolicyCrawler(),
+        embedding=embedding,
     )
