@@ -1,0 +1,93 @@
+"""公开政策库路由：全局共享层，所有登录用户可分页浏览 + 查看详情。
+
+抓取入库可由 owner/admin 经 POST /policies/ingest 后台触发(API 进程内执行，复用其
+DB/embedding 连接，免去主机直连远程库的隧道/端口问题)；也可用脚本 scripts/crawl_wnd_policies.py。
+"""
+
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
+
+from app.application.services.policy_ingest_service import PolicyIngestService
+from app.application.services.policy_service import PolicyService
+from app.domain.models.membership import MembershipRole
+from app.interfaces.auth_dependencies import CurrentUser, get_current_user, require_role
+from app.interfaces.schemas.base import Response
+from app.interfaces.schemas.policy import (
+    PolicyDetailResponse,
+    PolicyListItem,
+    PolicyListResponse,
+)
+from app.interfaces.service_dependencies import get_policy_ingest_service, get_policy_service
+
+logger = logging.getLogger(__name__)
+
+# 抓取入库限组织 owner/admin（公开库为全局共享，写入应受控）
+_require_org_admin = require_role(MembershipRole.OWNER.value, MembershipRole.ADMIN.value)
+
+router = APIRouter(prefix="/policies", tags=["公开政策库"])
+
+
+@router.post(
+    path="/ingest",
+    response_model=Response[dict],
+    summary="后台抓取无锡新吴区公开政策入库",
+    description=(
+        "在 API 进程内后台抓取「政策文件」栏目并结构化 upsert + 向量双写(不阻塞请求，立即返回)。"
+        "复用 API 自身的 DB/embedding 连接。仅组织 owner/admin 可触发。完成后刷新列表查看。"
+    ),
+)
+async def ingest_policies(
+        background_tasks: BackgroundTasks,
+        max_pages: int = Query(3, ge=1, le=20, description="抓取的列表页数(每页约20条)"),
+        _current_user: CurrentUser = Depends(_require_org_admin),
+        service: PolicyIngestService = Depends(get_policy_ingest_service),
+) -> Response[dict]:
+    """后台触发公开政策抓取入库"""
+    background_tasks.add_task(service.ingest, max_pages)
+    logger.info(f"已排入后台政策抓取任务: max_pages={max_pages}")
+    return Response.success(
+        msg=f"已开始后台抓取最新政策(最多 {max_pages} 页)，约 1-2 分钟后刷新列表查看",
+        data={"max_pages": max_pages},
+    )
+
+
+@router.get(
+    path="",
+    response_model=Response[PolicyListResponse],
+    summary="分页浏览公开政策库",
+    description="按发文日期倒序分页返回公开政策(全局共享)。支持按地区/发文机构/标题关键词筛选。所有登录用户可访问。",
+)
+async def list_policies(
+        page: int = Query(1, ge=1, description="页码(从1开始)"),
+        page_size: int = Query(20, ge=1, le=100, description="每页条数(1-100)"),
+        region: str = Query("", description="按适用地区筛选(模糊)"),
+        issuer: str = Query("", description="按发文机构筛选(模糊)"),
+        keyword: str = Query("", description="按标题关键词筛选(模糊)"),
+        _current_user: CurrentUser = Depends(get_current_user),
+        service: PolicyService = Depends(get_policy_service),
+) -> Response[PolicyListResponse]:
+    """分页浏览公开政策库"""
+    items, total = await service.list_policies(
+        page=page, page_size=page_size, region=region, issuer=issuer, keyword=keyword,
+    )
+    return Response.success(data=PolicyListResponse(
+        items=[PolicyListItem.from_domain(p) for p in items],
+        total=total, page=page, page_size=page_size,
+    ))
+
+
+@router.get(
+    path="/{policy_id}",
+    response_model=Response[PolicyDetailResponse],
+    summary="查看政策详情",
+    description="返回单篇政策的完整信息(含正文)。所有登录用户可访问。",
+)
+async def get_policy(
+        policy_id: str,
+        _current_user: CurrentUser = Depends(get_current_user),
+        service: PolicyService = Depends(get_policy_service),
+) -> Response[PolicyDetailResponse]:
+    """查看政策详情"""
+    policy = await service.get_policy(policy_id)
+    return Response.success(data=PolicyDetailResponse.from_domain(policy))
