@@ -1,7 +1,7 @@
 # 自助加入其他组织（已登录用户）
 
 Issue：待创建
-分支：`feat/self-join-org`（从 main 切，PR 待创建）
+分支：`feat/self-join-org`（**PR #18 已合并 main，2026-06-15；分支已删**）
 更新时间：2026-06-15
 
 ## 背景 / 目标
