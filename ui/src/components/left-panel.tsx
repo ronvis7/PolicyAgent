@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
-import {Building2, Database, KeyRound, LayoutDashboard, Plus, ScrollText} from 'lucide-react'
+import {Award, Building2, Database, KeyRound, LayoutDashboard, Plus, ScrollText} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
@@ -96,6 +96,15 @@ export function LeftPanel() {
               {unread > 99 ? '99+' : unread}
             </Badge>
           )}
+        </Button>
+        {/* 资质机会入口（⑥） */}
+        <Button
+          variant="ghost"
+          className="cursor-pointer justify-start mb-1"
+          onClick={() => router.push('/qualifications')}
+        >
+          <Award className="size-4"/>
+          资质机会
         </Button>
         {/* 知识库管理入口 */}
         <Button

@@ -17,6 +17,7 @@ from typing import Callable, List, Optional, Protocol, Tuple
 from app.application.errors.exceptions import NotFoundError
 from app.domain.models.feed_item import FeedItem, FeedStatus
 from app.domain.models.policy_match import PolicyMatch
+from app.domain.models.qualification import QualificationMatch
 from app.domain.repositories.uow import IUnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -26,34 +27,45 @@ DEFAULT_FEED_TOP_K = 20
 
 
 class MatchService(Protocol):
-    """重算所需的匹配能力(由 PolicyMatchService 实现)，按协议解耦便于测试。"""
+    """重算所需的政策匹配能力(由 PolicyMatchService 实现)，按协议解耦便于测试。"""
 
     async def match_for_tenant(self, tenant_id: str, top_k: int = ...) -> List[PolicyMatch]:
         ...
 
 
+class QualificationMatchService(Protocol):
+    """重算所需的资质匹配能力(由 QualificationService 实现，⑥机会第二类)。"""
+
+    async def match_for_tenant(self, tenant_id: str, top_k: int = ...) -> List[QualificationMatch]:
+        ...
+
+
 class FeedService:
-    """工作台 Feed 服务：物化③匹配结果 + 状态机管理。"""
+    """工作台 Feed 服务：物化③政策匹配 + ⑥资质匹配结果 + 状态机管理。"""
 
     def __init__(
         self,
         uow_factory: Callable[[], IUnitOfWork],
         match_service: MatchService,
+        qualification_service: Optional[QualificationMatchService] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._match_service = match_service
+        self._qualification_service = qualification_service
 
     async def recompute_for_tenant(
         self, tenant_id: str, top_k: int = DEFAULT_FEED_TOP_K,
     ) -> dict:
-        """重算当前租户 Feed：新增 unread / 更新快照(保留用户状态)。返回 {new, updated}。"""
-        matches = await self._match_service.match_for_tenant(tenant_id, top_k=top_k)
+        """重算当前租户 Feed：政策+资质两类机会一并物化(新增 unread / 更新快照保留用户状态)。
+
+        返回 {new, updated}。资质源缺省(qualification_service=None)时只跑政策，保持向后兼容。
+        """
+        fresh_items = await self._collect_fresh_items(tenant_id, top_k)
 
         new_count = 0
         updated_count = 0
         async with self._uow_factory() as uow:
-            for match in matches:
-                fresh = FeedItem.from_policy_match(tenant_id, match)
+            for fresh in fresh_items:
                 existing = await uow.feed.get_by_tenant_and_policy(
                     tenant_id, fresh.policy_id,
                 )
@@ -69,6 +81,17 @@ class FeedService:
             "Feed 重算完成 tenant=%s new=%d updated=%d", tenant_id, new_count, updated_count,
         )
         return {"new": new_count, "updated": updated_count}
+
+    async def _collect_fresh_items(self, tenant_id: str, top_k: int) -> List[FeedItem]:
+        """汇集政策与资质两类机会，统一转为待 upsert 的 FeedItem 列表。"""
+        matches = await self._match_service.match_for_tenant(tenant_id, top_k=top_k)
+        items = [FeedItem.from_policy_match(tenant_id, m) for m in matches]
+
+        if self._qualification_service is not None:
+            qual_matches = await self._qualification_service.match_for_tenant(tenant_id)
+            items.extend(FeedItem.from_qualification_match(tenant_id, qm) for qm in qual_matches)
+
+        return items
 
     async def list_feed(
         self,

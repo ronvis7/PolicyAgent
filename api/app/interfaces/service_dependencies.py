@@ -17,6 +17,7 @@ from app.application.services.membership_service import MembershipService
 from app.application.services.policy_ingest_service import PolicyIngestService
 from app.application.services.policy_match_service import PolicyMatchService
 from app.application.services.policy_service import PolicyService
+from app.application.services.qualification_service import QualificationService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
 from app.application.services.tenant_settings_service import TenantSettingsService
@@ -33,6 +34,7 @@ from app.infrastructure.external.document_parser.pymupdf_parser import PyMuPDFPa
 from app.infrastructure.external.embedding.openai_embedding import OpenAIEmbedding
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
+from app.infrastructure.data.qualification_catalog import load_qualification_catalog
 from app.infrastructure.external.crawler.registry import build_crawlers
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
@@ -259,6 +261,15 @@ def get_policy_match_service() -> PolicyMatchService:
     return PolicyMatchService(uow_factory=get_uow, embedding=embedding)
 
 
+def get_qualification_service() -> QualificationService:
+    """获取资质机会服务(⑥：企业档案 × 资质目录启发式匹配 + 详情读取)"""
+    return QualificationService(uow_factory=get_uow, catalog=load_qualification_catalog())
+
+
 def get_feed_service() -> FeedService:
-    """获取工作台 Feed 服务(④：物化③匹配结果 + 状态机)"""
-    return FeedService(uow_factory=get_uow, match_service=get_policy_match_service())
+    """获取工作台 Feed 服务(④：物化③政策 + ⑥资质匹配结果 + 状态机)"""
+    return FeedService(
+        uow_factory=get_uow,
+        match_service=get_policy_match_service(),
+        qualification_service=get_qualification_service(),
+    )

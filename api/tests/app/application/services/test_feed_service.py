@@ -10,9 +10,14 @@ from typing import List
 
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.feed_service import FeedService
-from app.domain.models.feed_item import FeedItem, FeedStatus
+from app.domain.models.feed_item import FeedItem, FeedItemType, FeedStatus
 from app.domain.models.policy import Policy
 from app.domain.models.policy_match import PolicyMatch
+from app.domain.models.qualification import (
+    Qualification,
+    QualificationLevel,
+    QualificationMatch,
+)
 
 from ._fakes import make_uow_factory
 
@@ -40,6 +45,29 @@ def _match(policy_id: str, title: str, score: float = 1.0) -> PolicyMatch:
     )
 
 
+class StubQualificationService:
+    """桩资质匹配服务：按租户返回预置资质候选。"""
+
+    def __init__(self, matches_by_tenant: dict) -> None:
+        self._matches = matches_by_tenant
+        self.calls: List[str] = []
+
+    async def match_for_tenant(self, tenant_id: str, top_k: int = 50) -> List[QualificationMatch]:
+        self.calls.append(tenant_id)
+        return self._matches.get(tenant_id, [])
+
+
+def _qmatch(key: str, name: str, eligible: bool = True, score: float = 1.0) -> QualificationMatch:
+    qual = Qualification(
+        key=key, name=name, level=QualificationLevel.NATIONAL, region="全国",
+        issuer="科技部", last_reviewed="2026-06-15",
+    )
+    return QualificationMatch(
+        qualification=qual, score=score, eligible=eligible,
+        matched_signals=["集成电路"], reasons=["可申报", "符合：集成电路"],
+    )
+
+
 def _service(matches_by_tenant: dict, feed_items: dict):
     return FeedService(
         uow_factory=make_uow_factory(feed_items=feed_items),
@@ -59,6 +87,44 @@ def test_recompute_inserts_new_items_as_unread() -> None:
     assert all(i.status == FeedStatus.UNREAD for i in items)
     assert {i.policy_id for i in items} == {"p1", "p2"}
     assert asyncio.run(service.unread_count("t1")) == 2
+
+
+def test_recompute_folds_qualifications_into_feed() -> None:
+    feed: dict = {}
+    service = FeedService(
+        uow_factory=make_uow_factory(feed_items=feed),
+        match_service=StubMatchService({"t1": [_match("p1", "集成电路奖励")]}),
+        qualification_service=StubQualificationService({"t1": [_qmatch("hi-tech", "高新技术企业认定")]}),
+    )
+
+    result = asyncio.run(service.recompute_for_tenant("t1"))
+
+    # 政策 + 资质各 1 条都进 Feed
+    assert result == {"new": 2, "updated": 0}
+    items = {i.policy_id: i for i in feed.values()}
+    assert set(items) == {"p1", "hi-tech"}
+
+    qual_item = items["hi-tech"]
+    assert qual_item.type == FeedItemType.QUALIFICATION
+    assert qual_item.title == "高新技术企业认定"
+    assert qual_item.issuer == "科技部"
+    assert qual_item.region == "全国"
+    assert qual_item.status == FeedStatus.UNREAD
+    assert qual_item.matched_terms == ["集成电路"]
+    assert "可申报" in qual_item.reasons
+
+    policy_item = items["p1"]
+    assert policy_item.type == FeedItemType.POLICY
+
+
+def test_recompute_without_qualification_service_only_does_policies() -> None:
+    feed: dict = {}
+    service = _service({"t1": [_match("p1", "政策一")]}, feed)
+
+    result = asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert result == {"new": 1, "updated": 0}
+    assert all(i.type == FeedItemType.POLICY for i in feed.values())
 
 
 def test_recompute_is_idempotent_and_preserves_user_status() -> None:

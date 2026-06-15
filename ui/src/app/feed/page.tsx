@@ -15,8 +15,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { feedApi, policyApi } from '@/lib/api'
-import type { FeedItem, FeedStatus, PolicyDetail, SettableFeedStatus } from '@/lib/api'
+import { feedApi, policyApi, qualificationApi } from '@/lib/api'
+import type {
+  FeedItem,
+  FeedStatus,
+  PolicyDetail,
+  QualificationDetail,
+  SettableFeedStatus,
+} from '@/lib/api'
+import { QualificationDetailView } from '@/components/qualification-detail'
 import { FEED_UNREAD_CHANGED_EVENT } from '@/lib/feed-events'
 
 const PAGE_SIZE = 50
@@ -47,6 +54,10 @@ export default function FeedPage() {
 
   const [detail, setDetail] = useState<PolicyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  // 资质详情（type=qualification 的条目走资质详情，policy_id 即资质 key）
+  const [qualDetail, setQualDetail] = useState<QualificationDetail | null>(null)
+  const [qualDetailLoading, setQualDetailLoading] = useState(false)
 
   /** 通知左栏刷新未读红点 */
   const notifyUnreadChanged = useCallback(() => {
@@ -110,11 +121,24 @@ export default function FeedPage() {
     }
   }
 
-  const openDetail = async (policyId: string) => {
+  /** 按机会类型分流：资质走资质详情，其余(政策)走公开政策详情 */
+  const openDetail = async (item: FeedItem) => {
+    if (item.type === 'qualification') {
+      setQualDetailLoading(true)
+      setQualDetail(null)
+      try {
+        setQualDetail(await qualificationApi.getDetail(item.policy_id))
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '获取资质详情失败')
+      } finally {
+        setQualDetailLoading(false)
+      }
+      return
+    }
     setDetailLoading(true)
     setDetail(null)
     try {
-      setDetail(await policyApi.get(policyId))
+      setDetail(await policyApi.get(item.policy_id))
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '获取政策详情失败')
     } finally {
@@ -207,10 +231,21 @@ export default function FeedPage() {
                         {STATUS_LABEL.ignored}
                       </Badge>
                     )}
+                    {/* 机会类型徽章：资质区别于政策 */}
+                    <Badge
+                      variant="outline"
+                      className={`mt-0.5 shrink-0 ${
+                        m.type === 'qualification'
+                          ? 'border-emerald-300 text-emerald-700 dark:text-emerald-400'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {m.type === 'qualification' ? '资质' : '政策'}
+                    </Badge>
                     <button
                       type="button"
                       className="text-left font-medium line-clamp-2 cursor-pointer hover:underline"
-                      onClick={() => openDetail(m.policy_id)}
+                      onClick={() => openDetail(m)}
                     >
                       {m.title}
                     </button>
@@ -304,6 +339,30 @@ export default function FeedPage() {
                   查看原文
                 </a>
               )}
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* 资质详情弹窗（type=qualification） */}
+      <Dialog
+        open={qualDetailLoading || !!qualDetail}
+        onOpenChange={(open) => !open && setQualDetail(null)}
+      >
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          {qualDetailLoading ? (
+            <div className="flex items-center justify-center py-20 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          ) : qualDetail ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-left leading-relaxed">{qualDetail.name}</DialogTitle>
+                <DialogDescription className="sr-only">资质详情</DialogDescription>
+              </DialogHeader>
+              <div className="overflow-auto flex-1">
+                <QualificationDetailView detail={qualDetail} />
+              </div>
             </>
           ) : null}
         </DialogContent>

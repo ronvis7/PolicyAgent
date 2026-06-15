@@ -6,6 +6,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.domain.models.policy_match import PolicyMatch
+from app.domain.models.qualification import QualificationMatch
 
 
 class FeedStatus(str, Enum):
@@ -67,6 +68,29 @@ class FeedItem(BaseModel):
             structured_score=match.structured_score,
             semantic_score=match.semantic_score,
             matched_terms=match.matched_terms,
+            reasons=match.reasons,
+        )
+
+    @classmethod
+    def from_qualification_match(
+        cls, tenant_id: str, match: QualificationMatch,
+    ) -> "FeedItem":
+        """由⑥资质匹配候选构造一条 Feed 条目(type=qualification，新条目默认 unread)。
+
+        资质无发布日期/抓取来源，故 publish_date/source_url 留空；policy_id 复用为资质 key
+        (机会源id)，与政策 UUID 不冲突。structured_score 承载匹配总分，便于与政策同列排序。
+        """
+        q = match.qualification
+        return cls(
+            tenant_id=tenant_id,
+            type=FeedItemType.QUALIFICATION,
+            policy_id=q.key,
+            title=q.name,
+            issuer=q.issuer,
+            region=q.region,
+            score=match.score,
+            structured_score=match.score,
+            matched_terms=match.matched_signals,
             reasons=match.reasons,
         )
 
