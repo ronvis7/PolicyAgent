@@ -1,11 +1,11 @@
 # 当前状态
 
-最后更新：2026-06-14
+最后更新：2026-06-15
 
 ## 仓库状态
 
-- 主仓库：`policy_manus`，当前分支 `main`，工作区干净。
-- `main` 已合入 R1+R2+R3（PR #1/#2/#3）。
+- 主仓库：`policy_manus`，当前分支 `feat/policy-matching`（③匹配，待提交/开 PR）。
+- `main` 已合入 ②公开政策库（PR #12，2026-06-15 合并，含抓取端点）。
 
 ## 已完成
 
@@ -26,6 +26,7 @@
 - **注册重构 + 加入审批（同分支）**：注册拆「创建组织/加入组织」两入口；共享组织名应用层唯一、首个创建者永久 owner；加入＝自动建个人工作区（owner，未批准前用自己 key）+ 对目标组织建 `pending` 申请，owner/admin 审批通过才成正式成员。新增 `Tenant.is_personal`（迁移 `c4d5e6f7a8b9`）、`MembershipStatus.PENDING`、公开 `GET /auth/orgs` 检索、`/members/requests|approve|reject`。前端注册页 create/join 切换 + 组织检索、成员页待审批区。服务层单测 28 绿、前端 tsc/eslint 绿。**存量重复同名组织待 DB 连通后人工去重**。
 - **企业档案 ①（结构化档案）**：产品转向"以企业为主体的主动情报服务"主线（企业档案→公开政策库→匹配→工作台 Feed→接问AI/报告）的第①步。每租户一条结构化档案（企业名/地区默认无锡新吴区/行业/规模/主营业务/资质·技术域·关键词），沿用 `tenant_settings` 单记录模式；`GET` 成员可读、`PUT` 限 owner/admin；前端 `/enterprise-profile` 档案页（owner/admin 可编辑、member 只读）+ 左栏入口。迁移 `d5e6f7a8b9c0`（**现 head**，纯新增表）。服务层单测 6 绿、全量 34 绿，前端 tsc/eslint 绿。**分支 `feat/enterprise-profile`（PR 待合并），迁移已真机执行**（2026-06-14 远程库已升级、`enterprise_profiles` 表已建）。Agent 联网增强档案（①b）schema 预留未做。
 - **企业档案 ①b（Agent 联网增强）——已暂停**：档案页「AI 联网补全」，后改为与聊天同源的 agentic 研究（一次性沙箱+浏览器+多步 LLM，逐字段带来源）。机制全通（reasoning_content 回传、4 分钟超时均已修），但**真机实测效果极差、字段几乎全空**——根因是**没有可靠数据源**：Bing 抓取失效、天眼查/企查查等强反爬浏览器读不到。已用开关 `ENRICH_ENABLED=false`（`ui/.../enterprise-profile/page.tsx`）**隐藏按钮**，后端服务/端点/单测全保留。**复活条件**：接入正规搜索/企业数据 API（需 key），置 true 并把 `BingSearchEngine` 换掉。分支 `feat/enterprise-profile-enrich`（PR #11，**暂不合并**）。详见记忆 `search-and-enrichment`。
+- **政策匹配 ③（企业档案 × 公开政策）——本期交付**：主线第③步。即时计算、不落表：按当前租户企业档案现算可申报政策候选。**两路融合**：①结构化命中（档案 `keywords/tech_domains/qualifications/industry` 词表落在政策 `title`(权重高)+`body_text`，归一化命中度 + 命中词）；②语义召回（档案画像 `industry+main_business+tech_domains+keywords` 拼查询 → embedding → 检索公开库 `public-policy-kb`/系统租户 `public` → 切片按 `source_url` 聚合回政策）；两路有序候选经 **RRF**（k=60）融合排序，输出带「推荐理由」（命中关键词/地区匹配/语义相关度）。纯函数内核 `domain/services/policy_matcher.py`（`extract_profile_terms`/`build_profile_query`/`region_matches`/`score_terms`/`structured_score`/`reciprocal_rank_fusion`）+ 应用服务 `policy_match_service.py`；端点 `GET /policies/match?top_k=N`（所有登录用户，限当前租户档案，**注册在 `/{policy_id}` 之前**避免被路径参数捕获）；仓储加 `list_candidates`/`list_by_source_urls`（语义回查批量 IN，无 N+1）。前端 `/matches` 候选页（分数/命中度/语义分/推荐理由/详情弹窗复用 `/policies/{id}`）+ 左栏「政策匹配」入口。**无新表、无迁移**（`alembic heads` 仍 `e6f7a8b9c0d1`）。单测：匹配器纯函数 10 + 服务 4，全量 **67 passed**（跳过需真库的 status）；`import app.main` OK；前端 tsc/eslint 绿。**决策**：即时计算（物化留作④Feed）、本分支不含 Agent 接公开库（KnowledgeBaseTool 纳入 is_public 留作后续小分支）。**分支 `feat/policy-matching`，未真机验证（需 DB 连通 + 已抓取的公开库切片）。**
 - **公开政策库 ②（爬取+结构化入库+向量双写）**：主线第②步。爬无锡新吴区门户「政策文件」栏目（逆向 JSON 接口 `/info_open/search`，零 Playwright）→ upsert 入 `policies` 全局表（无 tenant，source_url 去重）→ 正文复用 RAG 流水线 embedding 进全局公开库（`knowledge_base.is_public` + 系统租户 `public`）。`GET /policies` 分页浏览（所有登录用户），前端 `/policies` 页 + 左栏入口。**后台抓取端点 `POST /policies/ingest`（owner/admin）**在 API 进程内跑（复用其 DB/embed 连接，免主机直连远程库的隧道/端口问题）+ 前端「抓取政策」按钮；脚本 `scripts/crawl_wnd_policies.py` 保留（主机直跑因隧道只对容器生效会连不上）。迁移 `e6f7a8b9c0d1`（**现 head**：policies 表 + is_public + 播种 public 租户）。爬虫解析单测 6 + 服务/入库 6；实弹试爬通过。**分支 `feat/public-policy-crawl`（PR #12），2026-06-14 真机验证：迁移已落库、经「抓取政策」按钮入库成功、`/policies` 列表/搜索/详情正常。** 详见 handoff `2026-06-14-public-policy-crawl`。
 
 ## 未完成
@@ -39,16 +40,16 @@
 
 ## 当前最高优先级
 
-1. **③ 匹配（企业档案 × 公开政策）**：用档案的地区/行业/资质/关键词去匹配 policies，产出企业可申报的政策候选。② 数据已可经「抓取政策」按钮灌入。
-2. ④ 工作台 Feed（主动推送）。
-3. 报告生成流水线。
+1. **③ 匹配真机验证 + 合并**：`feat/policy-matching` 已交付代码（结构化+语义 RRF 融合 + `/matches` 页），待 DB 连通 + 公开库已抓取后真机验证 `/policies/match`（档案需先填行业/关键词/技术域），再开 PR 合 main。
+2. ④ 工作台 Feed（主动推送）：可在 ③ 即时匹配之上做物化/定时（物化 `policy_matches` 留到此处）。
+3. 公开库语义检索接入 Agent（KnowledgeBaseTool 纳入 is_public 库）：本期③刻意未做，留作后续小分支。
+4. 报告生成流水线。
 
-## 分支/PR 状态（2026-06-14 收尾）
-- `main`：① 企业档案（PR #10 已合）。
+## 分支/PR 状态（2026-06-15 收尾）
+- `main`：① 企业档案（PR #10）+ ② 公开政策库（PR #12，已合）。
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏）。
-- PR #12 `feat/public-policy-crawl`：② 公开政策库 + 抓取端点，**真机验证通过，可合并**。
+- `feat/policy-matching`：③ 政策匹配，**门禁全绿、待真机验证后开 PR**。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
-- 明天：合 PR #12 → 从 main 切分支做 ③ 匹配。
 
 ## 已知风险
 

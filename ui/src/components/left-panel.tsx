@@ -12,7 +12,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {Building2, Database, KeyRound, Plus, ScrollText} from 'lucide-react'
+import {Building2, Database, KeyRound, Plus, ScrollText, Sparkles} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
@@ -63,6 +63,15 @@ export function LeftPanel() {
         >
           <ScrollText className="size-4"/>
           公开政策库
+        </Button>
+        {/* 政策匹配入口 */}
+        <Button
+          variant="ghost"
+          className="cursor-pointer justify-start mb-1"
+          onClick={() => router.push('/matches')}
+        >
+          <Sparkles className="size-4"/>
+          政策匹配
         </Button>
         {/* 知识库管理入口 */}
         <Button

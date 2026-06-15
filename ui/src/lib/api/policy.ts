@@ -39,6 +39,22 @@ export type ListPoliciesParams = {
   keyword?: string;
 };
 
+/** 单条政策匹配候选（③匹配输出） */
+export type PolicyMatchItem = {
+  policy: PolicyListItem;
+  score: number; // RRF 融合总分
+  structured_score: number; // 结构化命中归一化分 [0,1]
+  semantic_score: number; // 语义最高相似度 [-1,1]
+  matched_terms: string[]; // 命中的档案词
+  reasons: string[]; // 推荐理由
+};
+
+/** 政策匹配响应（已按融合分倒序） */
+export type PolicyMatchResponse = {
+  items: PolicyMatchItem[];
+  total: number;
+};
+
 // ==================== 公开政策库 API ====================
 
 export const policyApi = {
@@ -62,5 +78,10 @@ export const policyApi = {
   /** 后台触发抓取入库（仅 owner/admin，立即返回，约 1-2 分钟后数据可见） */
   ingest: (maxPages = 3): Promise<{ max_pages: number }> => {
     return post<{ max_pages: number }>(`/policies/ingest?max_pages=${maxPages}`);
+  },
+
+  /** 按当前租户企业档案匹配公开政策候选（③匹配，即时计算） */
+  match: (topK = 20): Promise<PolicyMatchResponse> => {
+    return get<PolicyMatchResponse>(`/policies/match?top_k=${topK}`);
   },
 };

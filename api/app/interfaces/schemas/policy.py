@@ -4,6 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.domain.models.policy import Policy
+from app.domain.models.policy_match import PolicyMatch
 
 
 class PolicyListItem(BaseModel):
@@ -51,3 +52,28 @@ class PolicyDetailResponse(PolicyListItem):
             publish_date=p.publish_date, region=p.region,
             body_text=p.body_text, crawled_at=p.crawled_at,
         )
+
+
+class PolicyMatchItem(BaseModel):
+    """单条政策匹配候选(③匹配输出)：政策概要 + 融合分 + 可解释理由"""
+    policy: PolicyListItem  # 政策概要(列表轻量，正文经详情接口按需取)
+    score: float = 0.0  # RRF 融合总分(越大越靠前)
+    structured_score: float = 0.0  # 结构化命中归一化分∈[0,1]
+    semantic_score: float = 0.0  # 语义最高相似度∈[-1,1]
+    matched_terms: List[str] = Field(default_factory=list)  # 命中的档案词
+    reasons: List[str] = Field(default_factory=list)  # 推荐理由
+
+    @classmethod
+    def from_domain(cls, m: PolicyMatch) -> "PolicyMatchItem":
+        return cls(
+            policy=PolicyListItem.from_domain(m.policy),
+            score=m.score, structured_score=m.structured_score,
+            semantic_score=m.semantic_score, matched_terms=m.matched_terms,
+            reasons=m.reasons,
+        )
+
+
+class PolicyMatchResponse(BaseModel):
+    """政策匹配响应：候选列表(已按融合分倒序)"""
+    items: List[PolicyMatchItem] = Field(default_factory=list)
+    total: int = 0

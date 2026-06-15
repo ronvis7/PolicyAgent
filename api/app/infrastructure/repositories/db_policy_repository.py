@@ -27,6 +27,14 @@ class DBPolicyRepository(PolicyRepository):
         record = (await self.db_session.execute(stmt)).scalar_one_or_none()
         return record.to_domain() if record is not None else None
 
+    async def list_by_source_urls(self, source_urls: List[str]) -> List[Policy]:
+        """按一组 source_url 批量查询（一次 IN 查询，避免逐条 N+1）"""
+        if not source_urls:
+            return []
+        stmt = select(PolicyModel).where(PolicyModel.source_url.in_(source_urls))
+        records = (await self.db_session.execute(stmt)).scalars().all()
+        return [r.to_domain() for r in records]
+
     async def save(self, policy: Policy) -> None:
         """按 source_url upsert：存在则更新业务字段，否则新建"""
         stmt = select(PolicyModel).where(PolicyModel.source_url == policy.source_url)
@@ -67,3 +75,13 @@ class DBPolicyRepository(PolicyRepository):
         )
         records = (await self.db_session.execute(list_stmt)).scalars().all()
         return [r.to_domain() for r in records], total
+
+    async def list_candidates(self, limit: int) -> List[Policy]:
+        """取最近 limit 篇政策(含正文)作为③匹配的结构化候选集，按发文日期倒序(空日期殿后)"""
+        stmt = (
+            select(PolicyModel)
+            .order_by(PolicyModel.publish_date.desc().nullslast())
+            .limit(limit)
+        )
+        records = (await self.db_session.execute(stmt)).scalars().all()
+        return [r.to_domain() for r in records]
