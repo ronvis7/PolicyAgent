@@ -109,6 +109,45 @@ class MembershipService:
             view = self._to_view(membership, user)
         return view
 
+    async def request_join(self, user_id: str, tenant_id: str) -> MemberView:
+        """已登录用户自助申请加入某共享组织：建一条 pending 申请，待对方 owner/admin 审批。
+
+        与注册时的加入流程同源(都产出 pending 成员关系)，区别是此处用户已存在、
+        且不创建个人工作区。目标须为存在的共享组织(非个人工作区)；已是正式成员或
+        已有待审批申请则冲突；曾被移除(disabled)则复用记录重新置为 pending。
+        """
+        async with self.uow_factory() as uow:
+            target = await uow.tenant.get_by_id(tenant_id)
+            if target is None or target.is_personal:
+                raise NotFoundError("目标组织不存在，请重新选择")
+
+            user = await uow.user.get_by_id(user_id)
+            if user is None:
+                raise NotFoundError("用户不存在")
+
+            existing = await uow.membership.get_by_user_and_tenant(user_id, tenant_id)
+            if existing is not None:
+                if existing.status == MembershipStatus.ACTIVE:
+                    raise ConflictError("你已是该组织成员")
+                if existing.status == MembershipStatus.PENDING:
+                    raise ConflictError("你已提交加入申请，请等待管理员审批")
+                # disabled：复用原记录重新申请
+                membership = existing.model_copy(update={
+                    "role": MembershipRole.MEMBER,
+                    "status": MembershipStatus.PENDING,
+                    "updated_at": datetime.now(),
+                })
+            else:
+                membership = Membership(
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    role=MembershipRole.MEMBER,
+                    status=MembershipStatus.PENDING,
+                )
+            await uow.membership.save(membership)
+            view = self._to_view(membership, user)
+        return view
+
     async def change_role(
             self,
             tenant_id: str,

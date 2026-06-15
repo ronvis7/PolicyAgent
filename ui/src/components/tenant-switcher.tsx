@@ -2,7 +2,7 @@
 
 import React, {useState} from 'react'
 import {toast} from 'sonner'
-import {Check, ChevronsUpDown, Loader2} from 'lucide-react'
+import {Check, ChevronsUpDown, Loader2, Plus} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,7 @@ import {
 import {SidebarMenuButton} from '@/components/ui/sidebar'
 import {ApiError} from '@/lib/api'
 import {useAuth} from '@/providers/auth-provider'
+import {JoinOrgDialog} from '@/components/join-org-dialog'
 
 /**
  * 组织（租户）切换器
@@ -24,9 +25,9 @@ import {useAuth} from '@/providers/auth-provider'
 export function TenantSwitcher() {
   const {tenants, activeTenantId, switchTenant} = useAuth()
   const [switching, setSwitching] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(false)
 
   const activeTenant = tenants.find((t) => t.id === activeTenantId) ?? null
-  const onlyOneTenant = tenants.length <= 1
 
   const handleSelect = async (tenantId: string) => {
     if (tenantId === activeTenantId || switching) return
@@ -46,26 +47,26 @@ export function TenantSwitcher() {
   const triggerLabel = activeTenant?.name ?? '未选择组织'
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={onlyOneTenant || switching}>
-        <SidebarMenuButton className="cursor-pointer justify-between">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium">{triggerLabel}</span>
-            {activeTenant && (
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                {activeTenant.plan}
-              </span>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={switching}>
+          <SidebarMenuButton className="cursor-pointer justify-between">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-medium">{triggerLabel}</span>
+              {activeTenant && (
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                  {activeTenant.plan}
+                </span>
+              )}
+            </span>
+            {switching ? (
+              <Loader2 className="size-4 shrink-0 animate-spin"/>
+            ) : (
+              <ChevronsUpDown className="size-4 shrink-0 opacity-60"/>
             )}
-          </span>
-          {switching ? (
-            <Loader2 className="size-4 shrink-0 animate-spin"/>
-          ) : (
-            !onlyOneTenant && <ChevronsUpDown className="size-4 shrink-0 opacity-60"/>
-          )}
-        </SidebarMenuButton>
-      </DropdownMenuTrigger>
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
 
-      {!onlyOneTenant && (
         <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">
           <DropdownMenuLabel className="text-xs text-muted-foreground">切换组织</DropdownMenuLabel>
           <DropdownMenuSeparator/>
@@ -79,8 +80,21 @@ export function TenantSwitcher() {
               {tenant.id === activeTenantId && <Check className="ml-auto size-4"/>}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator/>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onSelect={() => {
+              // 等下拉菜单完全收起再开对话框，规避 Radix 菜单/弹窗的焦点与 pointer-events 竞争
+              setTimeout(() => setJoinOpen(true), 0)
+            }}
+          >
+            <Plus className="size-4"/>
+            <span>加入其他组织</span>
+          </DropdownMenuItem>
         </DropdownMenuContent>
-      )}
-    </DropdownMenu>
+      </DropdownMenu>
+
+      <JoinOrgDialog open={joinOpen} onOpenChange={setJoinOpen}/>
+    </>
   )
 }

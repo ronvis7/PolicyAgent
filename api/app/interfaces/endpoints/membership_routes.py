@@ -15,6 +15,7 @@ from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.membership import (
     AddMemberRequest,
     ChangeRoleRequest,
+    JoinOrgRequest,
     ListMembersResponse,
     MemberItem,
 )
@@ -54,6 +55,29 @@ async def list_members(
     """获取当前组织成员列表"""
     views = await membership_service.list_members(current_user.tenant_id)
     return Response.success(data=ListMembersResponse(members=[_to_item(v) for v in views]))
+
+
+@router.post(
+    path="/join-requests",
+    response_model=Response[MemberItem],
+    summary="申请加入某组织",
+    description=(
+        "已登录用户自助申请加入某共享组织(经 /auth/orgs 检索得到 tenant_id)，"
+        "建一条待审批申请，由该组织 owner/admin 批准后成为正式成员、即可在组织切换器中切换。"
+        "无需新建账号。任意登录用户可调用。"
+    ),
+)
+async def request_join_org(
+        request: JoinOrgRequest,
+        current_user: CurrentUser = Depends(get_current_user),
+        membership_service: MembershipService = Depends(get_membership_service),
+) -> Response[MemberItem]:
+    """申请加入某组织(当前登录用户)"""
+    view = await membership_service.request_join(
+        user_id=current_user.user_id,
+        tenant_id=request.tenant_id,
+    )
+    return Response.success(msg="加入申请已提交，待该组织管理员审批", data=_to_item(view))
 
 
 @router.get(
