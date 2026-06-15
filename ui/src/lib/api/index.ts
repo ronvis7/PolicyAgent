@@ -95,6 +95,8 @@ export type {
   ListPoliciesParams,
   PolicyMatchItem,
   PolicyMatchResponse,
+  PolicySourceItem,
+  PolicySourceListResponse,
 } from "./policy";
 
 // 工作台 Feed 类型（④）

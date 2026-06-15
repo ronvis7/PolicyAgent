@@ -33,7 +33,7 @@ from app.infrastructure.external.document_parser.pymupdf_parser import PyMuPDFPa
 from app.infrastructure.external.embedding.openai_embedding import OpenAIEmbedding
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
-from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCrawler
+from app.infrastructure.external.crawler.registry import build_crawlers
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
@@ -242,12 +242,12 @@ def get_policy_service() -> PolicyService:
 
 
 def get_policy_ingest_service() -> PolicyIngestService:
-    """获取公开政策入库编排服务(爬取 + 结构化 upsert + 向量双写)"""
+    """获取公开政策入库编排服务(按来源选择爬虫 + 结构化 upsert + 向量双写)"""
     app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
     embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
     return PolicyIngestService(
         uow_factory=get_uow,
-        crawler=WndPolicyCrawler(),
+        crawlers=build_crawlers(),
         embedding=embedding,
     )
 

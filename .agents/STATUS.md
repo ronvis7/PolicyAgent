@@ -38,6 +38,7 @@
 - 报告生成流水线；GitHub Actions 与分支保护。
 - ①b AI 联网补全暂停中，待搜索/企业数据 API 接入后复活。
 - 公开库语义检索接入 Agent（KnowledgeBaseTool 纳入 is_public 库）属③范畴。
+- **公开政策库多区域**：通用框架已就绪（来源注册表 + 按 source 抓取 + 地区筛选 + 来源选择器，见 handoff `2026-06-15-multi-region-policies`），但仍只有无锡新吴区一个爬虫；新增地区需为其门户单独做爬虫（先确认可逆向抓取，①b 教训）。
 
 ## 当前最高优先级
 

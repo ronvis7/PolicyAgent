@@ -10,6 +10,7 @@ import logging
 import uuid
 from typing import Callable, Dict, List
 
+from app.application.errors.exceptions import BadRequestError
 from app.domain.external.embedding import EmbeddingProvider
 from app.domain.external.policy_crawler import PolicyCrawler
 from app.domain.models.document_chunk import DocumentChunk
@@ -31,24 +32,27 @@ _FILE_ID_NAMESPACE = uuid.UUID("6f1c0e2a-0000-4000-8000-000000000001")
 
 
 class PolicyIngestService:
-    """公开政策入库编排服务(爬取 + 结构化 upsert + 向量双写)"""
+    """公开政策入库编排服务(按来源选择爬虫 + 结构化 upsert + 向量双写)"""
 
     def __init__(
         self,
         uow_factory: Callable[[], IUnitOfWork],
-        crawler: PolicyCrawler,
+        crawlers: Dict[str, PolicyCrawler],
         embedding: EmbeddingProvider,
     ) -> None:
         self._uow_factory = uow_factory
-        self._crawler = crawler
+        self._crawlers = crawlers
         self._embedding = embedding
 
-    async def ingest(self, max_pages: int = 1) -> Dict[str, int]:
-        """抓取并入库，返回 {crawled, upserted, indexed} 计数。
+    async def ingest(self, source: str, max_pages: int = 1) -> Dict[str, object]:
+        """按来源(source)抓取并入库，返回 {source, crawled, upserted, indexed} 计数。
 
         结构化 upsert 必做；向量双写为逐篇 best-effort(单篇失败不影响整批与结构化结果)。
         """
-        policies = await self._crawler.crawl(max_pages)
+        crawler = self._crawlers.get(source)
+        if crawler is None:
+            raise BadRequestError(f"未知的政策来源：{source}")
+        policies = await crawler.crawl(max_pages)
 
         upserted = 0
         async with self._uow_factory() as uow:
@@ -69,7 +73,7 @@ class PolicyIngestService:
                     f"政策向量双写失败[{policy.source_url}]: {type(e).__name__}: {e}"
                 )
 
-        summary = {"crawled": len(policies), "upserted": upserted, "indexed": indexed}
+        summary = {"source": source, "crawled": len(policies), "upserted": upserted, "indexed": indexed}
         logger.info(f"公开政策入库完成: {summary}")
         return summary
 
