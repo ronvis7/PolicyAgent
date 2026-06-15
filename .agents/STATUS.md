@@ -40,8 +40,8 @@
 
 ## 当前最高优先级
 
-1. **④ 工作台 Feed（主动推送）**：在 ③ 即时匹配之上做物化（`policy_matches` 表）+ 定时刷新 + 企业主页 Feed 流。形态/触发待与用户讨论。
-2. 公开库语义检索接入 Agent（KnowledgeBaseTool 纳入 is_public 库）：本期③刻意未做，留作后续小分支。
+1. **④ 工作台 Feed —— 方案定稿、决策锁定，待落地**：在 ③ 即时匹配之上物化 `policy_matches` 表，做持久化政策信息流 + 未读红点。决策已敲定（触发 (a)抓取后+(b)改档案后、不引调度、抓取只重算当前租户；状态 unread/read/applied/ignored；仅站内；**`/feed` 取代 `/matches`**，入口叫「工作台」）。完整实施计划见 handoff `2026-06-15-feed-plan`，下次直接进 TDD。
+2. 公开库语义检索接入 Agent（KnowledgeBaseTool 纳入 is_public 库）：③刻意未做，留作后续小分支。
 3. 报告生成流水线。
 
 ## 分支/PR 状态（2026-06-15 收尾）
