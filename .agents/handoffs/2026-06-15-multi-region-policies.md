@@ -1,7 +1,7 @@
 # 公开政策库 —— 通用多区域框架
 
 Issue：待创建
-分支：`feat/multi-region-policies`（从 main 切，PR 待创建）
+分支：`feat/multi-region-policies`（**PR #19 已合并 main，2026-06-15；分支已删**）
 更新时间：2026-06-15
 
 ## 背景 / 目标
