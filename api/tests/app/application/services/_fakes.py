@@ -113,6 +113,9 @@ class FakePolicyRepository:
     async def get_by_source_url(self, source_url: str) -> Optional[Policy]:
         return self._store.get(source_url)
 
+    async def list_by_source_urls(self, source_urls: List[str]) -> List[Policy]:
+        return [self._store[u] for u in source_urls if u in self._store]
+
     async def save(self, policy: Policy) -> None:
         existing = self._store.get(policy.source_url)
         if existing:
@@ -134,6 +137,12 @@ class FakePolicyRepository:
         items.sort(key=lambda p: p.publish_date or date.min, reverse=True)
         start = (page - 1) * page_size
         return items[start:start + page_size], total
+
+    async def list_candidates(self, limit: int):
+        items = sorted(
+            self._store.values(), key=lambda p: p.publish_date or date.min, reverse=True
+        )
+        return items[:limit]
 
 
 class FakeKnowledgeBaseRepository:
@@ -173,6 +182,24 @@ class FakeDocumentChunkRepository:
     async def add_many(self, chunks_with_vectors: list) -> None:
         for chunk, vector in chunks_with_vectors:
             self._store.setdefault(chunk.knowledge_file_id, []).append((chunk, vector))
+
+    async def search_similar(
+        self, knowledge_base_id: str, tenant_id: str, query_embedding: list, top_k: int = 5,
+    ):
+        """内存级相似检索：按库/租户过滤后算余弦相似度，按相似度倒序取 top_k。"""
+        def _cosine(a: list, b: list) -> float:
+            dot = sum(x * y for x, y in zip(a, b))
+            na = sum(x * x for x in a) ** 0.5
+            nb = sum(y * y for y in b) ** 0.5
+            return dot / (na * nb) if na and nb else 0.0
+
+        scored = []
+        for chunks in self._store.values():
+            for chunk, vector in chunks:
+                if chunk.knowledge_base_id == knowledge_base_id and chunk.tenant_id == tenant_id:
+                    scored.append((chunk, _cosine(query_embedding, vector)))
+        scored.sort(key=lambda pair: pair[1], reverse=True)
+        return scored[:top_k]
 
 
 class FakeEmbedding:

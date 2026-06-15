@@ -93,6 +93,8 @@ export type {
   PolicyDetail,
   PolicyListResponse,
   ListPoliciesParams,
+  PolicyMatchItem,
+  PolicyMatchResponse,
 } from "./policy";
 
 // 模块 API

@@ -14,6 +14,7 @@ from app.application.services.file_service import FileService
 from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.membership_service import MembershipService
 from app.application.services.policy_ingest_service import PolicyIngestService
+from app.application.services.policy_match_service import PolicyMatchService
 from app.application.services.policy_service import PolicyService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
@@ -248,3 +249,10 @@ def get_policy_ingest_service() -> PolicyIngestService:
         crawler=WndPolicyCrawler(),
         embedding=embedding,
     )
+
+
+def get_policy_match_service() -> PolicyMatchService:
+    """获取政策匹配服务(③：企业档案 × 公开政策，结构化+语义融合)"""
+    app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
+    embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
+    return PolicyMatchService(uow_factory=get_uow, embedding=embedding)

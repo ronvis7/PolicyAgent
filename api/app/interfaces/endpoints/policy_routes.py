@@ -9,6 +9,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from app.application.services.policy_ingest_service import PolicyIngestService
+from app.application.services.policy_match_service import PolicyMatchService
 from app.application.services.policy_service import PolicyService
 from app.domain.models.membership import MembershipRole
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user, require_role
@@ -17,8 +18,14 @@ from app.interfaces.schemas.policy import (
     PolicyDetailResponse,
     PolicyListItem,
     PolicyListResponse,
+    PolicyMatchItem,
+    PolicyMatchResponse,
 )
-from app.interfaces.service_dependencies import get_policy_ingest_service, get_policy_service
+from app.interfaces.service_dependencies import (
+    get_policy_ingest_service,
+    get_policy_match_service,
+    get_policy_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +81,29 @@ async def list_policies(
     return Response.success(data=PolicyListResponse(
         items=[PolicyListItem.from_domain(p) for p in items],
         total=total, page=page, page_size=page_size,
+    ))
+
+
+@router.get(
+    path="/match",
+    response_model=Response[PolicyMatchResponse],
+    summary="企业档案匹配公开政策(③匹配)",
+    description=(
+        "按当前登录租户的企业档案，结合结构化命中(关键词/技术域/资质/行业)与语义召回"
+        "(档案画像检索公开政策库)，经 RRF 融合返回可申报政策候选(带推荐理由)。"
+        "即时计算，档案为空时返回空列表。所有登录用户可访问，结果限当前租户档案。"
+    ),
+)
+async def match_policies(
+        top_k: int = Query(20, ge=1, le=50, description="返回候选数(1-50)"),
+        current_user: CurrentUser = Depends(get_current_user),
+        service: PolicyMatchService = Depends(get_policy_match_service),
+) -> Response[PolicyMatchResponse]:
+    """按当前租户企业档案匹配公开政策候选"""
+    matches = await service.match_for_tenant(current_user.tenant_id, top_k=top_k)
+    return Response.success(data=PolicyMatchResponse(
+        items=[PolicyMatchItem.from_domain(m) for m in matches],
+        total=len(matches),
     ))
 
 
