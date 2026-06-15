@@ -77,3 +77,15 @@ class PolicyMatchResponse(BaseModel):
     """政策匹配响应：候选列表(已按融合分倒序)"""
     items: List[PolicyMatchItem] = Field(default_factory=list)
     total: int = 0
+
+
+class PolicySourceItem(BaseModel):
+    """一个公开政策来源(地区/门户)"""
+    key: str = ""  # 稳定标识(抓取时传入)
+    name: str = ""  # 展示名
+    region: str = ""  # 适用地区
+
+
+class PolicySourceListResponse(BaseModel):
+    """可抓取的政策来源列表"""
+    items: List[PolicySourceItem] = Field(default_factory=list)

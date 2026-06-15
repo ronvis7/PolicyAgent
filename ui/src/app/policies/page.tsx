@@ -15,8 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { policyApi } from '@/lib/api'
-import type { PolicyDetail, PolicyListItem } from '@/lib/api'
+import type { PolicyDetail, PolicyListItem, PolicySourceItem } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 
 const PAGE_SIZE = 20
@@ -31,8 +39,10 @@ export default function PoliciesPage() {
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [search, setSearch] = useState('') // 已提交的查询词
+  const [region, setRegion] = useState('') // 地区筛选（''=全部）
   const [loading, setLoading] = useState(true)
   const [ingesting, setIngesting] = useState(false)
+  const [sources, setSources] = useState<PolicySourceItem[]>([])
 
   const [detail, setDetail] = useState<PolicyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -42,7 +52,7 @@ export default function PoliciesPage() {
   const fetchList = useCallback(() => {
     setLoading(true)
     policyApi
-      .list({ page, page_size: PAGE_SIZE, keyword: search })
+      .list({ page, page_size: PAGE_SIZE, keyword: search, region })
       .then((res) => {
         setItems(res.items)
         setTotal(res.total)
@@ -51,28 +61,39 @@ export default function PoliciesPage() {
         toast.error(err instanceof Error ? err.message : '获取政策列表失败')
       })
       .finally(() => setLoading(false))
-  }, [page, search])
+  }, [page, search, region])
 
   useEffect(() => {
     fetchList()
   }, [fetchList])
+
+  // 加载可抓取的政策来源（地区/门户），供来源选择器与地区筛选
+  useEffect(() => {
+    policyApi
+      .listSources()
+      .then((res) => setSources(res.items))
+      .catch(() => setSources([]))
+  }, [])
 
   const submitSearch = () => {
     setPage(1)
     setSearch(keyword.trim())
   }
 
-  const handleIngest = async () => {
+  const handleIngest = async (sourceKey: string, sourceName: string) => {
     setIngesting(true)
     try {
-      const res = await policyApi.ingest(3)
-      toast.success(`已开始后台抓取（最多 ${res.max_pages} 页），约 1-2 分钟后点刷新查看`)
+      const res = await policyApi.ingest(sourceKey, 3)
+      toast.success(`已开始抓取「${sourceName}」（最多 ${res.max_pages} 页），约 1-2 分钟后点刷新查看`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '触发抓取失败')
     } finally {
       setIngesting(false)
     }
   }
+
+  // 地区筛选项：来自已登记来源的地区（去重）
+  const regionOptions = Array.from(new Set(sources.map((s) => s.region)))
 
   const openDetail = async (id: string) => {
     setDetailLoading(true)
@@ -96,10 +117,24 @@ export default function PoliciesPage() {
           <h1 className="text-base font-semibold">公开政策库</h1>
         </div>
         <div className="flex items-center gap-2">
+          {/* 地区筛选 */}
+          {regionOptions.length > 0 && (
+            <select
+              value={region}
+              onChange={(e) => { setPage(1); setRegion(e.target.value) }}
+              className="h-9 rounded-md border bg-background px-2 text-sm cursor-pointer"
+              title="按地区筛选"
+            >
+              <option value="">全部地区</option>
+              {regionOptions.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          )}
           <Input
             value={keyword}
             placeholder="搜索政策标题…"
-            className="w-48 sm:w-64"
+            className="w-40 sm:w-56"
             onChange={(e) => setKeyword(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submitSearch()}
           />
@@ -107,17 +142,29 @@ export default function PoliciesPage() {
             <Search className="size-4" />
             搜索
           </Button>
-          {canIngest && (
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={handleIngest}
-              disabled={ingesting}
-              title="后台抓取无锡新吴区最新政策入库"
-            >
-              {ingesting ? <Loader2 className="size-4 animate-spin" /> : <DownloadCloud className="size-4" />}
-              抓取政策
-            </Button>
+          {canIngest && sources.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild disabled={ingesting}>
+                <Button variant="outline" className="cursor-pointer" title="选择来源后台抓取最新政策入库">
+                  {ingesting ? <Loader2 className="size-4 animate-spin" /> : <DownloadCloud className="size-4" />}
+                  抓取政策
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-56">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">选择抓取来源</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {sources.map((s) => (
+                  <DropdownMenuItem
+                    key={s.key}
+                    className="cursor-pointer"
+                    onSelect={() => handleIngest(s.key, s.name)}
+                  >
+                    <span className="truncate">{s.name}</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground">{s.region}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <Button variant="outline" className="cursor-pointer" onClick={fetchList} disabled={loading}>
             刷新
@@ -131,7 +178,7 @@ export default function PoliciesPage() {
           <div className="mb-4 flex items-center gap-2 text-muted-foreground">
             <ScrollText className="size-5" />
             <span className="text-sm">
-              无锡新吴区权威政策（公开共享）。共 {total} 条，点击查看详情。
+              {region ? `${region}权威政策` : '各地区权威政策'}（公开共享）。共 {total} 条，点击查看详情。
             </span>
           </div>
 

@@ -55,6 +55,18 @@ export type PolicyMatchResponse = {
   total: number;
 };
 
+/** 政策来源（地区/门户） */
+export type PolicySourceItem = {
+  key: string;
+  name: string;
+  region: string;
+};
+
+/** 政策来源列表响应 */
+export type PolicySourceListResponse = {
+  items: PolicySourceItem[];
+};
+
 // ==================== 公开政策库 API ====================
 
 export const policyApi = {
@@ -75,9 +87,16 @@ export const policyApi = {
     return get<PolicyDetail>(`/policies/${policyId}`);
   },
 
-  /** 后台触发抓取入库（仅 owner/admin，立即返回，约 1-2 分钟后数据可见） */
-  ingest: (maxPages = 3): Promise<{ max_pages: number }> => {
-    return post<{ max_pages: number }>(`/policies/ingest?max_pages=${maxPages}`);
+  /** 列出可抓取的政策来源（地区/门户） */
+  listSources: (): Promise<PolicySourceListResponse> => {
+    return get<PolicySourceListResponse>("/policies/sources");
+  },
+
+  /** 后台触发指定来源抓取入库（仅 owner/admin，立即返回，约 1-2 分钟后数据可见） */
+  ingest: (source = "wnd", maxPages = 3): Promise<{ source: string; max_pages: number }> => {
+    return post<{ source: string; max_pages: number }>(
+      `/policies/ingest?source=${encodeURIComponent(source)}&max_pages=${maxPages}`
+    );
   },
 
   /** 按当前租户企业档案匹配公开政策候选（③匹配，即时计算） */

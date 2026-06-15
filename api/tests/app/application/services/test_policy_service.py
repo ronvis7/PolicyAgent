@@ -96,11 +96,11 @@ def test_ingest_upserts_and_vector_double_writes() -> None:
         _policy("u1", "政策一", body="第一条 内容。" * 50),
         _policy("u2", "政策二", body=""),  # 无正文不向量化
     ]
-    service = PolicyIngestService(factory, FakeCrawler(crawled), FakeEmbedding())
+    service = PolicyIngestService(factory, {"wnd": FakeCrawler(crawled)}, FakeEmbedding())
 
-    summary = asyncio.run(service.ingest(max_pages=1))
+    summary = asyncio.run(service.ingest("wnd", max_pages=1))
 
-    assert summary == {"crawled": 2, "upserted": 2, "indexed": 1}
+    assert summary == {"source": "wnd", "crawled": 2, "upserted": 2, "indexed": 1}
     # 结构化表两条
     assert len(policies_store) == 2
     # 公开库已建并挂系统租户
@@ -119,11 +119,11 @@ def test_ingest_is_idempotent_on_repeat() -> None:
         knowledge_files=kf_store, document_chunks=chunk_store,
     )
     crawled = [_policy("u1", "政策一", body="第一条 内容。" * 50)]
-    service = PolicyIngestService(factory, FakeCrawler(crawled), FakeEmbedding())
+    service = PolicyIngestService(factory, {"wnd": FakeCrawler(crawled)}, FakeEmbedding())
 
-    asyncio.run(service.ingest())
+    asyncio.run(service.ingest("wnd"))
     chunks_after_first = sum(len(v) for v in chunk_store.values())
-    asyncio.run(service.ingest())  # 重复入库
+    asyncio.run(service.ingest("wnd"))  # 重复入库
     chunks_after_second = sum(len(v) for v in chunk_store.values())
 
     assert len(policies_store) == 1  # 结构化去重
