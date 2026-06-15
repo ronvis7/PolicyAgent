@@ -190,6 +190,28 @@ function Set-LocalDatabaseEnvironment {
     $env:POSTGRES_PORT = "5432"
 }
 
+function Invoke-Docker {
+    param(
+        [Parameter(Mandatory)][string[]]$DockerArgs,
+        [Parameter(Mandatory)][string]$FailureMessage
+    )
+
+    # docker/compose 把构建与拉取进度写到 stderr；在脚本级 $ErrorActionPreference='Stop' 下，
+    # PowerShell 会把这些 stderr 行当成终止错误，导致 compose 实际成功也抛出。
+    # 这里临时降级为 'Continue'，只按退出码判定成败，避免误报中断后续步骤。
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & docker @DockerArgs
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw $FailureMessage
+    }
+}
+
 if ($Pull) {
     if ((git status --porcelain)) {
         throw "Working tree is not clean; refusing to pull."
@@ -223,16 +245,11 @@ if ($Build) {
 }
 
 Write-Host "Starting PolicyManus with $activeMode PostgreSQL..."
-& docker @composeArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "docker compose up failed."
-}
+Invoke-Docker -DockerArgs $composeArgs -FailureMessage "docker compose up failed."
 
 if ($useRemote) {
-    docker compose stop policy-postgres
-    if ($LASTEXITCODE -ne 0) {
-        throw "Unable to stop the unused local PostgreSQL container."
-    }
+    Invoke-Docker -DockerArgs @("compose", "stop", "policy-postgres") `
+        -FailureMessage "Unable to stop the unused local PostgreSQL container."
 }
 
 $restartArgs = @("compose")
@@ -240,9 +257,6 @@ if ($useRemote) {
     $restartArgs += @("-f", "docker-compose.yml", "-f", "docker-compose.remote-db.yml")
 }
 $restartArgs += @("restart", "policy-nginx")
-& docker @restartArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "Nginx restart failed."
-}
+Invoke-Docker -DockerArgs $restartArgs -FailureMessage "Nginx restart failed."
 
 Write-Host "PolicyManus is running in $activeMode database mode."
