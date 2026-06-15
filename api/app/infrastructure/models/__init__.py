@@ -10,6 +10,7 @@ from .knowledge_base import KnowledgeBaseModel
 from .knowledge_file import KnowledgeFileModel
 from .document_chunk import DocumentChunkModel
 from .policy import PolicyModel
+from .feed_item import FeedItemModel
 
 __all__ = [
     "Base",
@@ -24,4 +25,5 @@ __all__ = [
     "KnowledgeFileModel",
     "DocumentChunkModel",
     "PolicyModel",
+    "FeedItemModel",
 ]

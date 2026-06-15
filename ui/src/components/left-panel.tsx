@@ -1,5 +1,6 @@
 'use client'
 
+import {useCallback, useEffect, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {
   Sidebar,
@@ -12,18 +13,36 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {Building2, Database, KeyRound, Plus, ScrollText, Sparkles} from 'lucide-react'
+import {Badge} from '@/components/ui/badge'
+import {Building2, Database, KeyRound, LayoutDashboard, Plus, ScrollText} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
 import {UserMenu} from '@/components/user-menu'
 import {ManusSettings} from '@/components/manus-settings'
 import {useAuth} from '@/providers/auth-provider'
+import {feedApi} from '@/lib/api'
+import {FEED_UNREAD_CHANGED_EVENT} from '@/lib/feed-events'
 
 export function LeftPanel() {
   const router = useRouter()
   const {user, role} = useAuth()
   const canOpenSettings = role === 'owner' || role === 'admin' || !!user?.is_platform_admin
+
+  // 工作台未读红点：挂载时拉取，并监听 Feed 页清未读/重算后的同步事件
+  const [unread, setUnread] = useState(0)
+  const refreshUnread = useCallback(() => {
+    feedApi
+      .unreadCount()
+      .then((res) => setUnread(res.count))
+      .catch(() => setUnread(0))
+  }, [])
+
+  useEffect(() => {
+    refreshUnread()
+    window.addEventListener(FEED_UNREAD_CHANGED_EVENT, refreshUnread)
+    return () => window.removeEventListener(FEED_UNREAD_CHANGED_EVENT, refreshUnread)
+  }, [refreshUnread])
 
   return (
     <Sidebar>
@@ -64,14 +83,19 @@ export function LeftPanel() {
           <ScrollText className="size-4"/>
           公开政策库
         </Button>
-        {/* 政策匹配入口 */}
+        {/* 工作台入口（④ Feed，带未读红点） */}
         <Button
           variant="ghost"
           className="cursor-pointer justify-start mb-1"
-          onClick={() => router.push('/matches')}
+          onClick={() => router.push('/feed')}
         >
-          <Sparkles className="size-4"/>
-          政策匹配
+          <LayoutDashboard className="size-4"/>
+          工作台
+          {unread > 0 && (
+            <Badge className="ml-auto h-5 min-w-5 justify-center px-1.5">
+              {unread > 99 ? '99+' : unread}
+            </Badge>
+          )}
         </Button>
         {/* 知识库管理入口 */}
         <Button

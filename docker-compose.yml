@@ -91,7 +91,9 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 20s
+      # 远程库模式下首次迁移/冷启动较慢(SSH 隧道往返延迟 + 等 redis/postgres healthy)，
+      # 给足启动宽限期，避免 compose 在 api 实际就绪前误判 unhealthy 而中止(连带 ui 不启动)。
+      start_period: 120s
 
   # ==================== 前端 UI ====================
 

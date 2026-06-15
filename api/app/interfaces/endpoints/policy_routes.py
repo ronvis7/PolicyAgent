@@ -8,6 +8,7 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
+from app.application.services.feed_service import FeedService
 from app.application.services.policy_ingest_service import PolicyIngestService
 from app.application.services.policy_match_service import PolicyMatchService
 from app.application.services.policy_service import PolicyService
@@ -22,6 +23,7 @@ from app.interfaces.schemas.policy import (
     PolicyMatchResponse,
 )
 from app.interfaces.service_dependencies import (
+    get_feed_service,
     get_policy_ingest_service,
     get_policy_match_service,
     get_policy_service,
@@ -47,14 +49,20 @@ router = APIRouter(prefix="/policies", tags=["公开政策库"])
 async def ingest_policies(
         background_tasks: BackgroundTasks,
         max_pages: int = Query(3, ge=1, le=20, description="抓取的列表页数(每页约20条)"),
-        _current_user: CurrentUser = Depends(_require_org_admin),
+        current_user: CurrentUser = Depends(_require_org_admin),
         service: PolicyIngestService = Depends(get_policy_ingest_service),
+        feed_service: FeedService = Depends(get_feed_service),
 ) -> Response[dict]:
-    """后台触发公开政策抓取入库"""
+    """后台触发公开政策抓取入库；入库后顺带重算当前租户工作台 Feed(④ 触发 a)"""
+    # BackgroundTasks 按加入顺序串行执行：先抓取入库，再据新政策重算当前租户 Feed
     background_tasks.add_task(service.ingest, max_pages)
-    logger.info(f"已排入后台政策抓取任务: max_pages={max_pages}")
+    background_tasks.add_task(feed_service.recompute_for_tenant, current_user.tenant_id)
+    logger.info(
+        "已排入后台政策抓取+Feed重算任务: max_pages=%s tenant=%s",
+        max_pages, current_user.tenant_id,
+    )
     return Response.success(
-        msg=f"已开始后台抓取最新政策(最多 {max_pages} 页)，约 1-2 分钟后刷新列表查看",
+        msg=f"已开始后台抓取最新政策(最多 {max_pages} 页)，约 1-2 分钟后刷新列表/工作台查看",
         data={"max_pages": max_pages},
     )
 

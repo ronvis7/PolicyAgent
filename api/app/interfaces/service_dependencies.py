@@ -10,6 +10,7 @@ from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.auth_service import AuthService
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
+from app.application.services.feed_service import FeedService
 from app.application.services.file_service import FileService
 from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.membership_service import MembershipService
@@ -256,3 +257,8 @@ def get_policy_match_service() -> PolicyMatchService:
     app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
     embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
     return PolicyMatchService(uow_factory=get_uow, embedding=embedding)
+
+
+def get_feed_service() -> FeedService:
+    """获取工作台 Feed 服务(④：物化③匹配结果 + 状态机)"""
+    return FeedService(uow_factory=get_uow, match_service=get_policy_match_service())

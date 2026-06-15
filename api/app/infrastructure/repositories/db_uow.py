@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from app.domain.repositories.uow import IUnitOfWork
 from .db_document_chunk_repository import DBDocumentChunkRepository
 from .db_enterprise_profile_repository import DBEnterpriseProfileRepository
+from .db_feed_repository import DBFeedRepository
 from .db_file_repository import DBFileRepository
 from .db_knowledge_base_repository import DBKnowledgeBaseRepository
 from .db_knowledge_file_repository import DBKnowledgeFileRepository
@@ -64,6 +65,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.knowledge_file = DBKnowledgeFileRepository(db_session=self.db_session)
         self.document_chunk = DBDocumentChunkRepository(db_session=self.db_session)
         self.policy = DBPolicyRepository(db_session=self.db_session)
+        self.feed = DBFeedRepository(db_session=self.db_session)
 
         return self
 

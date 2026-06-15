@@ -97,6 +97,16 @@ export type {
   PolicyMatchResponse,
 } from "./policy";
 
+// 工作台 Feed 类型（④）
+export type {
+  FeedStatus,
+  SettableFeedStatus,
+  FeedItem,
+  FeedListResponse,
+  ListFeedParams,
+  RecomputeResult,
+} from "./feed";
+
 // 模块 API
 export { authApi } from "./auth";
 export { configApi } from "./config";
@@ -106,4 +116,5 @@ export { knowledgeApi, isFileProcessing, isFileFailed } from "./knowledge";
 export { membershipApi } from "./membership";
 export { profileApi } from "./profile";
 export { policyApi } from "./policy";
+export { feedApi } from "./feed";
 
