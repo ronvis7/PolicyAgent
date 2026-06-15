@@ -64,4 +64,9 @@ export const membershipApi = {
   reject: (membershipId: string): Promise<void> => {
     return post<void>(`/members/${membershipId}/reject`, {});
   },
+
+  /** 申请加入某组织（已登录用户自助，待对方管理员审批） */
+  requestJoin: (tenantId: string): Promise<MemberItem> => {
+    return post<MemberItem>("/members/join-requests", { tenant_id: tenantId });
+  },
 };

@@ -14,6 +14,7 @@ from app.application.errors.exceptions import (
 )
 from app.application.services.membership_service import MembershipService
 from app.domain.models.membership import Membership, MembershipRole, MembershipStatus
+from app.domain.models.tenant import Tenant, TenantPlan
 from app.domain.models.user import User
 
 from ._fakes import make_uow_factory
@@ -184,3 +185,84 @@ def test_approve_nonexistent_request_raises() -> None:
 
     with pytest.raises(NotFoundError):
         asyncio.run(service.approve_request(TENANT, "m-carol"))  # carol 是 active，非 pending
+
+
+# ---------- 已登录用户自助申请加入其他组织 ----------
+
+OTHER_ORG = "tenant-other"
+PERSONAL = "tenant-personal"
+
+
+def _seed_for_join():
+    """eve 已登录(仅个人工作区)；另有一个共享组织 OTHER_ORG 可申请加入。"""
+    eve = User(id="u-eve", email="eve@x.com", display_name="Eve")
+    users = {eve.id: eve}
+    # eve 在自己个人工作区是 owner（已激活）
+    eve_personal = Membership(
+        id="m-eve-personal", user_id=eve.id, tenant_id=PERSONAL, role=MembershipRole.OWNER,
+    )
+    memberships = {eve_personal.id: eve_personal}
+    tenants = {
+        OTHER_ORG: Tenant(id=OTHER_ORG, name="另一个单位", slug="other", plan=TenantPlan.FREE, is_personal=False),
+        PERSONAL: Tenant(id=PERSONAL, name="Eve 的工作区", slug="eve", plan=TenantPlan.FREE, is_personal=True),
+    }
+    factory = make_uow_factory(users=users, memberships=memberships, tenants=tenants)
+    return MembershipService(uow_factory=factory), memberships
+
+
+def test_request_join_creates_pending() -> None:
+    service, memberships = _seed_for_join()
+
+    view = asyncio.run(service.request_join("u-eve", OTHER_ORG))
+
+    assert view.status == "pending"
+    assert view.role == "member"
+    # 落库了一条 pending 成员关系
+    joined = [m for m in memberships.values() if m.tenant_id == OTHER_ORG and m.user_id == "u-eve"]
+    assert len(joined) == 1 and joined[0].status == MembershipStatus.PENDING
+
+
+def test_request_join_missing_or_personal_org_raises() -> None:
+    service, _ = _seed_for_join()
+
+    with pytest.raises(NotFoundError):
+        asyncio.run(service.request_join("u-eve", "ghost-org"))
+    with pytest.raises(NotFoundError):
+        asyncio.run(service.request_join("u-eve", PERSONAL))  # 个人工作区不可被申请加入
+
+
+def test_request_join_conflicts_when_already_active() -> None:
+    service, memberships = _seed_for_join()
+    memberships["m-eve-other"] = Membership(
+        id="m-eve-other", user_id="u-eve", tenant_id=OTHER_ORG,
+        role=MembershipRole.MEMBER, status=MembershipStatus.ACTIVE,
+    )
+
+    with pytest.raises(ConflictError):
+        asyncio.run(service.request_join("u-eve", OTHER_ORG))
+
+
+def test_request_join_conflicts_when_already_pending() -> None:
+    service, memberships = _seed_for_join()
+    memberships["m-eve-other"] = Membership(
+        id="m-eve-other", user_id="u-eve", tenant_id=OTHER_ORG,
+        role=MembershipRole.MEMBER, status=MembershipStatus.PENDING,
+    )
+
+    with pytest.raises(ConflictError):
+        asyncio.run(service.request_join("u-eve", OTHER_ORG))
+
+
+def test_request_join_reactivates_disabled_as_pending() -> None:
+    service, memberships = _seed_for_join()
+    memberships["m-eve-other"] = Membership(
+        id="m-eve-other", user_id="u-eve", tenant_id=OTHER_ORG,
+        role=MembershipRole.ADMIN, status=MembershipStatus.DISABLED,
+    )
+
+    view = asyncio.run(service.request_join("u-eve", OTHER_ORG))
+
+    # 复用原记录(同 id)，重新置为 pending
+    assert view.status == "pending"
+    assert memberships["m-eve-other"].status == MembershipStatus.PENDING
+    assert len([m for m in memberships.values() if m.tenant_id == OTHER_ORG]) == 1

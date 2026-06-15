@@ -32,3 +32,8 @@ class AddMemberRequest(BaseModel):
 class ChangeRoleRequest(BaseModel):
     """变更成员角色请求"""
     role: MembershipRole
+
+
+class JoinOrgRequest(BaseModel):
+    """已登录用户自助申请加入某组织的请求"""
+    tenant_id: str = Field(min_length=1, description="目标组织 id(经 /auth/orgs 检索得到)")
