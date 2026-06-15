@@ -5,9 +5,10 @@
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
+from app.application.services.feed_service import FeedService
 from app.domain.models.membership import MembershipRole
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user, require_role
 from app.interfaces.schemas.base import Response
@@ -15,7 +16,10 @@ from app.interfaces.schemas.enterprise_profile import (
     EnterpriseProfileResponse,
     UpdateEnterpriseProfileRequest,
 )
-from app.interfaces.service_dependencies import get_enterprise_profile_service
+from app.interfaces.service_dependencies import (
+    get_enterprise_profile_service,
+    get_feed_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +52,17 @@ async def get_enterprise_profile(
 )
 async def update_enterprise_profile(
         request: UpdateEnterpriseProfileRequest,
+        background_tasks: BackgroundTasks,
         current_user: CurrentUser = Depends(_require_org_admin),
         service: EnterpriseProfileService = Depends(get_enterprise_profile_service),
+        feed_service: FeedService = Depends(get_feed_service),
 ) -> Response[EnterpriseProfileResponse]:
-    """更新当前组织的企业档案"""
+    """更新当前组织的企业档案；保存后重算当前租户工作台 Feed(④ 触发 b)"""
     profile = await service.update_profile(
         current_user.tenant_id, request.to_domain(current_user.tenant_id)
     )
+    # 档案变了，可申报政策也会变：后台重算当前租户 Feed(不阻塞响应)
+    background_tasks.add_task(feed_service.recompute_for_tenant, current_user.tenant_id)
     return Response.success(
         msg="更新企业档案成功",
         data=EnterpriseProfileResponse.from_domain(profile),

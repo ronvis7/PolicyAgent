@@ -5,6 +5,7 @@ from typing import Callable, Dict, List, Optional
 
 from app.domain.models.app_config import AgentConfig, AppConfig, A2AConfig, LLMConfig, MCPConfig
 from app.domain.models.enterprise_profile import EnterpriseProfile
+from app.domain.models.feed_item import FeedItem, FeedStatus
 from app.domain.models.knowledge_base import KnowledgeBase
 from app.domain.models.knowledge_file import KnowledgeFile
 from app.domain.models.membership import Membership
@@ -145,6 +146,61 @@ class FakePolicyRepository:
         return items[:limit]
 
 
+class FakeFeedRepository:
+    """内存级工作台 Feed 仓库，按 (tenant_id, policy_id) upsert。"""
+
+    def __init__(self, store: Dict[str, FeedItem]) -> None:
+        self._store = store  # 以 id 为键
+
+    def _key(self, tenant_id: str, policy_id: str):
+        return (tenant_id, policy_id)
+
+    async def get_by_tenant_and_policy(
+        self, tenant_id: str, policy_id: str,
+    ) -> Optional[FeedItem]:
+        return next(
+            (i for i in self._store.values()
+             if i.tenant_id == tenant_id and i.policy_id == policy_id),
+            None,
+        )
+
+    async def get_by_id(self, tenant_id: str, item_id: str) -> Optional[FeedItem]:
+        item = self._store.get(item_id)
+        if item is None or item.tenant_id != tenant_id:
+            return None
+        return item
+
+    async def save(self, item: FeedItem) -> None:
+        existing = await self.get_by_tenant_and_policy(item.tenant_id, item.policy_id)
+        if existing and existing.id != item.id:
+            # 模拟自然键唯一约束：复用既有行 id
+            item = item.model_copy(update={"id": existing.id})
+        self._store[item.id] = item
+
+    async def list_paginated(self, tenant_id, status, page, page_size):
+        items = [i for i in self._store.values() if i.tenant_id == tenant_id]
+        if status is not None:
+            items = [i for i in items if i.status == status]
+        total = len(items)
+        items.sort(key=lambda i: i.created_at, reverse=True)
+        start = (page - 1) * page_size
+        return items[start:start + page_size], total
+
+    async def count_by_status(self, tenant_id: str, status: FeedStatus) -> int:
+        return sum(
+            1 for i in self._store.values()
+            if i.tenant_id == tenant_id and i.status == status
+        )
+
+    async def mark_all_read(self, tenant_id: str) -> int:
+        count = 0
+        for item_id, item in list(self._store.items()):
+            if item.tenant_id == tenant_id and item.status == FeedStatus.UNREAD:
+                self._store[item_id] = item.model_copy(update={"status": FeedStatus.READ})
+                count += 1
+        return count
+
+
 class FakeKnowledgeBaseRepository:
     def __init__(self, store: Dict[str, KnowledgeBase]) -> None:
         self._store = store
@@ -227,6 +283,7 @@ class FakeUnitOfWork:
             tenants: Dict[str, Tenant],
             enterprise_profiles: Dict[str, EnterpriseProfile],
             policies: Dict[str, Policy],
+            feed_items: Dict[str, FeedItem],
             knowledge_bases: Dict[str, KnowledgeBase],
             knowledge_files: Dict[str, KnowledgeFile],
             document_chunks: Dict[str, list],
@@ -237,6 +294,7 @@ class FakeUnitOfWork:
         self.tenant = FakeTenantRepository(tenants)
         self.enterprise_profile = FakeEnterpriseProfileRepository(enterprise_profiles)
         self.policy = FakePolicyRepository(policies)
+        self.feed = FakeFeedRepository(feed_items)
         self.knowledge_base = FakeKnowledgeBaseRepository(knowledge_bases)
         self.knowledge_file = FakeKnowledgeFileRepository(knowledge_files)
         self.document_chunk = FakeDocumentChunkRepository(document_chunks)
@@ -259,6 +317,7 @@ def make_uow_factory(
         tenants: Optional[Dict[str, Tenant]] = None,
         enterprise_profiles: Optional[Dict[str, EnterpriseProfile]] = None,
         policies: Optional[Dict[str, Policy]] = None,
+        feed_items: Optional[Dict[str, FeedItem]] = None,
         knowledge_bases: Optional[Dict[str, KnowledgeBase]] = None,
         knowledge_files: Optional[Dict[str, KnowledgeFile]] = None,
         document_chunks: Optional[Dict[str, list]] = None,
@@ -270,6 +329,7 @@ def make_uow_factory(
     tenants = tenants if tenants is not None else {}
     enterprise_profiles = enterprise_profiles if enterprise_profiles is not None else {}
     policies = policies if policies is not None else {}
+    feed_items = feed_items if feed_items is not None else {}
     knowledge_bases = knowledge_bases if knowledge_bases is not None else {}
     knowledge_files = knowledge_files if knowledge_files is not None else {}
     document_chunks = document_chunks if document_chunks is not None else {}
@@ -277,7 +337,7 @@ def make_uow_factory(
     def factory() -> FakeUnitOfWork:
         return FakeUnitOfWork(
             users, memberships, tenant_settings, tenants, enterprise_profiles,
-            policies, knowledge_bases, knowledge_files, document_chunks,
+            policies, feed_items, knowledge_bases, knowledge_files, document_chunks,
         )
 
     return factory
