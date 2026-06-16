@@ -134,5 +134,9 @@ class PolicyIngestService:
 
         async with self._uow_factory() as uow:
             await uow.knowledge_file.save(kf)
+            # 先 flush 父行 knowledge_files：chunk 与 file 的 ORM 模型间未声明 relationship，
+            # 同一事务 commit 时 flush 顺序不定，不先落父行会导致 document_chunks 子行
+            # 先 INSERT 而违反外键 fk_document_chunks_kf_id_knowledge_files。
+            await uow.flush()
             await uow.document_chunk.delete_by_knowledge_file(file_id, PUBLIC_TENANT_ID)
             await uow.document_chunk.add_many(chunks_with_vectors)
