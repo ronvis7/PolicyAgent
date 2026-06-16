@@ -20,7 +20,7 @@
 
 ## 剩余/注意
 
-- **旧服务器 `.223` 仍在运行 `policy-postgres`**，本次未动它（含其 03:30 cron）。确认 `.222` 稳定后由用户停机；停机前如还有写入，可再跑一次 dump 流式覆盖同步。
-- `dev-up.cmd -Mode Remote -Build` 用户侧实跑一次起全栈确认（隧道探测/回退逻辑见 handoff `2026-06-13-remote-postgres` 的 host key 自愈段）。
+- **旧服务器 `.223` 仍在运行 `policy-postgres`**，本次未动它（含其 03:30 cron）。**`.222` 已经全栈 Remote 真机走查通过（见下），可由用户停机**；停机前如还有写入，可再跑一次 dump 流式覆盖同步。
+- ✅ **全栈走查已做**：`dev-up.cmd -Mode Remote -Build` 起栈成功、隧道确认指向 `root@118.196.142.222`、API `/status` 200，端到端注册/存档案/差距分析全通（详见 handoff `2026-06-16-qualification-gap-analysis`）。
 - 其他开发机若各自配过 `.env.remote`，需同样把 `REMOTE_SSH_HOST` 改为 `.222` 并对 `.222` 授信公钥。
 - `good_manus` 全栈应用迁移（若需要）另起任务：含 `/root/good_manus` 仓库 + `.env`/`config.yaml` + 数据卷（postgres ~178MB / redis ~23MB）+ 镜像（~1.4GB，重建或导出）。
