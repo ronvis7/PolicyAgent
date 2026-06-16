@@ -44,6 +44,16 @@ class DBKnowledgeBaseRepository(KnowledgeBaseRepository):
         result = await self.db_session.execute(stmt)
         return [record.to_domain() for record in result.scalars().all()]
 
+    async def list_public(self) -> List[KnowledgeBase]:
+        """列出全部全局公开库(is_public=True，跨租户共享，按创建时间倒序)"""
+        stmt = (
+            select(KnowledgeBaseModel)
+            .where(KnowledgeBaseModel.is_public.is_(True))
+            .order_by(KnowledgeBaseModel.created_at.desc())
+        )
+        result = await self.db_session.execute(stmt)
+        return [record.to_domain() for record in result.scalars().all()]
+
     async def delete(self, kb_id: str, tenant_id: str) -> None:
         """删除知识库(级联删除其文件与切片，要求归属该租户)"""
         stmt = delete(KnowledgeBaseModel).where(

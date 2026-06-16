@@ -19,10 +19,11 @@ DEFAULT_TOP_K = 5
 class KnowledgeBaseTool(BaseTool):
     """知识库检索工具(agentic RAG，见 ADR-002)
 
-    将查询向量化后在当前会话租户的知识库内做相似检索，返回带引用元数据
-    (文件名/页码/相似度)的切片，供 Agent 生成「带引用的回答」。租户范围由会话
-    懒加载得到，确保多租户隔离；默认检索该租户全部知识库，可用 knowledge_base_id
-    收窄到单库。
+    将查询向量化后做相似检索，返回带引用元数据(文件名/页码/相似度)的切片，供 Agent
+    生成「带引用的回答」。默认检索范围 = 当前会话租户的全部私有知识库 + 全局公开库
+    (is_public，如主线②爬取入库的公开政策库)；私有库按会话懒加载的租户隔离，公开库
+    跨租户共享。可用 knowledge_base_id 收窄到单库；会话若绑定了某库则硬限定到该库
+    (覆盖默认范围，不再附加公开库)。
     """
     name: str = "knowledge"
 
@@ -59,10 +60,11 @@ class KnowledgeBaseTool(BaseTool):
     @tool(
         name="knowledge_base_search",
         description=(
-            "内部政策知识库语义检索工具。当用户咨询政策、法规、办事流程、申报条件、"
-            "补贴/资质要求等内部知识库可能涵盖的问题时，应优先调用本工具检索，并基于"
-            "返回的切片作答，回答中需注明来源(文件名与页码)。返回的每条结果包含命中"
-            "文本及其来源文件名、页码与相似度。若本工具无相关结果，再考虑使用 search_web。"
+            "政策知识库语义检索工具，覆盖本企业(租户)私有知识库 + 全局公开政策库"
+            "(主线②爬取入库的公开政策文件)。当用户咨询政策、法规、办事流程、申报条件、"
+            "补贴/资质要求等知识库可能涵盖的问题时，应优先调用本工具检索，并基于返回的"
+            "切片作答，回答中需注明来源(文件名与页码)。返回的每条结果包含命中文本及其来源"
+            "文件名、页码与相似度。若本工具无相关结果，再考虑使用 search_web。"
         ),
         parameters={
             "query": {
@@ -109,21 +111,21 @@ class KnowledgeBaseTool(BaseTool):
         if not query_embedding:
             return ToolResult(success=False, message="查询向量化失败，无法检索")
 
-        # 4. 在租户范围内逐库检索并合并(默认全部库，或收窄到指定库)
+        # 4. 解析检索范围(私有库挂会话租户 + 公开库挂各自系统租户)，逐库检索并合并
         async with self._uow_factory() as uow:
-            kb_ids = await self._resolve_kb_ids(uow, tenant_id, knowledge_base_id)
-            if not kb_ids:
+            scopes = await self._resolve_kb_scopes(uow, tenant_id, knowledge_base_id)
+            if not scopes:
                 return ToolResult(
                     success=True,
-                    message="当前租户暂无可检索的知识库",
+                    message="当前暂无可检索的知识库",
                     data=KnowledgeSearchResults(query=query, citations=[]),
                 )
 
             scored: List[Tuple[DocumentChunk, float]] = []
-            for kb_id in kb_ids:
+            for kb_id, kb_tenant_id in scopes:
                 hits = await uow.document_chunk.search_similar(
                     knowledge_base_id=kb_id,
-                    tenant_id=tenant_id,
+                    tenant_id=kb_tenant_id,
                     query_embedding=query_embedding,
                     top_k=top_k,
                 )
@@ -133,8 +135,8 @@ class KnowledgeBaseTool(BaseTool):
             scored.sort(key=lambda pair: pair[1], reverse=True)
             scored = scored[:top_k]
 
-            # 6. 回查文件名(批量去重)并构建引用
-            citations = await self._build_citations(uow, tenant_id, scored)
+            # 6. 回查文件名(按 切片自带的租户 隔离查询)并构建引用
+            citations = await self._build_citations(uow, scored)
 
         results = KnowledgeSearchResults(query=query, citations=citations)
         if not citations:
@@ -150,33 +152,57 @@ class KnowledgeBaseTool(BaseTool):
         )
 
     @staticmethod
-    async def _resolve_kb_ids(
+    async def _resolve_kb_scopes(
         uow: IUnitOfWork, tenant_id: str, knowledge_base_id: Optional[str],
-    ) -> List[str]:
-        """确定检索的知识库id集合：指定则校验归属，否则取该租户全部"""
+    ) -> List[Tuple[str, str]]:
+        """确定检索范围，返回 (知识库id, 该库所属租户id) 列表。
+
+        - 指定 knowledge_base_id：先按会话租户校验私有归属，未命中再尝试公开库；
+          (会话绑定库已在调用前赋给 knowledge_base_id，故绑定时只命中单库、不附加公开库。)
+        - 未指定(默认)：会话租户全部私有库(挂会话租户) + 全部公开库(挂各自系统租户)。
+        """
         if knowledge_base_id:
             kb = await uow.knowledge_base.get_by_id(knowledge_base_id, tenant_id=tenant_id)
-            return [kb.id] if kb else []
-        kbs = await uow.knowledge_base.list_by_tenant(tenant_id)
-        return [kb.id for kb in kbs]
+            if kb:
+                return [(kb.id, tenant_id)]
+            public = await uow.knowledge_base.get_by_id(knowledge_base_id)
+            if public and public.is_public:
+                return [(public.id, public.tenant_id)]
+            return []
+
+        scopes: List[Tuple[str, str]] = [
+            (kb.id, tenant_id) for kb in await uow.knowledge_base.list_by_tenant(tenant_id)
+        ]
+        seen = {kb_id for kb_id, _ in scopes}
+        for kb in await uow.knowledge_base.list_public():
+            if kb.id not in seen:  # 避免会话租户恰为系统公开租户时重复
+                scopes.append((kb.id, kb.tenant_id))
+        return scopes
 
     @staticmethod
     async def _build_citations(
-        uow: IUnitOfWork, tenant_id: str, scored: List[Tuple[DocumentChunk, float]],
+        uow: IUnitOfWork, scored: List[Tuple[DocumentChunk, float]],
     ) -> List[KnowledgeCitation]:
-        """将(切片, 相似度)列表转换为引用，回查文件名(按文件id去重缓存)"""
+        """将(切片, 相似度)列表转换为引用，回查文件名(按 租户+文件id 去重缓存)。
+
+        每个切片自带 tenant_id(私有库=会话租户，公开库=系统租户)，按其各自租户回查文件，
+        保证跨私有/公开库混合检索时来源归属正确。
+        """
         filename_cache: dict = {}
         citations: List[KnowledgeCitation] = []
         for chunk, score in scored:
-            if chunk.knowledge_file_id not in filename_cache:
-                kf = await uow.knowledge_file.get_by_id(chunk.knowledge_file_id, tenant_id=tenant_id)
-                filename_cache[chunk.knowledge_file_id] = kf.filename if kf else ""
+            cache_key = (chunk.tenant_id, chunk.knowledge_file_id)
+            if cache_key not in filename_cache:
+                kf = await uow.knowledge_file.get_by_id(
+                    chunk.knowledge_file_id, tenant_id=chunk.tenant_id,
+                )
+                filename_cache[cache_key] = kf.filename if kf else ""
             citations.append(
                 KnowledgeCitation(
                     chunk_id=chunk.id,
                     knowledge_base_id=chunk.knowledge_base_id,
                     knowledge_file_id=chunk.knowledge_file_id,
-                    filename=filename_cache[chunk.knowledge_file_id],
+                    filename=filename_cache[cache_key],
                     page=chunk.chunk_metadata.get("page") if chunk.chunk_metadata else None,
                     content=chunk.content,
                     score=score,

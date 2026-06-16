@@ -18,6 +18,10 @@ class KnowledgeBaseRepository(Protocol):
         """列出某租户下的全部知识库(按创建时间倒序)"""
         ...
 
+    async def list_public(self) -> List[KnowledgeBase]:
+        """列出全部全局公开库(is_public=True，跨租户共享，如公开政策库)"""
+        ...
+
     async def delete(self, kb_id: str, tenant_id: str) -> None:
         """删除知识库(级联删除其文件与切片，要求归属该租户)"""
         ...
