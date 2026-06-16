@@ -4,8 +4,9 @@
 
 ## 仓库状态
 
-- 主仓库：`policy_manus`，当前分支 `feat/qualification-opportunities`（PR #21，待用户确认自行合并）。
-- `main` 已合入 ②公开政策库（PR #12，含抓取端点）+ ③政策匹配（PR #13）+ ④工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19，均 2026-06-15 合并）。
+- 主仓库：`policy_manus`，当前分支 `feat/profile-structured-fields`（A0 档案结构化字段 + A1 资质能力②差距分析，待开 PR）。
+- `main` 已合入 ②公开政策库（PR #12）+ ③政策匹配（PR #13）+ ④工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19）+ **⑥资质 Phase 1（PR #21，2026-06-16 合并）**。
+- **基建：共享 PostgreSQL 已从 `118.196.142.223`（停机）迁到 `118.196.142.222`**（部署/数据/备份逐项校验，详见 handoff `2026-06-16-postgres-server-migration`）。
 
 ## 已完成
 
@@ -43,13 +44,18 @@
 
 ## 当前最高优先级
 
-1. **⑥ 资质申报机会 Phase 1 —— PR #21 待用户确认自行合并**（目录+匹配+接入 Feed 已交付，CI 全绿）。合并后下一块：**能力②条件差距分析 + 能力③材料/流程指引**（Agent 工具，复用聊天链路 + KnowledgeBaseTool 取政策原文）；资质目录数值类条件交企业方逐条校对。比赛因走公众号（微信封闭）暂缓，后续开调研小分支配可逆向官网源。
-2. 公开库语义检索接入 Agent（KnowledgeBaseTool 纳入 is_public 库）：③刻意未做，留作后续小分支。
-3. 报告生成流水线。
+1. **⑥ 能力③ 材料/流程指引（A2）—— 下一块**：Agent 工具，复用聊天链路 + KnowledgeBaseTool 取政策原文；可顺带把差距分析的 `manual_review` 软条件交 Agent 深化（混合引擎的"软"半边）。前置 A0+A1 已交付（见下）。
+2. 资质目录其余 24 条逐条**校对数值**后补 `structured_conditions`（当前仅高企已结构化）；高企研发费用占比分营收档可建模 banded 条件。
+3. 公开库语义检索接入 Agent（KnowledgeBaseTool 纳入 is_public 库）：③刻意未做，留作后续小分支。
+4. 报告生成流水线。比赛因走公众号（微信封闭）暂缓。
+
+## 进行中（分支 `feat/profile-structured-fields`，待开 PR）
+- **A0 企业档案结构化字段**：档案新增 成立日期/总人数/研发人数/注册资本/营收/研发投入/发明专利/其他知识产权 8 字段（手动填写），经 `attributes`(JSONB) **零迁移**承载，数值 Optional 区分"未填写≠0"。表单加「经营与研发指标」区。
+- **A1 资质能力②差距分析（混合引擎结构化部分）**：`Qualification.structured_conditions`（指标+门槛+方向）+ 纯函数 `qualification_gap.analyze_gap` → 逐条 **达标/不达标/待确认(未填)**，缺字段判待确认绝不误报不达标；`manual_review` 收口软条件、`prerequisites_missing` 复用能力①。端点 `GET /qualifications/{key}/gap`（强制免责声明）；详情视图加差距分析区块（Feed/资质页复用）。目录仅高企已结构化。全量 **134 passed**、tsc/eslint 绿、零迁移。详见 handoff `2026-06-16-qualification-gap-analysis`。
 
 ## 分支/PR 状态（2026-06-16 收尾）
-- `main`：① 企业档案（PR #10）+ ② 公开政策库（PR #12）+ ③ 政策匹配（PR #13）+ ④ 工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19），均已合。
-- **PR #21 `feat/qualification-opportunities`：⑥ 资质 Phase 1，CI 全绿，待用户明天确认后自行合并。**
+- `main`：① 企业档案（PR #10）+ ② 公开政策库（PR #12）+ ③ 政策匹配（PR #13）+ ④ 工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19）+ **⑥ 资质 Phase 1（PR #21，已合并）**。
+- **`feat/profile-structured-fields`：A0 档案结构化字段 + A1 资质能力②差距分析，本地全绿，待开 PR。**
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏；落后 main 多个 PR、已冲突，待复活时一并 rebase 解，见对话记录）。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
 

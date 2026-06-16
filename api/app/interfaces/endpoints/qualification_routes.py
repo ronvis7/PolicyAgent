@@ -14,6 +14,7 @@ from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.qualification import (
     QualificationDetailResponse,
+    QualificationGapResponse,
     QualificationMatchListResponse,
     QualificationMatchResponse,
 )
@@ -45,6 +46,27 @@ async def list_qualification_matches(
         total=len(items),
         eligible_count=sum(1 for m in matches if m.eligible),
     ))
+
+
+@router.get(
+    path="/{key}/gap",
+    response_model=Response[QualificationGapResponse],
+    summary="资质条件差距分析（能力②）",
+    description=(
+        "按当前租户档案对指定资质做条件差距分析：可结构化核验的硬条件逐条给出 达标/不达标/待确认，"
+        "无结构化对应的条件归入'需人工/材料确认'。门槛为结构性概要，务必连同免责声明展示。"
+    ),
+)
+async def get_qualification_gap(
+        key: str,
+        current_user: CurrentUser = Depends(get_current_user),
+        service: QualificationService = Depends(get_qualification_service),
+) -> Response[QualificationGapResponse]:
+    """资质条件差距分析"""
+    report = await service.analyze_gap_for_tenant(current_user.tenant_id, key)
+    if report is None:
+        raise NotFoundError(msg="资质不存在")
+    return Response.success(data=QualificationGapResponse.from_domain(report))
 
 
 @router.get(

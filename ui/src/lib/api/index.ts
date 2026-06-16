@@ -115,8 +115,11 @@ export type {
   QualificationMatchItem,
   QualificationMatchListResponse,
   QualificationDetail,
+  ConditionStatus,
+  ConditionCheck,
+  QualificationGap,
 } from "./qualification";
-export { QUALIFICATION_LEVEL_LABEL } from "./qualification";
+export { QUALIFICATION_LEVEL_LABEL, CONDITION_STATUS_LABEL } from "./qualification";
 
 // 模块 API
 export { authApi } from "./auth";

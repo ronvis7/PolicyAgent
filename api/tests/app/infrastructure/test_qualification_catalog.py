@@ -44,3 +44,22 @@ def test_load_returns_independent_copies() -> None:
     a = load_qualification_catalog()
     a.clear()
     assert len(load_qualification_catalog()) >= 20  # 外部修改不影响共享数据
+
+
+def test_structured_condition_labels_match_key_conditions() -> None:
+    """结构化硬条件的 label 必须逐字命中 key_conditions，否则差距分析会重复展示。"""
+    for q in load_qualification_catalog():
+        for cond in q.structured_conditions:
+            if cond.label:
+                assert cond.label in q.key_conditions, (
+                    f"{q.key} 的结构化条件 label「{cond.label}」未逐字出现在 key_conditions"
+                )
+
+
+def test_high_tech_enterprise_has_structured_conditions() -> None:
+    """高企作为锚点资质应已结构化(成立年限 + 科技人员占比)，保证能力② 端到端可用。"""
+    catalog = {q.key: q for q in load_qualification_catalog()}
+    hte = catalog["high-tech-enterprise"]
+    metrics = {c.metric.value for c in hte.structured_conditions}
+    assert "company_age_years" in metrics
+    assert "rd_staff_ratio" in metrics
