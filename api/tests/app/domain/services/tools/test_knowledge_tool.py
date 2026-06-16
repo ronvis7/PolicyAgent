@@ -55,6 +55,9 @@ class FakeKnowledgeBaseRepo:
     async def list_by_tenant(self, tenant_id: str) -> List[KnowledgeBase]:
         return [kb for kb in self._kbs if kb.tenant_id == tenant_id]
 
+    async def list_public(self) -> List[KnowledgeBase]:
+        return [kb for kb in self._kbs if kb.is_public]
+
     async def get_by_id(self, kb_id: str, tenant_id: Optional[str] = None) -> Optional[KnowledgeBase]:
         for kb in self._kbs:
             if kb.id == kb_id and (tenant_id is None or kb.tenant_id == tenant_id):
@@ -94,9 +97,9 @@ class FakeUoW:
         return False
 
 
-def _chunk(file_id: str, page: int, content: str, kb_id: str) -> DocumentChunk:
+def _chunk(file_id: str, page: int, content: str, kb_id: str, tenant_id: str = TENANT) -> DocumentChunk:
     return DocumentChunk(
-        tenant_id=TENANT,
+        tenant_id=tenant_id,
         knowledge_base_id=kb_id,
         knowledge_file_id=file_id,
         content=content,
@@ -232,6 +235,79 @@ def test_session_binding_hard_limits_scope_to_bound_kb():
     assert result.success is True
     assert [c.knowledge_base_id for c in result.data.citations] == ["kb-a"]
     assert {kb for kb, _, _ in chunk_repo.calls} == {"kb-a"}
+
+
+PUBLIC = "public"
+
+
+def test_default_scope_includes_public_kb():
+    """默认范围 = 会话租户私有库 + 全局公开库；公开库以其系统租户检索，引用正确归属。"""
+    kbs = [
+        KnowledgeBase(id="kb-priv", tenant_id=TENANT),
+        KnowledgeBase(id="public-policy-kb", tenant_id=PUBLIC, is_public=True),
+    ]
+    chunk_repo = FakeDocumentChunkRepo({
+        "kb-priv": [(_chunk("f1", 1, "私有切片", "kb-priv"), 0.60)],
+        "public-policy-kb": [(_chunk("fp", 2, "公开政策切片", "public-policy-kb", tenant_id=PUBLIC), 0.92)],
+    })
+    file_repo = FakeKnowledgeFileRepo({
+        "f1": KnowledgeFile(tenant_id=TENANT, knowledge_base_id="kb-priv", filename="私有.pdf"),
+        "fp": KnowledgeFile(tenant_id=PUBLIC, knowledge_base_id="public-policy-kb", filename="公开政策.pdf"),
+    })
+    tool = _build_tool(FakeSessionRepo(TENANT), FakeKnowledgeBaseRepo(kbs), chunk_repo, file_repo)
+
+    result = asyncio.run(tool.knowledge_base_search(query="政策", top_k=5))
+
+    assert result.success is True
+    # 两库都检索：私有库用会话租户、公开库用系统公开租户
+    searched = {(kb, tenant) for kb, tenant, _ in chunk_repo.calls}
+    assert searched == {("kb-priv", TENANT), ("public-policy-kb", PUBLIC)}
+    # 公开切片相似度更高排首位，来源文件名按各自租户回查正确
+    cites = result.data.citations
+    assert [c.filename for c in cites] == ["公开政策.pdf", "私有.pdf"]
+    assert cites[0].knowledge_base_id == "public-policy-kb"
+
+
+def test_explicit_public_kb_id_is_resolved():
+    """LLM 显式指定公开库 id 时，按公开库归属(系统租户)检索，无需属当前租户。"""
+    kbs = [KnowledgeBase(id="public-policy-kb", tenant_id=PUBLIC, is_public=True)]
+    chunk_repo = FakeDocumentChunkRepo({
+        "public-policy-kb": [(_chunk("fp", 1, "公开切片", "public-policy-kb", tenant_id=PUBLIC), 0.8)],
+    })
+    file_repo = FakeKnowledgeFileRepo({
+        "fp": KnowledgeFile(tenant_id=PUBLIC, knowledge_base_id="public-policy-kb", filename="公开.pdf"),
+    })
+    tool = _build_tool(FakeSessionRepo(TENANT), FakeKnowledgeBaseRepo(kbs), chunk_repo, file_repo)
+
+    result = asyncio.run(tool.knowledge_base_search(query="政策", knowledge_base_id="public-policy-kb"))
+
+    assert result.success is True
+    assert [c.knowledge_base_id for c in result.data.citations] == ["public-policy-kb"]
+    assert {(kb, tenant) for kb, tenant, _ in chunk_repo.calls} == {("public-policy-kb", PUBLIC)}
+
+
+def test_session_binding_excludes_public_kb():
+    """会话硬绑定私有库时只检索该库，不附加公开库(尊重用户主动收窄的硬限定)。"""
+    kbs = [
+        KnowledgeBase(id="kb-a", tenant_id=TENANT),
+        KnowledgeBase(id="public-policy-kb", tenant_id=PUBLIC, is_public=True),
+    ]
+    chunk_repo = FakeDocumentChunkRepo({
+        "kb-a": [(_chunk("f1", 1, "甲", "kb-a"), 0.8)],
+        "public-policy-kb": [(_chunk("fp", 1, "公开", "public-policy-kb", tenant_id=PUBLIC), 0.99)],
+    })
+    file_repo = FakeKnowledgeFileRepo({
+        "f1": KnowledgeFile(tenant_id=TENANT, knowledge_base_id="kb-a", filename="甲.pdf"),
+    })
+    tool = _build_tool(
+        FakeSessionRepo(TENANT, bound_kb_id="kb-a"),
+        FakeKnowledgeBaseRepo(kbs), chunk_repo, file_repo,
+    )
+
+    result = asyncio.run(tool.knowledge_base_search(query="查询"))
+
+    assert result.success is True
+    assert {kb for kb, _, _ in chunk_repo.calls} == {"kb-a"}  # 公开库未被检索
 
 
 def test_session_binding_overrides_explicit_kb_param():
