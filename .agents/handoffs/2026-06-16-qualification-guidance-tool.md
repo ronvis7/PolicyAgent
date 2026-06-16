@@ -52,8 +52,17 @@
 - 前端 `tsc --noEmit` 干净；eslint 改动文件 0 error（2 warning 为既有 `ToolPreviewPanel`
   头部 `ToolIcon` 写法，非本次）；`next build` 通过。
 - `alembic head` 仍 `f7a8b9c0d1e2`（零迁移）。
-- **真机走查待做**：起开发栈连 .222，聊天里问"我能申报哪些资质 / 高企还差什么 / 申报要哪些材料"，
-  验证 Agent 调 qualification_* 工具 + 结合 knowledge_base_search 出指引、卡片渲染、免责声明在位。
+- **全栈 Remote 真机走查通过**（2026-06-16，`dev-up.cmd -Mode Remote -Build` 连 .222，重建镜像含 A2）：
+  - 运行时确认 api 容器内 `QualificationTool.get_tools()` 暴露 `qualification_list/gap/detail` 三函数、目录 25 条。
+  - 端到端：注册→`PUT /enterprise-profile`（成立2019/总人数100/研发8/发明专利3）→建会话→聊天问
+    "我能申报哪些资质 / 高企还差什么 / 要哪些材料"，SSE 显示 Agent **自主依次调
+    `qualification_list`→`qualification_gap`→`qualification_detail` + `knowledge_base_search`**（A2 设计意图达成；
+    并顺带 search_web/browser/shell/write_file 做了联网研究，planner 走宽属正常）。
+  - 确定性复核 `GET /qualifications/high-tech-enterprise/gap`：可申报候选 25/可申报 7；高企
+    "成立7年≥1 **达标** / 科技人员 8%(8/100)<10% **不达标**"、5 项 `manual_review`、disclaimer+last_reviewed 在位。
+  - 冒烟数据已事务删除清理（4 用户/4 租户/2 会话/1 档案/45 policy_matches/25 文件，0 残留）。
+  - 说明：UTF-8 中文请求体经 Windows `curl` 会被 "error parsing the body" 截断，走查改用 api 容器内 Python
+    （urllib）发请求规避；不影响前端（浏览器原生 UTF-8）。
 
 ## 后续
 
