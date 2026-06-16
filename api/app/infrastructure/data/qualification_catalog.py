@@ -12,7 +12,12 @@
 
 from typing import List
 
-from app.domain.models.qualification import Qualification, QualificationLevel
+from app.domain.models.qualification import (
+    ConditionMetric,
+    Qualification,
+    QualificationCondition,
+    QualificationLevel,
+)
 
 # 目录末次人工核对日期(数值类条件以当年官方最新办法为准)
 _LAST_REVIEWED = "2026-06-15"
@@ -47,6 +52,18 @@ _NATIONAL: List[Qualification] = [
         policy_basis="国科发火〔2016〕32号《高新技术企业认定管理办法》及工作指引",
         benefit="企业所得税减按 15%；各级配套奖励；多数后续资质的前置条件",
         match_signals=["高新技术", "知识产权", "研发", "研发投入"],
+        # 仅把口径明确、标准稳定的硬条件结构化(label 与上面 key_conditions 逐字一致，避免重复展示)；
+        # 研发费用占比因分营收档、高新收入占比/创新评分无档案对应字段，留作人工/材料确认。
+        structured_conditions=[
+            QualificationCondition(
+                metric=ConditionMetric.COMPANY_AGE_YEARS, threshold=1,
+                label="注册成立满 1 年以上",
+            ),
+            QualificationCondition(
+                metric=ConditionMetric.RD_STAFF_RATIO, threshold=10,
+                label="科技人员占职工总数比例达标（概要：≥10%）",
+            ),
+        ],
     ),
     _q(
         key="tech-sme",

@@ -53,6 +53,42 @@ export type QualificationDetail = {
   disclaimer: string;
 };
 
+/** 单条硬条件核验状态 */
+export type ConditionStatus = "met" | "unmet" | "unknown";
+
+/** 状态中文标签 */
+export const CONDITION_STATUS_LABEL: Record<ConditionStatus, string> = {
+  met: "达标",
+  unmet: "不达标",
+  unknown: "待确认",
+};
+
+/** 单条硬条件核验结果（能力②） */
+export type ConditionCheck = {
+  metric: string;
+  op: string; // gte/lte
+  threshold: number;
+  label: string;
+  actual: number | null; // 档案推导实际值（未知为 null）
+  status: ConditionStatus;
+  detail: string; // 人读结论
+};
+
+/** 资质条件差距分析（能力②，含风险纪律字段） */
+export type QualificationGap = {
+  key: string;
+  name: string;
+  checks: ConditionCheck[];
+  manual_review: string[]; // 需人工/材料确认的概要条件
+  prerequisites_missing: string[]; // 缺失前置资质
+  met_count: number;
+  unmet_count: number;
+  unknown_count: number;
+  summary: string;
+  last_reviewed: string;
+  disclaimer: string;
+};
+
 // ==================== 资质申报机会 API ====================
 
 export const qualificationApi = {
@@ -64,5 +100,10 @@ export const qualificationApi = {
   /** 查看资质详情（核心条件/材料/时间/依据/价值，含免责声明与末次核对日期） */
   getDetail: (key: string): Promise<QualificationDetail> => {
     return get<QualificationDetail>(`/qualifications/${encodeURIComponent(key)}`);
+  },
+
+  /** 条件差距分析（能力②）：按当前租户档案逐条核验硬条件 + 待确认/待补 */
+  getGap: (key: string): Promise<QualificationGap> => {
+    return get<QualificationGap>(`/qualifications/${encodeURIComponent(key)}/gap`);
   },
 };

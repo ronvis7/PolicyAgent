@@ -12,7 +12,7 @@
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,37 @@ class QualificationLevel(str, Enum):
     PROVINCIAL = "provincial"  # 省级(按档案省份)
     MUNICIPAL = "municipal"    # 市/区级(按档案市/区)
     GENERAL = "general"        # 通用体系认证(跨级，恒适用)
+
+
+class ConditionMetric(str, Enum):
+    """可由企业档案结构化字段确定性核验的条件指标(⑥ 能力② 硬条件)。
+
+    每个指标对应档案里一个(或可推导的)数值；档案缺该字段时核验结果为"待确认(未填)"，
+    而非"不达标"——未知≠不满足。带 _RATIO 的为推导比值(百分比)。
+    """
+    COMPANY_AGE_YEARS = "company_age_years"            # 成立年限(年，由成立日期推导)
+    TOTAL_STAFF = "total_staff"                        # 员工总数(人)
+    RD_STAFF = "rd_staff"                              # 研发人员数(人)
+    RD_STAFF_RATIO = "rd_staff_ratio"                  # 研发(科技)人员占比(%)
+    RD_INVESTMENT_RATIO = "rd_investment_ratio"        # 研发投入占营收比(%)
+    INVENTION_PATENTS = "invention_patents"            # 发明专利数(件)
+    IP_TOTAL = "ip_total"                              # 知识产权总数(发明+其他，件)
+    REGISTERED_CAPITAL_WAN = "registered_capital_wan"  # 注册资本(万元)
+    ANNUAL_REVENUE_WAN = "annual_revenue_wan"          # 上年度营收(万元)
+
+
+class ConditionOperator(str, Enum):
+    """硬条件比较方向(资质门槛绝大多数是下限 gte)。"""
+    GTE = "gte"  # 实际值 ≥ 门槛
+    LTE = "lte"  # 实际值 ≤ 门槛
+
+
+class QualificationCondition(BaseModel):
+    """单条可结构化核验的硬条件(目录侧维护，数值仍需逐条校对)。"""
+    metric: ConditionMetric  # 核验指标
+    threshold: float  # 门槛值
+    op: ConditionOperator = ConditionOperator.GTE  # 比较方向
+    label: str = ""  # 概要描述(对应 key_conditions 中的人读文案)
 
 
 class Qualification(BaseModel):
@@ -44,6 +75,8 @@ class Qualification(BaseModel):
     # ---- 匹配用信号 ----
     match_signals: List[str] = Field(default_factory=list)  # 与档案匹配的软信号(行业/技术域等)
     prerequisites: List[str] = Field(default_factory=list)  # 前置资质(梯度，如小巨人需省专精特新)
+    # ---- 能力② 可结构化核验的硬条件(子集，能算的才进；其余 key_conditions 走人工/材料确认)----
+    structured_conditions: List[QualificationCondition] = Field(default_factory=list)
     # ---- 风险纪律 ----
     last_reviewed: str = ""  # 末次核对日期(YYYY-MM-DD)
     disclaimer: str = DEFAULT_DISCLAIMER  # 免责声明(详情强制展示)
@@ -62,3 +95,37 @@ class QualificationMatch(BaseModel):
     missing_prerequisites: List[str] = Field(default_factory=list)  # 缺失的前置资质
     eligible: bool = False  # 可申报(True)/接近可申报(False)
     reasons: List[str] = Field(default_factory=list)  # 可读理由
+
+
+class ConditionStatus(str, Enum):
+    """单条硬条件的核验状态。"""
+    MET = "met"          # 达标
+    UNMET = "unmet"      # 不达标(差距)
+    UNKNOWN = "unknown"  # 待确认(档案缺该字段，未知≠不达标)
+
+
+class ConditionCheck(BaseModel):
+    """单条硬条件核验结果(能力②的最小单元)。"""
+    metric: ConditionMetric
+    op: ConditionOperator
+    threshold: float
+    label: str = ""
+    actual: Optional[float] = None  # 档案推导出的实际值(未知为 None)
+    status: ConditionStatus
+    detail: str = ""  # 人读结论(如"研发人员占比 8.3% < 10%")
+
+
+class QualificationGapReport(BaseModel):
+    """企业档案 × 单条资质的差距分析结果(⑥ 能力②，混合引擎的结构化部分)。
+
+    `checks` 为可结构化核验的硬条件逐条结论；`manual_review` 为无结构化对应、需结合材料
+    人工/Agent(能力③)确认的概要条件；`prerequisites_missing` 复用能力① 的前置缺口。
+    """
+    qualification: Qualification
+    checks: List[ConditionCheck] = Field(default_factory=list)
+    manual_review: List[str] = Field(default_factory=list)  # 需人工/材料确认的概要条件
+    prerequisites_missing: List[str] = Field(default_factory=list)  # 缺失前置资质
+    met_count: int = 0
+    unmet_count: int = 0
+    unknown_count: int = 0
+    summary: str = ""  # 一句话总览

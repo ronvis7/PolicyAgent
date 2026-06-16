@@ -59,14 +59,30 @@ class EnterpriseProfileModel(Base):
         server_default=text("CURRENT_TIMESTAMP(0)"),
     )  # 创建时间
 
-    @staticmethod
-    def _attributes_from_domain(profile: EnterpriseProfile) -> dict:
-        """将领域模型的列表型字段收敛进 attributes(JSONB)"""
-        return {
+    # 经 attributes(JSONB) 承载的结构化标量字段(成立日期/人员/财务/知识产权)，
+    # 与领域模型同名；集中维护，避免读写两处各列一遍。None 表示"未填写"，原样存取。
+    _SCALAR_ATTRIBUTE_FIELDS = (
+        "established_date",
+        "total_staff",
+        "rd_staff",
+        "registered_capital_wan",
+        "annual_revenue_wan",
+        "rd_investment_wan",
+        "invention_patents",
+        "other_ip_count",
+    )
+
+    @classmethod
+    def _attributes_from_domain(cls, profile: EnterpriseProfile) -> dict:
+        """将领域模型的列表型与增量标量字段收敛进 attributes(JSONB)"""
+        attributes = {
             "qualifications": profile.qualifications,
             "tech_domains": profile.tech_domains,
             "keywords": profile.keywords,
         }
+        for name in cls._SCALAR_ATTRIBUTE_FIELDS:
+            attributes[name] = getattr(profile, name)
+        return attributes
 
     @classmethod
     def from_domain(cls, profile: EnterpriseProfile) -> "EnterpriseProfileModel":
@@ -88,6 +104,11 @@ class EnterpriseProfileModel(Base):
     def to_domain(self) -> EnterpriseProfile:
         """将ORM模型转换为领域模型"""
         attributes = self.attributes or {}
+        scalars = {
+            name: attributes.get(name)
+            for name in self._SCALAR_ATTRIBUTE_FIELDS
+            if attributes.get(name) is not None
+        }
         return EnterpriseProfile(
             tenant_id=self.tenant_id,
             company_name=self.company_name,
@@ -102,6 +123,7 @@ class EnterpriseProfileModel(Base):
             keywords=list(attributes.get("keywords", [])),
             updated_at=self.updated_at,
             created_at=self.created_at,
+            **scalars,
         )
 
     def update_from_domain(self, profile: EnterpriseProfile) -> None:

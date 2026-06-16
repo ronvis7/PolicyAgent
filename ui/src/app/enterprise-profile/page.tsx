@@ -50,7 +50,65 @@ const EMPTY_PROFILE: EnterpriseProfile = {
   qualifications: [],
   tech_domains: [],
   keywords: [],
+  established_date: '',
+  total_staff: null,
+  rd_staff: null,
+  registered_capital_wan: null,
+  annual_revenue_wan: null,
+  rd_investment_wan: null,
+  invention_patents: null,
+  other_ip_count: null,
   updated_at: '',
+}
+
+/** 数值字段输入：空串↔null 互转，非负，禁用时展示"未填写" */
+function NumberField({
+  label,
+  value,
+  unit,
+  step,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: number | null
+  unit?: string
+  step?: number
+  placeholder?: string
+  disabled: boolean
+  onChange: (next: number | null) => void
+}) {
+  return (
+    <Field>
+      <FieldLabel>
+        {label}
+        {unit && <span className="ml-1 text-xs text-muted-foreground">（{unit}）</span>}
+      </FieldLabel>
+      {disabled ? (
+        <span className="text-sm text-muted-foreground">
+          {value === null || value === undefined ? '未填写' : value}
+        </span>
+      ) : (
+        <Input
+          type="number"
+          min={0}
+          step={step ?? 1}
+          value={value === null || value === undefined ? '' : value}
+          placeholder={placeholder ?? '未填写'}
+          onChange={(e) => {
+            const raw = e.target.value
+            if (raw === '') {
+              onChange(null)
+              return
+            }
+            const parsed = Number(raw)
+            onChange(Number.isFinite(parsed) && parsed >= 0 ? parsed : null)
+          }}
+        />
+      )}
+    </Field>
+  )
 }
 
 /** 标签输入：回车或失焦添加，去重；只读时仅展示 */
@@ -349,6 +407,84 @@ export default function EnterpriseProfilePage() {
                   disabled={!canEdit}
                   onChange={(next) => patch('keywords', next)}
                 />
+              </FieldSet>
+
+              <FieldSet>
+                <FieldLegend className="text-base font-bold text-gray-700">
+                  经营与研发指标
+                </FieldLegend>
+                <p className="-mt-1 mb-1 text-xs text-muted-foreground">
+                  用于资质申报机会的条件差距分析（如成立年限、研发人员占比、研发投入强度、知识产权数量）。按企业实际据实填写，留空表示暂未提供。
+                </p>
+
+                <Field>
+                  <FieldLabel htmlFor="established_date">成立 / 注册日期</FieldLabel>
+                  <Input
+                    id="established_date"
+                    type="date"
+                    value={profile.established_date}
+                    disabled={!canEdit}
+                    onChange={(e) => patch('established_date', e.target.value)}
+                  />
+                  <FieldDescription className="text-xs">
+                    许多资质要求“成立满 N 年”，据此判断年限是否达标。
+                  </FieldDescription>
+                </Field>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <NumberField
+                    label="员工总数"
+                    unit="人"
+                    value={profile.total_staff}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('total_staff', v)}
+                  />
+                  <NumberField
+                    label="研发人员数"
+                    unit="人"
+                    value={profile.rd_staff}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('rd_staff', v)}
+                  />
+                  <NumberField
+                    label="注册资本"
+                    unit="万元"
+                    step={0.01}
+                    value={profile.registered_capital_wan}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('registered_capital_wan', v)}
+                  />
+                  <NumberField
+                    label="上年度营业收入"
+                    unit="万元"
+                    step={0.01}
+                    value={profile.annual_revenue_wan}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('annual_revenue_wan', v)}
+                  />
+                  <NumberField
+                    label="上年度研发投入"
+                    unit="万元"
+                    step={0.01}
+                    value={profile.rd_investment_wan}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('rd_investment_wan', v)}
+                  />
+                  <NumberField
+                    label="发明专利数"
+                    unit="件"
+                    value={profile.invention_patents}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('invention_patents', v)}
+                  />
+                  <NumberField
+                    label="其他知识产权数"
+                    unit="件（实用新型/软著/外观等）"
+                    value={profile.other_ip_count}
+                    disabled={!canEdit}
+                    onChange={(v) => patch('other_ip_count', v)}
+                  />
+                </div>
               </FieldSet>
             </FieldGroup>
           </div>

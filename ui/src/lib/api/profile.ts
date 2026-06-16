@@ -17,6 +17,15 @@ export type EnterpriseProfile = {
   qualifications: string[];
   tech_domains: string[];
   keywords: string[];
+  // ---- 结构化资质条件字段（手动填写，供 ⑥ 差距分析；未填写为 null）----
+  established_date: string; // 成立/注册日期 YYYY-MM-DD
+  total_staff: number | null; // 员工总数
+  rd_staff: number | null; // 研发人员数
+  registered_capital_wan: number | null; // 注册资本（万元）
+  annual_revenue_wan: number | null; // 上年度营收（万元）
+  rd_investment_wan: number | null; // 上年度研发投入（万元）
+  invention_patents: number | null; // 发明专利数
+  other_ip_count: number | null; // 其他知识产权数（实用新型/软著等）
   updated_at: string;
 };
 

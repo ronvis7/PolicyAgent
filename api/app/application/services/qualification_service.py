@@ -9,8 +9,14 @@
 import logging
 from typing import Callable, List, Optional
 
-from app.domain.models.qualification import Qualification, QualificationMatch
+from app.domain.models.enterprise_profile import EnterpriseProfile
+from app.domain.models.qualification import (
+    Qualification,
+    QualificationGapReport,
+    QualificationMatch,
+)
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.qualification_gap import analyze_gap
 from app.domain.services.qualification_matcher import match_qualifications
 
 logger = logging.getLogger(__name__)
@@ -42,6 +48,22 @@ class QualificationService:
 
         matches = match_qualifications(profile, self._catalog)
         return matches[: max(1, top_k)]
+
+    async def analyze_gap_for_tenant(
+        self, tenant_id: str, key: str,
+    ) -> Optional[QualificationGapReport]:
+        """对指定资质做条件差距分析(能力②)；资质不存在返回 None。
+
+        无档案时以默认空档案分析——结果为"所有硬条件待确认"，引导用户先完善档案，
+        而非空响应。
+        """
+        qual = self._by_key.get(key)
+        if qual is None:
+            return None
+
+        async with self._uow_factory() as uow:
+            profile = await uow.enterprise_profile.get_by_tenant(tenant_id)
+        return analyze_gap(profile or EnterpriseProfile(tenant_id=tenant_id), qual)
 
     def get_by_key(self, key: str) -> Optional[Qualification]:
         """按 key 取资质详情(目录为静态数据，纯内存查找)。"""

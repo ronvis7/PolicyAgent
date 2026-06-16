@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,5 +32,15 @@ class EnterpriseProfile(BaseModel):
     qualifications: List[str] = Field(default_factory=list)  # 已有资质(高新/专精特新/科技型中小企业…)
     tech_domains: List[str] = Field(default_factory=list)  # 技术/产品领域
     keywords: List[str] = Field(default_factory=list)  # 关键词标签
+    # ---- 结构化资质条件字段(手动填写，供 ⑥ 差距分析)----
+    # 统一用 Optional[...]=None 表达"未填写"，与"填了0"区分(差距分析里未知≠不达标)。
+    established_date: str = ""  # 成立/注册日期(YYYY-MM-DD)，用于"成立满N年"类硬条件
+    total_staff: Optional[int] = None  # 员工总数
+    rd_staff: Optional[int] = None  # 研发人员数
+    registered_capital_wan: Optional[float] = None  # 注册资本(万元)
+    annual_revenue_wan: Optional[float] = None  # 上年度营收(万元)
+    rd_investment_wan: Optional[float] = None  # 上年度研发投入(万元)
+    invention_patents: Optional[int] = None  # 发明专利数(Ⅰ类知识产权)
+    other_ip_count: Optional[int] = None  # 其他知识产权数(实用新型/软著/外观等，Ⅱ类)
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间

@@ -4,11 +4,15 @@
 服务详情页，**强制携带 disclaimer + last_reviewed**(风险纪律：数值类条件以官方办法为准)。
 """
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.domain.models.qualification import Qualification, QualificationMatch
+from app.domain.models.qualification import (
+    Qualification,
+    QualificationGapReport,
+    QualificationMatch,
+)
 
 
 class QualificationDetailResponse(BaseModel):
@@ -69,3 +73,52 @@ class QualificationMatchListResponse(BaseModel):
     items: List[QualificationMatchResponse] = Field(default_factory=list)
     total: int = 0
     eligible_count: int = 0  # 其中"可申报"条数(给前端做角标/概览)
+
+
+class ConditionCheckResponse(BaseModel):
+    """单条硬条件核验结果(达标/不达标/待确认)"""
+    metric: str = ""
+    op: str = ""
+    threshold: float = 0.0
+    label: str = ""
+    actual: Optional[float] = None
+    status: str = ""  # met/unmet/unknown
+    detail: str = ""
+
+
+class QualificationGapResponse(BaseModel):
+    """资质条件差距分析响应(能力②)，强制携带 disclaimer + last_reviewed。"""
+    key: str = ""
+    name: str = ""
+    checks: List[ConditionCheckResponse] = Field(default_factory=list)
+    manual_review: List[str] = Field(default_factory=list)
+    prerequisites_missing: List[str] = Field(default_factory=list)
+    met_count: int = 0
+    unmet_count: int = 0
+    unknown_count: int = 0
+    summary: str = ""
+    last_reviewed: str = ""
+    disclaimer: str = ""
+
+    @classmethod
+    def from_domain(cls, report: QualificationGapReport) -> "QualificationGapResponse":
+        q = report.qualification
+        return cls(
+            key=q.key,
+            name=q.name,
+            checks=[
+                ConditionCheckResponse(
+                    metric=c.metric.value, op=c.op.value, threshold=c.threshold,
+                    label=c.label, actual=c.actual, status=c.status.value, detail=c.detail,
+                )
+                for c in report.checks
+            ],
+            manual_review=report.manual_review,
+            prerequisites_missing=report.prerequisites_missing,
+            met_count=report.met_count,
+            unmet_count=report.unmet_count,
+            unknown_count=report.unknown_count,
+            summary=report.summary,
+            last_reviewed=q.last_reviewed,
+            disclaimer=q.disclaimer,
+        )
