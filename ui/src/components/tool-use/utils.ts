@@ -6,6 +6,7 @@ export type ToolKind =
   | 'file'
   | 'search'
   | 'knowledge'
+  | 'qualification'
   | 'browser'
   | 'mcp'
   | 'a2a'
@@ -37,6 +38,9 @@ export function getToolKind(data: ToolEvent | null | undefined): ToolKind {
   }
   if (name === 'knowledge' || fn === 'knowledge_base_search') {
     return 'knowledge'
+  }
+  if (name === 'qualification' || fn.startsWith('qualification_')) {
+    return 'qualification'
   }
   if (name === 'file' || name.includes('file')) {
     return 'file'
@@ -134,6 +138,19 @@ export function getFriendlyToolLabel(data: ToolEvent | null | undefined): string
 
   if (name === 'knowledge' || fn === 'knowledge_base_search') {
     return query ? `正在检索知识库 ${truncate(query, 60)}` : '正在检索知识库'
+  }
+
+  if (name === 'qualification' || fn.startsWith('qualification_')) {
+    switch (fn) {
+      case 'qualification_list':
+        return '正在匹配可申报资质'
+      case 'qualification_gap':
+        return key ? `正在分析资质差距 ${truncate(key, 40)}` : '正在分析资质差距'
+      case 'qualification_detail':
+        return key ? `正在查询资质详情 ${truncate(key, 40)}` : '正在查询资质详情'
+      default:
+        return '正在处理资质申报指引'
+    }
   }
 
   if (name === 'shell') {

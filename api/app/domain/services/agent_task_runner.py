@@ -20,10 +20,11 @@ from app.domain.external.task import TaskRunner, Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
     BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, MCPToolContent, A2AToolContent, \
-    KnowledgeToolContent, TitleEvent, WaitEvent, DoneEvent
+    KnowledgeToolContent, QualificationToolContent, TitleEvent, WaitEvent, DoneEvent
 from app.domain.models.file import File
 from app.domain.models.knowledge_search import KnowledgeSearchResults
 from app.domain.models.message import Message
+from app.domain.models.qualification import Qualification
 from app.domain.models.search import SearchResults
 from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
@@ -31,6 +32,7 @@ from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.flows.planner_react import PlannerReActFlow
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
+from app.domain.services.tools.qualification import QualificationToolData
 from core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ class AgentTaskRunner(TaskRunner):
             search_engine: SearchEngine,  # 搜索引擎
             embedding: EmbeddingProvider,  # 文本向量化(知识库检索)
             sandbox: Sandbox,  # 沙箱
+            qualification_catalog: List[Qualification],  # 资质目录(⑥能力③ 指引工具)
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
         self._uow_factory = uow_factory
@@ -81,6 +84,7 @@ class AgentTaskRunner(TaskRunner):
             embedding=embedding,
             mcp_tool=self._mcp_tool,
             a2a_tool=self._a2a_tool,
+            qualification_catalog=qualification_catalog,
         )
 
     async def _put_and_add_event(self, task: Task, event: Event) -> None:
@@ -282,6 +286,16 @@ class AgentTaskRunner(TaskRunner):
                     kb_result: ToolResult[KnowledgeSearchResults] = event.function_result
                     citations = kb_result.data.citations if kb_result and kb_result.data else []
                     event.tool_content = KnowledgeToolContent(citations=citations)
+                elif event.tool_name == "qualification":
+                    # 资质指引(⑥能力③)：注入清单/差距/详情内容供前端渲染资质卡片
+                    q_result: ToolResult[QualificationToolData] = event.function_result
+                    q_data = q_result.data if q_result and q_result.data else None
+                    if q_data is not None:
+                        event.tool_content = QualificationToolContent(
+                            kind=q_data.kind, title=q_data.title, summary=q_data.summary,
+                            lines=q_data.lines, disclaimer=q_data.disclaimer,
+                            last_reviewed=q_data.last_reviewed,
+                        )
                 elif event.tool_name == "shell":
                     # 4.工具为shell则生成shell工具内容
                     if "session_id" in event.function_args:

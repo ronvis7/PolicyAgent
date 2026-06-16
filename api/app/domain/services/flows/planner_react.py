@@ -1,6 +1,6 @@
 
 import logging
-from typing import AsyncGenerator, Optional, Callable
+from typing import AsyncGenerator, List, Optional, Callable
 
 from app.domain.external.browser import Browser
 from app.domain.external.embedding import EmbeddingProvider
@@ -13,6 +13,7 @@ from app.domain.models.event import BaseEvent, PlanEvent, PlanEventStatus, Title
 from app.domain.models.event import DoneEvent
 from app.domain.models.message import Message
 from app.domain.models.plan import Plan, ExecutionStatus
+from app.domain.models.qualification import Qualification
 from app.domain.models.session import SessionStatus
 from app.domain.services.agents.planner import PlannerAgent
 from app.domain.services.agents.react import ReActAgent
@@ -21,6 +22,7 @@ from app.domain.services.tools.browser import BrowserTool
 from app.domain.services.tools.file import FileTool
 from app.domain.services.tools.knowledge import KnowledgeBaseTool
 from app.domain.services.tools.mcp import MCPTool
+from app.domain.services.tools.qualification import QualificationTool
 from app.domain.services.tools.message import MessageTool
 from app.domain.services.tools.search import SearchTool
 from app.domain.services.tools.shell import ShellTool
@@ -46,6 +48,7 @@ class PlannerReActFlow(BaseFlow):
             embedding: EmbeddingProvider,  # 文本向量化(知识库检索)
             mcp_tool: MCPTool,  # mcp工具
             a2a_tool: A2ATool,  # a2a远程agent
+            qualification_catalog: List[Qualification],  # 资质目录(⑥能力③ 指引工具)
     ) -> None:
         """构造函数，完成规划与执行流的初始化"""
         # 1.流初始化数据配置
@@ -64,6 +67,11 @@ class PlannerReActFlow(BaseFlow):
             KnowledgeBaseTool(
                 uow_factory=uow_factory,
                 embedding=embedding,
+                session_id=session_id,
+            ),
+            QualificationTool(
+                uow_factory=uow_factory,
+                catalog=qualification_catalog,
                 session_id=session_id,
             ),
             MessageTool(),
