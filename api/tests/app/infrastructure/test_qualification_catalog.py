@@ -63,3 +63,15 @@ def test_high_tech_enterprise_has_structured_conditions() -> None:
     metrics = {c.metric.value for c in hte.structured_conditions}
     assert "company_age_years" in metrics
     assert "rd_staff_ratio" in metrics
+
+
+def test_tech_sme_structured_caps_are_upper_bounds() -> None:
+    """科技型中小企业的结构化条件为全行业统一硬上限(职工/营收 LTE)。"""
+    from app.domain.models.qualification import ConditionMetric, ConditionOperator
+
+    catalog = {q.key: q for q in load_qualification_catalog()}
+    by_metric = {c.metric: c for c in catalog["tech-sme"].structured_conditions}
+    staff = by_metric[ConditionMetric.TOTAL_STAFF]
+    revenue = by_metric[ConditionMetric.ANNUAL_REVENUE_WAN]
+    assert staff.op is ConditionOperator.LTE and staff.threshold == 500
+    assert revenue.op is ConditionOperator.LTE and revenue.threshold == 20000

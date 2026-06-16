@@ -14,6 +14,7 @@ from typing import List
 
 from app.domain.models.qualification import (
     ConditionMetric,
+    ConditionOperator,
     Qualification,
     QualificationCondition,
     QualificationLevel,
@@ -74,7 +75,9 @@ _NATIONAL: List[Qualification] = [
         region="全国",
         key_conditions=[
             "在中国境内注册的居民企业",
-            "职工人数/营收/资产规模符合中小企业标准",
+            "职工总数不超过 500 人（科技型中小企业上限）",
+            "年销售收入不超过 2 亿元（科技型中小企业上限）",
+            "资产总额不超过 2 亿元（科技型中小企业上限）",
             "有研发活动并按评价指标（科技人员/研发投入/科技成果）达分",
             "或持高企/省部级研发机构等可直接评价入库",
         ],
@@ -83,6 +86,19 @@ _NATIONAL: List[Qualification] = [
         policy_basis="国科发政〔2017〕115号《科技型中小企业评价办法》",
         benefit="研发费用加计扣除比例提升；高企培育前置；多项扶持入门券",
         match_signals=["研发", "科技", "中小企业"],
+        # 国科发政〔2017〕115号对"科技型中小企业"设全行业统一硬性上限(非分行业划型)：
+        # 职工≤500人、年销售收入≤2亿、资产总额≤2亿。前两项可由档案核验(资产无对应字段，
+        # 连同综合评分≥60/持高企等留 manual_review)。上限超出即明确不符合 → LTE。
+        structured_conditions=[
+            QualificationCondition(
+                metric=ConditionMetric.TOTAL_STAFF, threshold=500,
+                op=ConditionOperator.LTE, label="职工总数不超过 500 人（科技型中小企业上限）",
+            ),
+            QualificationCondition(
+                metric=ConditionMetric.ANNUAL_REVENUE_WAN, threshold=20000,
+                op=ConditionOperator.LTE, label="年销售收入不超过 2 亿元（科技型中小企业上限）",
+            ),
+        ],
     ),
     _q(
         key="spec-new-little-giant",
@@ -455,6 +471,28 @@ _GENERAL: List[Qualification] = [
 ]
 
 
+# ============================ 结构化条件 triage（2026-06-16） ============================
+# 能力② 差距分析只对 `structured_conditions` 做确定性核验，而结构化的前提是：条件能映射到企业档案
+# 的 9 个数值指标(成立年限/总人数/研发人数/研发占比/研发投入占比/发明专利/知识产权总数/注册资本/营收)，
+# 且门槛**口径稳定、全适用人群一致**。逐条核过 25 条后，实际可结构化的极少，按风险纪律宁缺毋滥：
+#
+# 已结构化(2 条)：
+# - high-tech-enterprise：成立满 1 年(GTE)、科技人员占比≥10%(GTE)。
+# - tech-sme：职工≤500 人、营收≤2 亿(均 LTE，115 号全行业统一硬上限)。
+#
+# 刻意不结构化(其余 23 条，留 manual_review / 由 A2 能力③ Agent 结合政策原文深化)，原因分类：
+# - 软/文本条件：体系类(iso9001/14001/45001/27001/cmmi、ipr-standard、two-integration、
+#   js-industrial-design、js-smart-manufacturing)"建立并运行体系"；单项冠军/瞪羚/独角兽的
+#   "市场占有率领先/高成长/估值"——档案无对应字段或无法量化。
+# - 分档/分行业阈值：专精特新各级(spec-new-little-giant、js-spec-new、wx-spec-new)按行业划型、
+#   研发费用/营收分档；技术中心/工程中心各级(national-tech-center、js/wx-tech-center、
+#   js/wx-engineering-center)研发投入/人员/设备按层级分档——单一 GTE/LTE 表达不准，错填比不填更糟。
+# - 前置/地区类：xinwu-bonus(获上级资质 + 新吴区注册纳税)、js-gazelle(高企前置)——已由
+#   prerequisites + 地区匹配覆盖，无需再结构化。
+# - 历史/趋势类：高成长(营收净利连续增长)需历史多年数据，单时点档案无法核验。
+#
+# 复核纪律：上述两条的数值取自对应《办法》的稳定硬条件；逐年微调的分档门槛(如高企研发费用占比)
+# 仍走 manual_review，待 banded 条件建模后再结构化(见 STATUS 后续项)。
 _CATALOG: List[Qualification] = _NATIONAL + _JIANGSU + _WUXI + _GENERAL
 
 

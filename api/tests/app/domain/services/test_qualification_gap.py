@@ -119,6 +119,23 @@ def test_manual_review_collects_unstructured_conditions() -> None:
     assert "属国家重点支持高新技术领域" in report.manual_review
 
 
+def test_tech_sme_upper_bound_caps_via_catalog() -> None:
+    """科技型中小企业(真实目录条目)的 LTE 上限：超限→不达标、未超→达标、未填→待确认。"""
+    from app.infrastructure.data.qualification_catalog import load_qualification_catalog
+
+    qual = {q.key: q for q in load_qualification_catalog()}["tech-sme"]
+
+    big = EnterpriseProfile(total_staff=800, annual_revenue_wan=30000.0)  # 双超限
+    big_checks = {c.metric: c for c in analyze_gap(big, qual).checks}
+    assert big_checks[ConditionMetric.TOTAL_STAFF].status is ConditionStatus.UNMET
+    assert big_checks[ConditionMetric.ANNUAL_REVENUE_WAN].status is ConditionStatus.UNMET
+
+    small = EnterpriseProfile(total_staff=120)  # 职工达标、营收未填
+    small_checks = {c.metric: c for c in analyze_gap(small, qual).checks}
+    assert small_checks[ConditionMetric.TOTAL_STAFF].status is ConditionStatus.MET
+    assert small_checks[ConditionMetric.ANNUAL_REVENUE_WAN].status is ConditionStatus.UNKNOWN
+
+
 def test_missing_prerequisites_reported() -> None:
     qual = _qual(prerequisites=["江苏省专精特新中小企业"])
     profile = EnterpriseProfile(qualifications=["高新技术企业"])
