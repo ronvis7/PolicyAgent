@@ -1,7 +1,7 @@
 # 企业档案结构化字段 + 资质能力②差距分析（A0+A1）
 
 更新时间：2026-06-16
-分支：`feat/profile-structured-fields`（待开 PR）
+分支：`feat/profile-structured-fields` → **PR #22 已合并 main（2026-06-16）**
 
 ## 背景
 
@@ -50,7 +50,10 @@
   **全量 134 passed**（1 error 为既有需真库的 `test_get_status`，与本次无关）；`import app.main` OK。
 - 前端 `tsc --noEmit` 干净、`eslint` 改动文件干净。
 - `alembic heads` 仍 `f7a8b9c0d1e2`（A0 零迁移、A1 无表）。
-- **未做真机端到端走查**（需起 Docker 全栈 `dev-up.cmd -Mode Remote`）。
+- **全栈 Remote 真机走查通过**（2026-06-16，`dev-up.cmd -Mode Remote -Build` 连迁移后 .222）：
+  注册→`PUT /enterprise-profile` 8 字段→`GET` 读回一致（JSONB 落 .222 验证）→
+  `GET /qualifications/high-tech-enterprise/gap` 返回 成立7年≥1 **达标** / 科技人员 8%(8/100)<10% **不达标** /
+  5 项 manual_review / disclaimer+last_reviewed 在位，计算正确。临时冒烟账号已事务删除清理。
 
 ## 后续
 
