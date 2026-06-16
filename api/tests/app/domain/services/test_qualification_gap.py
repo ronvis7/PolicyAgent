@@ -9,7 +9,6 @@ from datetime import date
 from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.qualification import (
     ConditionMetric,
-    ConditionOperator,
     ConditionStatus,
     Qualification,
     QualificationCondition,
