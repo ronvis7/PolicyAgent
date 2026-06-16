@@ -166,6 +166,7 @@ def _build_agent_service(cos: Cos, app_config, llm_config: LLMConfig) -> AgentSe
         search_engine=BingSearchEngine(),
         embedding=embedding,
         file_storage=file_storage,
+        qualification_catalog=load_qualification_catalog(),
     )
 
 

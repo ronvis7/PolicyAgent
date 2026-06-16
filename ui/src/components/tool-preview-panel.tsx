@@ -18,6 +18,8 @@ import {
   Bot,
   Sparkles,
   BookOpen,
+  Award,
+  AlertTriangle,
 } from 'lucide-react'
 
 /* ------------------------------------------------------------------ */
@@ -61,6 +63,7 @@ function getToolDescription(kind: ToolKind): string {
     browser: '浏览器',
     search: '搜索',
     knowledge: '知识库',
+    qualification: '资质申报',
     file: '文件',
     mcp: 'MCP 服务',
     a2a: 'A2A 智能体',
@@ -76,6 +79,7 @@ function getToolIcon(kind: ToolKind) {
     browser: Globe,
     search: Search,
     knowledge: BookOpen,
+    qualification: Award,
     file: FileSearch,
     mcp: Wrench,
     a2a: Bot,
@@ -284,6 +288,53 @@ function KnowledgePreview({ tool }: { tool: ToolEvent }) {
   )
 }
 
+function QualificationPreview({ tool }: { tool: ToolEvent }) {
+  const content = getToolContent(tool)
+  const title = typeof content?.title === 'string' ? content.title : '资质申报指引'
+  const summary = typeof content?.summary === 'string' ? content.summary : ''
+  const disclaimer = typeof content?.disclaimer === 'string' ? content.disclaimer : ''
+  const lastReviewed = typeof content?.last_reviewed === 'string' ? content.last_reviewed : ''
+
+  const lines: string[] = useMemo(() => {
+    const raw = content?.lines
+    if (Array.isArray(raw)) return raw.filter((l): l is string => typeof l === 'string')
+    return []
+  }, [content])
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="flex flex-col gap-3 p-4">
+        <div className="flex items-center gap-1.5">
+          <Award size={15} className="text-indigo-600 flex-shrink-0" />
+          <span className="text-sm font-semibold text-gray-800">{title}</span>
+        </div>
+        {summary && <div className="text-sm text-gray-600">{summary}</div>}
+        {lines.length > 0 && (
+          <div className="rounded-lg border border-gray-200 p-3 flex flex-col gap-1">
+            {lines.map((line, i) => (
+              <div key={i} className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                {line}
+              </div>
+            ))}
+          </div>
+        )}
+        {disclaimer && (
+          <div className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+            <AlertTriangle size={13} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-800">
+              {disclaimer}
+              {lastReviewed && <span className="text-amber-600">（末次核对：{lastReviewed}）</span>}
+            </div>
+          </div>
+        )}
+        {lines.length === 0 && !summary && (
+          <div className="text-sm text-gray-500 text-center py-8">暂无资质内容</div>
+        )}
+      </div>
+    </ScrollArea>
+  )
+}
+
 function FileToolPreview({ tool }: { tool: ToolEvent }) {
   const content = getToolContent(tool)
   const fileContent = typeof content?.content === 'string' ? content.content : null
@@ -444,6 +495,7 @@ export function ToolPreviewPanel({
         {kind === 'browser' && <BrowserPreview tool={tool} onOpenVNC={onOpenVNC} />}
         {kind === 'search' && <SearchPreview tool={tool} />}
         {kind === 'knowledge' && <KnowledgePreview tool={tool} />}
+        {kind === 'qualification' && <QualificationPreview tool={tool} />}
         {kind === 'file' && <FileToolPreview tool={tool} />}
         {kind === 'mcp' && <MCPPreview tool={tool} />}
         {kind === 'a2a' && <A2APreview tool={tool} />}

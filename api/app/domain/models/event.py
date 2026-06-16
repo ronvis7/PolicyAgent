@@ -102,6 +102,16 @@ class KnowledgeToolContent(BaseModel):
     citations: List[KnowledgeCitation]  # 命中切片引用列表(文件名/页码/相似度)
 
 
+class QualificationToolContent(BaseModel):
+    """资质指引工具内容(⑥ 能力③，供前端渲染资质卡片)"""
+    kind: str = ""  # list | gap | detail
+    title: str = ""  # 资质名称或"可申报资质"
+    summary: str = ""  # 一句话总览
+    lines: List[str] = Field(default_factory=list)  # 人读要点(逐条)
+    disclaimer: str = ""  # 免责声明(gap/detail)
+    last_reviewed: str = ""  # 末次核对日期(gap/detail)
+
+
 ToolContent = Union[
     BrowserToolContent,
     SearchToolContent,
@@ -110,6 +120,7 @@ ToolContent = Union[
     MCPToolContent,
     A2AToolContent,
     KnowledgeToolContent,
+    QualificationToolContent,
 ]
 
 

@@ -15,6 +15,7 @@ from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig
 from app.domain.models.event import BaseEvent, ErrorEvent, MessageEvent, Event, DoneEvent, WaitEvent
+from app.domain.models.qualification import Qualification
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agent_task_runner import AgentTaskRunner
@@ -38,6 +39,7 @@ class AgentService:
             search_engine: SearchEngine,
             embedding: EmbeddingProvider,
             file_storage: FileStorage,
+            qualification_catalog: List[Qualification],
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -52,6 +54,7 @@ class AgentService:
         self._search_engine = search_engine
         self._embedding = embedding
         self._file_storage = file_storage
+        self._qualification_catalog = qualification_catalog
         logger.info(f"AgentService初始化成功")
 
     async def _get_task(self, session: Session) -> Optional[Task]:
@@ -100,6 +103,7 @@ class AgentService:
             search_engine=self._search_engine,
             embedding=self._embedding,
             sandbox=sandbox,
+            qualification_catalog=self._qualification_catalog,
         )
 
         # 6.创建任务Task并更新会话中的信息

@@ -9,6 +9,7 @@ import { FileTool } from './file-tool'
 import { BashTool } from './bash-tool'
 import { SearchTool } from './search-tool'
 import { KnowledgeTool } from './knowledge-tool'
+import { QualificationTool } from './qualification-tool'
 import { BrowserTool } from './browser-tool'
 import { McpTool } from './mcp-tool'
 import { A2aTool } from './a2a-tool'
@@ -21,6 +22,7 @@ export { FileTool } from './file-tool'
 export { BashTool } from './bash-tool'
 export { SearchTool } from './search-tool'
 export { KnowledgeTool } from './knowledge-tool'
+export { QualificationTool } from './qualification-tool'
 export { BrowserTool } from './browser-tool'
 export { McpTool } from './mcp-tool'
 export { A2aTool } from './a2a-tool'
@@ -38,6 +40,7 @@ const TOOL_COMPONENTS: Record<ToolKind, ComponentType<{ label: string; onClick?:
   file: FileTool,
   search: SearchTool,
   knowledge: KnowledgeTool,
+  qualification: QualificationTool,
   browser: BrowserTool,
   mcp: McpTool,
   a2a: A2aTool,
