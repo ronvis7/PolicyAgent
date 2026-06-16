@@ -109,6 +109,15 @@ export type {
   RecomputeResult,
 } from "./feed";
 
+// 资质申报机会类型（⑥）
+export type {
+  QualificationLevel,
+  QualificationMatchItem,
+  QualificationMatchListResponse,
+  QualificationDetail,
+} from "./qualification";
+export { QUALIFICATION_LEVEL_LABEL } from "./qualification";
+
 // 模块 API
 export { authApi } from "./auth";
 export { configApi } from "./config";
@@ -119,4 +128,5 @@ export { membershipApi } from "./membership";
 export { profileApi } from "./profile";
 export { policyApi } from "./policy";
 export { feedApi } from "./feed";
+export { qualificationApi } from "./qualification";
 

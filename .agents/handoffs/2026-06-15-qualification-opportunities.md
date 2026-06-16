@@ -1,7 +1,7 @@
 # 资质申报机会 ⑥ —— 决策固化 + 资质种子目录
 
-状态：**决策已锁定,种子目录首版已整理(待校对),尚未实现**。排在 ④ 工作台 Feed 之后落地。
-更新时间：2026-06-15
+状态：**Phase 1 已实现（目录+匹配能力①+接入 ④ Feed），PR #21 待确认合并**；能力②差距分析、③材料指引后续单独迭代。
+更新时间：2026-06-16
 依赖：① 企业档案(已合,含 `qualifications`/`tech_domains`/`keywords`/`industry`/`scale`/`region` 字段)；③ 政策匹配引擎(已合,`policy_matcher.py`)；④ 工作台 Feed(方案已锁,实现中)。
 
 ## 背景
@@ -90,12 +90,24 @@
 ### 能力③材料/流程指引
 - 目录自带 materials/timing;Agent 可据档案组装个性化清单与时间表,衔接 ⑤ 报告。
 
+## 已落地（Phase 1，PR #21）
+
+> 提交于分支 `feat/qualification-opportunities`，后端 102 单测全绿、CI 通过，**待用户确认后自行合并**。
+
+- **目录即代码、不爬**：`api/app/infrastructure/data/qualification_catalog.py`，25 条结构化资质（国家级 7 / 江苏省级 8 / 无锡·新吴区 5 / 通用认证 5），`load_qualification_catalog()` 加载；每条带 `last_reviewed` + `disclaimer`。
+- **领域模型**：`domain/models/qualification.py`（`Qualification` / `QualificationLevel` / `QualificationMatch`）。
+- **能力①匹配**：纯函数 `domain/services/qualification_matcher.py`（地区门槛 `region_applies` + 信号重合 + 前置资质 → `eligible`/差距），阈值 `ELIGIBLE_SIGNAL_COVERAGE=0.6`；`application/services/qualification_service.py`（`match_for_tenant` / `get_by_key`）。
+- **接入 ④ Feed**：`FeedItem.from_qualification_match`（`policy_id` 复用为资质 key，type=qualification）；`FeedService` 加可选 `qualification_service`，重算时政策+资质一并物化、统一红点。**零迁移**（`policy_matches` 表 `type` 列既有、`policy_id` 无外键）。
+- **API**：`GET /qualifications`（可申报列表，可申报优先）、`GET /qualifications/{key}`（详情）。
+- **UI**：`/qualifications` 资质机会页（列表+详情弹窗）、`components/qualification-detail.tsx`（免责声明 banner 复用）、Feed 类型徽章 + 资质详情分流、左栏「资质机会」入口。
+- **测试**：matcher 8 + service 4 + catalog 契约 6 + Feed 接入 2。
+
 ## 未完成 / 下一步
 
-1. **(本文先行)** 决策固化 + 种子目录首版 ✅。
-2. **④ 工作台 Feed 落地**(优先,数据模型预留 `type` 扩展位)。
-3. 资质目录交企业方/按官方办法**逐条校对数值类条件**(高企研发费比例、规模门槛、申报窗口等)。
-4. Feed 完成后开 `feat/qualification-opportunities` 分支:目录表 + seed → 匹配接入 Feed → 差距分析 → 指引。
+1. 资质目录交企业方/按官方办法**逐条校对数值类条件**(高企研发费比例、规模门槛、申报窗口等)；目录已带 `last_reviewed=2026-06-15` 占位。
+2. **能力②差距分析**：Agent 工具，输入(资质 key_conditions + 企业档案 + 关联政策原文 via KnowledgeBaseTool) → 逐条满足/不满足/缺材料清单。
+3. **能力③材料/流程指引**：据档案组装个性化材料清单与时间表，衔接 ⑤ 报告。
+4. **跨区目录**：省/市级目前仅江苏·无锡；其他地区(如重庆)企业仅匹配国家级/通用资质，且档案默认地区为江苏无锡，跨区用户需先在企业档案改地区。新增地区资质需扩目录。
 5. (后置)比赛数据源调研小分支:可配置赛事官网源列表 + 逆向/结构化验证。
 
 ## 风险 / 注意
