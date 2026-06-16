@@ -57,6 +57,47 @@ def test_update_then_get_roundtrips_all_fields() -> None:
     assert loaded.keywords == ["智能制造", "自动化"]
 
 
+def test_update_then_get_roundtrips_structured_fields() -> None:
+    """新增的结构化资质条件字段(成立日期/人员/财务/知识产权)经 JSONB 正确往返"""
+    service = _service()
+    new_profile = EnterpriseProfile(
+        company_name="无锡某科技有限公司",
+        established_date="2019-06-01",
+        total_staff=120,
+        rd_staff=45,
+        registered_capital_wan=1000.0,
+        annual_revenue_wan=8000.0,
+        rd_investment_wan=500.0,
+        invention_patents=6,
+        other_ip_count=18,
+    )
+
+    asyncio.run(service.update_profile(TENANT_A, new_profile))
+    loaded = asyncio.run(service.get_profile(TENANT_A))
+
+    assert loaded.established_date == "2019-06-01"
+    assert loaded.total_staff == 120
+    assert loaded.rd_staff == 45
+    assert loaded.registered_capital_wan == 1000.0
+    assert loaded.annual_revenue_wan == 8000.0
+    assert loaded.rd_investment_wan == 500.0
+    assert loaded.invention_patents == 6
+    assert loaded.other_ip_count == 18
+
+
+def test_structured_fields_default_to_none_when_unset() -> None:
+    """未填写的结构化字段保持 None(与填了0区分)，成立日期为空串"""
+    service = _service()
+    asyncio.run(service.update_profile(TENANT_A, EnterpriseProfile(company_name="只填了名字")))
+
+    loaded = asyncio.run(service.get_profile(TENANT_A))
+
+    assert loaded.established_date == ""
+    assert loaded.total_staff is None
+    assert loaded.rd_staff is None
+    assert loaded.invention_patents is None
+
+
 def test_update_is_upsert_and_overwrites() -> None:
     """二次更新整体覆盖既有档案"""
     service = _service()
