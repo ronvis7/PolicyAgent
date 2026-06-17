@@ -16,6 +16,8 @@ export type AuthTenant = {
   name: string;
   slug: string;
   plan: string;
+  /** 个人工作区：join 未获批前的临时空间，前端据此给出提示 */
+  is_personal?: boolean;
 };
 
 /** 注册/登录/刷新/切换组织成功返回的数据 */

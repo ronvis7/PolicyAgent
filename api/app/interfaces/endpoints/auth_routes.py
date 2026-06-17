@@ -43,7 +43,13 @@ def _to_auth_data(result: AuthResult) -> AuthData:
 
 def _to_tenant_info(tenant) -> TenantInfo:
     """将Tenant领域模型映射为TenantInfo"""
-    return TenantInfo(id=tenant.id, name=tenant.name, slug=tenant.slug, plan=tenant.plan.value)
+    return TenantInfo(
+        id=tenant.id,
+        name=tenant.name,
+        slug=tenant.slug,
+        plan=tenant.plan.value,
+        is_personal=tenant.is_personal,
+    )
 
 
 @router.post(
