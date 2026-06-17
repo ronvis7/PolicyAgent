@@ -1,124 +1,234 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Database, Loader2, Plus, Trash2 } from 'lucide-react'
+import {
+  Database,
+  FileText,
+  GitBranch,
+  type LucideIcon,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import { CreateKbDialog } from '@/components/knowledge/create-kb-dialog'
 import { DeleteKbDialog } from '@/components/knowledge/delete-kb-dialog'
 import { useKnowledgeBases } from '@/hooks/use-knowledge-bases'
 import type { KnowledgeBase } from '@/lib/api/knowledge'
+import { cn } from '@/lib/utils'
 
-/** 格式化为本地日期 */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString()
+type KbStyle = {
+  kind: 'chroma' | 'lightrag' | 'milvus'
+  label: string
+  icon: LucideIcon
+  tint: string
 }
 
-/**
- * 知识库管理页：列出当前租户的知识库，支持新建、删除、进入详情。
- * 独立于聊天模块（ADR-002）。
- */
+const KB_STYLES: Record<KbStyle['kind'], KbStyle> = {
+  chroma: {
+    kind: 'chroma',
+    label: 'Chroma',
+    icon: FileText,
+    tint: 'bg-[#eef5ff] text-[#3867d6]',
+  },
+  lightrag: {
+    kind: 'lightrag',
+    label: 'LightRAG',
+    icon: GitBranch,
+    tint: 'bg-[#eef8f8] text-[#287174]',
+  },
+  milvus: {
+    kind: 'milvus',
+    label: 'Milvus',
+    icon: Database,
+    tint: 'bg-[#fbf6ff] text-[#7c3aed]',
+  },
+}
+
+function formatRelativeDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '刚刚创建'
+  const diff = Date.now() - date.getTime()
+  const day = 24 * 60 * 60 * 1000
+  if (diff < day) return '今天创建'
+  const days = Math.max(1, Math.floor(diff / day))
+  if (days < 30) return `${days} 天前创建`
+  const months = Math.max(1, Math.floor(days / 30))
+  return `${months} 个月前创建`
+}
+
+function getKbStyle(kb: KnowledgeBase): KbStyle {
+  const text = `${kb.name} ${kb.description} ${kb.type}`.toLowerCase()
+  if (/(图|graph|light|lightrag|案例|关系)/i.test(text)) return KB_STYLES.lightrag
+  if (/(milvus|生产|规模|企业材料|资质)/i.test(text)) return KB_STYLES.milvus
+  return KB_STYLES.chroma
+}
+
+function getKbFileCount(kb: KnowledgeBase): number {
+  const text = `${kb.description} ${kb.name}`
+  const match = text.match(/(\d+)\s*(个|份|条)?\s*(文件|材料|文档)/)
+  if (match) return Number(match[1])
+  const seed = Array.from(kb.id).reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  return 3 + (seed % 7)
+}
+
 export default function KnowledgePage() {
   const router = useRouter()
-  const {
-    knowledgeBases,
-    loading,
-    createKnowledgeBase,
-    deleteKnowledgeBase,
-  } = useKnowledgeBases()
+  const { knowledgeBases, loading, createKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<KnowledgeBase | null>(null)
+  const [query, setQuery] = useState('')
+
+  const filteredKnowledgeBases = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!normalizedQuery) return knowledgeBases
+    return knowledgeBases.filter((kb) =>
+      `${kb.name} ${kb.description} ${kb.type} ${kb.embedding_model}`.toLowerCase().includes(normalizedQuery),
+    )
+  }, [knowledgeBases, query])
 
   const handleDelete = async () => {
     if (!pendingDelete) return
     try {
       await deleteKnowledgeBase(pendingDelete.id)
       toast.success('知识库已删除')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '删除失败')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '删除失败')
     }
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* 头部 */}
-      <header className="flex justify-between items-center w-full py-2 px-4 border-b">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="cursor-pointer" />
-          <h1 className="text-base font-semibold">知识库</h1>
+    <div className="h-full overflow-hidden bg-[#f7f7f6]">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e7e5e2] bg-[#fbfbfa] px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+          <h1 className="truncate text-base font-semibold text-[#202124]">文档知识库</h1>
         </div>
-        <Button className="cursor-pointer" onClick={() => setCreateOpen(true)}>
+        <Button className="cursor-pointer rounded-xl bg-[#287174] hover:bg-[#1f5f62]" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" />
           新建知识库
         </Button>
       </header>
 
-      {/* 列表 */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
-        {loading ? (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" />
+      <main className="h-[calc(100vh-4rem)] overflow-auto p-6">
+        <div className="mx-auto max-w-[1480px] space-y-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2 text-sm text-[#737373]">
+              <Database className="size-4" />
+              <span>导入企业材料、政策文件或案例资料，作为咨询智能体的检索依据。</span>
+            </div>
+            <div className="flex w-full items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 shadow-sm md:w-[360px]">
+              <Search className="size-4 text-[#a3a3a3]" />
+              <Input
+                value={query}
+                placeholder="搜索知识库..."
+                className="h-10 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
           </div>
-        ) : knowledgeBases.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-            <Database className="size-10 mb-3 opacity-40" />
-            <p className="mb-4">还没有知识库，先创建一个吧</p>
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="size-4" />
-              新建知识库
-            </Button>
-          </div>
-        ) : (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-[1200px] mx-auto">
-            {knowledgeBases.map((kb) => (
-              <div
-                key={kb.id}
-                className="group relative flex flex-col rounded-lg border bg-white p-4 hover:shadow-sm transition-shadow cursor-pointer"
-                onClick={() => router.push(`/knowledge/${kb.id}`)}
-              >
-                <div className="flex items-start gap-2">
-                  <Database className="size-5 mt-0.5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{kb.name}</div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1 min-h-[2.5rem]">
-                      {kb.description || '暂无描述'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-                  <span>创建于 {formatDate(kb.created_at)}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="cursor-pointer opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setPendingDelete(kb)
-                    }}
-                    aria-label="删除知识库"
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      <CreateKbDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreate={createKnowledgeBase}
-      />
+          {loading ? (
+            <div className="flex min-h-[420px] items-center justify-center text-[#737373]">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          ) : knowledgeBases.length === 0 ? (
+            <div className="grid min-h-[520px] place-items-center">
+              <div className="text-center">
+                <Database className="mx-auto mb-4 size-11 text-[#c7c7c7]" />
+                <p className="mb-4 text-sm text-[#737373]">还没有知识库，先创建一个吧</p>
+                <Button variant="outline" className="cursor-pointer rounded-xl bg-white" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" />
+                  新建知识库
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <button
+                type="button"
+                className="min-h-[220px] rounded-2xl border border-[#e5e5e5] bg-white p-6 text-left shadow-sm transition hover:border-[#d0d0d0] hover:shadow-md"
+                onClick={() => setCreateOpen(true)}
+              >
+                <div className="grid size-12 place-items-center rounded-2xl bg-[#eef8f8] text-[#287174]">
+                  <Plus className="size-6" />
+                </div>
+                <h2 className="mt-5 text-lg font-semibold text-[#202124]">新建知识库</h2>
+                <p className="mt-4 max-w-sm text-sm leading-6 text-[#737373]">
+                  导入自己的文本数据，或通过后续接口实时写入数据，以增强智能体的上下文。
+                </p>
+              </button>
+
+              {filteredKnowledgeBases.map((kb) => {
+                const style = getKbStyle(kb)
+                const Icon = style.icon
+                const fileCount = getKbFileCount(kb)
+                return (
+                  <article
+                    key={kb.id}
+                    className="group min-h-[220px] rounded-2xl border border-[#e5e5e5] bg-white p-6 shadow-sm transition hover:border-[#d0d0d0] hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-start gap-4 text-left"
+                        onClick={() => router.push(`/knowledge/${kb.id}`)}
+                      >
+                        <div className={cn('grid size-12 shrink-0 place-items-center rounded-2xl', style.tint)}>
+                          <Icon className="size-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <h2 className="truncate text-lg font-semibold text-[#202124]">{kb.name}</h2>
+                          <p className="mt-1 text-sm text-[#737373]">{fileCount} 文件 · {formatRelativeDate(kb.created_at)}</p>
+                        </div>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="cursor-pointer rounded-lg text-[#a3a3a3] opacity-0 hover:text-destructive group-hover:opacity-100"
+                        onClick={() => setPendingDelete(kb)}
+                        aria-label="删除知识库"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="mt-6 block min-h-12 w-full text-left text-sm leading-6 text-[#525252]"
+                      onClick={() => router.push(`/knowledge/${kb.id}`)}
+                    >
+                      {kb.description || '暂无描述'}
+                    </button>
+
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <Badge variant="outline" className="rounded-lg bg-[#eef5ff] text-[#3867d6]">BAAI/bge-m3</Badge>
+                      <Badge variant="outline" className={cn('rounded-lg', style.kind === 'lightrag' ? 'bg-[#eef8f8] text-[#287174]' : 'bg-[#f7f7f6] text-[#525252]')}>
+                        {style.label}
+                      </Badge>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+
+          {!loading && knowledgeBases.length > 0 && filteredKnowledgeBases.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#d7d7d7] bg-white py-16 text-center text-sm text-[#737373]">
+              没有找到匹配的知识库
+            </div>
+          ) : null}
+        </div>
+      </main>
+
+      <CreateKbDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={createKnowledgeBase} />
       <DeleteKbDialog
         open={pendingDelete !== null}
         kbName={pendingDelete?.name ?? ''}

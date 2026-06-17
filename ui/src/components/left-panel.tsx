@@ -1,6 +1,7 @@
 'use client'
 
 import {useCallback, useEffect, useState} from 'react'
+import {usePathname} from 'next/navigation'
 import {useRouter} from 'next/navigation'
 import {
   Sidebar,
@@ -14,7 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
-import {Award, Building2, Database, KeyRound, LayoutDashboard, Plus, ScrollText} from 'lucide-react'
+import {Award, Building2, Database, KeyRound, LayoutDashboard, MessageSquareText, Plus, ScrollText} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
@@ -23,11 +24,22 @@ import {ManusSettings} from '@/components/manus-settings'
 import {useAuth} from '@/providers/auth-provider'
 import {feedApi} from '@/lib/api'
 import {FEED_UNREAD_CHANGED_EVENT} from '@/lib/feed-events'
+import {cn} from '@/lib/utils'
+
+const primaryNav = [
+  {href: '/enterprise-profile', label: '企业档案', icon: Building2},
+  {href: '/policies', label: '公开政策库', icon: ScrollText},
+  {href: '/feed', label: '工作台', icon: LayoutDashboard},
+  {href: '/qualifications', label: '资质机会', icon: Award},
+  {href: '/knowledge', label: '知识库', icon: Database},
+]
 
 export function LeftPanel() {
   const router = useRouter()
-  const {user, role} = useAuth()
+  const pathname = usePathname()
+  const {user, role, tenants, activeTenantId} = useAuth()
   const canOpenSettings = role === 'owner' || role === 'admin' || !!user?.is_platform_admin
+  const activeTenant = tenants.find((tenant) => tenant.id === activeTenantId)
 
   // 工作台未读红点：挂载时拉取，并监听 Feed 页清未读/重算后的同步事件
   const [unread, setUnread] = useState(0)
@@ -45,17 +57,22 @@ export function LeftPanel() {
   }, [refreshUnread])
 
   return (
-    <Sidebar>
+    <Sidebar className="border-r border-[#e5e2de] bg-[#ecebea]">
       {/* 顶部的切换按钮 */}
-      <SidebarHeader>
-        <SidebarTrigger className="cursor-pointer"/>
+      <SidebarHeader className="px-3 py-3">
+        <div className="flex items-center justify-between">
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white"/>
+          <div className="rounded-full border border-[#e5e2de] bg-white px-3 py-1 text-xs font-semibold text-[#667085] shadow-sm">
+            PolicyManus
+          </div>
+        </div>
       </SidebarHeader>
       {/* 中间内容 */}
-      <SidebarContent className="p-2">
+      <SidebarContent className="px-2 pb-2">
         {/* 新建任务 */}
         <Button
           variant="outline"
-          className="cursor-pointer mb-3"
+          className="mb-4 h-10 w-full cursor-pointer justify-center rounded-[10px] border-[#e5e2de] bg-white font-semibold shadow-sm hover:bg-white/80"
           onClick={() => router.push('/')}
         >
           <Plus/>
@@ -65,61 +82,46 @@ export function LeftPanel() {
             <Kbd>K</Kbd>
           </KbdGroup>
         </Button>
-        {/* 企业档案入口 */}
-        <Button
-          variant="ghost"
-          className="cursor-pointer justify-start mb-1"
-          onClick={() => router.push('/enterprise-profile')}
-        >
-          <Building2 className="size-4"/>
-          企业档案
-        </Button>
-        {/* 公开政策库入口 */}
-        <Button
-          variant="ghost"
-          className="cursor-pointer justify-start mb-1"
-          onClick={() => router.push('/policies')}
-        >
-          <ScrollText className="size-4"/>
-          公开政策库
-        </Button>
-        {/* 工作台入口（④ Feed，带未读红点） */}
-        <Button
-          variant="ghost"
-          className="cursor-pointer justify-start mb-1"
-          onClick={() => router.push('/feed')}
-        >
-          <LayoutDashboard className="size-4"/>
-          工作台
-          {unread > 0 && (
-            <Badge className="ml-auto h-5 min-w-5 justify-center px-1.5">
-              {unread > 99 ? '99+' : unread}
-            </Badge>
-          )}
-        </Button>
-        {/* 资质机会入口（⑥） */}
-        <Button
-          variant="ghost"
-          className="cursor-pointer justify-start mb-1"
-          onClick={() => router.push('/qualifications')}
-        >
-          <Award className="size-4"/>
-          资质机会
-        </Button>
-        {/* 知识库管理入口 */}
-        <Button
-          variant="ghost"
-          className="cursor-pointer justify-start mb-1"
-          onClick={() => router.push('/knowledge')}
-        >
-          <Database className="size-4"/>
-          知识库
-        </Button>
+        <div className="mb-3 px-2 text-[11px] font-semibold tracking-wide text-[#8b92a0]">企业空间</div>
+        {primaryNav.map((item) => {
+          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+          const Icon = item.icon
+          return (
+            <Button
+              key={item.href}
+              variant="ghost"
+              className={cn(
+                'mb-1 h-10 w-full cursor-pointer justify-start rounded-xl px-3 text-[#344054] hover:bg-white',
+                active && 'bg-white font-semibold shadow-sm',
+              )}
+              onClick={() => router.push(item.href)}
+            >
+              <Icon className="size-4"/>
+              {item.label}
+              {item.href === '/feed' && unread > 0 && (
+                <Badge className="ml-auto h-5 min-w-5 justify-center px-1.5">
+                  {unread > 99 ? '99+' : unread}
+                </Badge>
+              )}
+            </Button>
+          )
+        })}
+        <div className="mt-4 mb-2 px-2 text-[11px] font-semibold tracking-wide text-[#8b92a0]">最近咨询</div>
         {/* 会话列表 */}
         <SessionList/>
       </SidebarContent>
       {/* 底部：组织切换 + 用户菜单 */}
-      <SidebarFooter>
+      <SidebarFooter className="gap-2 px-2 pb-3">
+        <div className="rounded-2xl border border-[#e5e2de] bg-white p-3 shadow-sm">
+          <div className="mb-2 flex items-center gap-2 text-xs text-[#8b92a0]">
+            <MessageSquareText className="size-3.5"/>
+            当前企业主体
+          </div>
+          <div className="truncate text-sm font-semibold text-[#2f3747]">
+            {activeTenant?.name ?? '未选择组织'}
+          </div>
+          <div className="mt-1 text-xs text-[#8b92a0]">角色：{role ?? '-'}</div>
+        </div>
         <SidebarMenu>
           {canOpenSettings && (
             <SidebarMenuItem>
