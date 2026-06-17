@@ -23,9 +23,23 @@ export type FeedItem = {
   semantic_score: number;
   matched_terms: string[];
   reasons: string[];
+  // 申报截止（主线⑤；LLM 抽取，以政策原文为准）
+  apply_deadline: string | null;
+  deadline_status: DeadlineStatus;
+  days_left: number | null; // 距截止剩余天数（仅 extracted 时有值，可为负=已过期）
   status: FeedStatus;
   created_at: string | null;
   updated_at: string | null;
+};
+
+/** 申报截止抽取状态 */
+export type DeadlineStatus = "extracted" | "rolling" | "unknown";
+
+/** 临期申报机会响应（主线⑤） */
+export type ExpiringListResponse = {
+  items: FeedItem[];
+  count: number;
+  within_days: number;
 };
 
 /** Feed 分页列表响应 */
@@ -65,6 +79,11 @@ export const feedApi = {
   /** 当前租户未读条数（左栏红点） */
   unreadCount: (): Promise<{ count: number }> => {
     return get<{ count: number }>("/feed/unread-count");
+  },
+
+  /** 临期申报机会（主线⑤：未来 withinDays 天内截止，最紧的在前） */
+  expiring: (withinDays = 14): Promise<ExpiringListResponse> => {
+    return get<ExpiringListResponse>(`/feed/expiring?within_days=${withinDays}`);
   },
 
   /** 手动重算当前租户 Feed（兜住跨租户新政策） */

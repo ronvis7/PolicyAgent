@@ -63,6 +63,52 @@ def test_parse_list_payload_maps_fields_and_skips_blank_url() -> None:
     assert p.body_text == ""  # 正文由详情页补全
 
 
+def test_parse_list_payload_uses_given_source() -> None:
+    # 申报模式以不同 source 入库(便于区分政策文件 / 申报通知)
+    policies = WndPolicyCrawler._parse_list_payload(_LIST_PAYLOAD, source="wnd-apply")
+    assert policies[0].source == "wnd-apply"
+    assert policies[0].region == "江苏省无锡市新吴区"  # 同一门户地区不变
+
+
+def test_apply_mode_fetch_uses_title_keyword_not_channels() -> None:
+    # 申报模式按 title 关键词全站检索，不带 channelIds；记录实际发出的表单
+    crawler = WndPolicyCrawler(title_keyword="申报", source="wnd-apply")
+    sent = {}
+
+    class _Resp:
+        def raise_for_status(self): ...
+        def json(self): return _LIST_PAYLOAD
+
+    class _Client:
+        async def post(self, url, data=None, headers=None):
+            sent.update(data or {})
+            return _Resp()
+
+    import asyncio
+    asyncio.run(crawler._fetch_list(_Client(), 1))
+    assert sent.get("title") == "申报"
+    assert "channelIds" not in sent
+
+
+def test_default_mode_fetch_uses_channels_not_title() -> None:
+    crawler = WndPolicyCrawler()
+    sent = {}
+
+    class _Resp:
+        def raise_for_status(self): ...
+        def json(self): return _LIST_PAYLOAD
+
+    class _Client:
+        async def post(self, url, data=None, headers=None):
+            sent.update(data or {})
+            return _Resp()
+
+    import asyncio
+    asyncio.run(crawler._fetch_list(_Client(), 1))
+    assert "channelIds" in sent
+    assert "title" not in sent
+
+
 def test_total_pages_reads_pagination() -> None:
     assert WndPolicyCrawler._total_pages(_LIST_PAYLOAD) == 28
     assert WndPolicyCrawler._total_pages({}) == 0

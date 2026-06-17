@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional, Protocol, Tuple
 
 from app.domain.models.feed_item import FeedItem, FeedStatus
@@ -32,6 +33,15 @@ class FeedRepository(Protocol):
 
     async def count_by_status(self, tenant_id: str, status: FeedStatus) -> int:
         """统计当前租户某状态条目数(未读红点用)"""
+        ...
+
+    async def list_expiring(
+        self, tenant_id: str, today: date, until: date,
+    ) -> List[FeedItem]:
+        """返回当前租户申报截止落在 [today, until] 内且未忽略的条目，按截止日期升序(最紧的在前)。
+
+        主线⑤ 临期提醒：只取 deadline_status=extracted(有明确日期)且未 ignored 的机会。
+        """
         ...
 
     async def mark_all_read(self, tenant_id: str) -> int:

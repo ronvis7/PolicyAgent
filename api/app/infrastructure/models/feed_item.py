@@ -43,6 +43,11 @@ class FeedItemModel(Base):
     reasons: Mapped[list] = mapped_column(
         JSONB, nullable=False, server_default=text("'[]'::jsonb"),
     )
+    # ---- 申报截止快照(主线⑤) ----
+    apply_deadline: Mapped[date] = mapped_column(Date, nullable=True, index=True)
+    deadline_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default=text("'unknown'"),
+    )
     # ---- 状态机 ----
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, server_default=text("'unread'"), index=True,
@@ -72,6 +77,8 @@ class FeedItemModel(Base):
             semantic_score=item.semantic_score,
             matched_terms=list(item.matched_terms),
             reasons=list(item.reasons),
+            apply_deadline=item.apply_deadline,
+            deadline_status=item.deadline_status,
             status=item.status.value,
             created_at=item.created_at,
             updated_at=item.updated_at,
@@ -93,6 +100,8 @@ class FeedItemModel(Base):
             semantic_score=self.semantic_score,
             matched_terms=list(self.matched_terms or []),
             reasons=list(self.reasons or []),
+            apply_deadline=self.apply_deadline,
+            deadline_status=self.deadline_status,
             status=FeedStatus(self.status),
             created_at=self.created_at,
             updated_at=self.updated_at,
@@ -111,6 +120,8 @@ class FeedItemModel(Base):
         self.semantic_score = item.semantic_score
         self.matched_terms = list(item.matched_terms)
         self.reasons = list(item.reasons)
+        self.apply_deadline = item.apply_deadline
+        self.deadline_status = item.deadline_status
         self.status = item.status.value
         self.created_at = item.created_at
         self.updated_at = item.updated_at

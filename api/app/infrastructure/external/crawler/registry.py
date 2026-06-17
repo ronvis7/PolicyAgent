@@ -20,13 +20,20 @@ class CrawlerSource:
     factory: Callable[[], PolicyCrawler]
 
 
-# 已登记的政策来源。首版仅无锡新吴区门户；新增地区在此追加一条即可。
+# 已登记的政策来源。新增地区/栏目在此追加一条即可。
+# 同一门户可登记多个来源：政策文件(规范性文件)与项目申报通知(含申报截止日期，供主线⑤)。
 CRAWLER_SOURCES: List[CrawlerSource] = [
     CrawlerSource(
         key="wnd",
-        name="无锡高新区(新吴区)门户",
+        name="无锡高新区(新吴区)门户·政策文件",
         region="江苏省无锡市新吴区",
         factory=WndPolicyCrawler,
+    ),
+    CrawlerSource(
+        key="wnd-apply",
+        name="无锡高新区(新吴区)门户·项目申报通知",
+        region="江苏省无锡市新吴区",
+        factory=lambda: WndPolicyCrawler(title_keyword="申报", source="wnd-apply"),
     ),
 ]
 

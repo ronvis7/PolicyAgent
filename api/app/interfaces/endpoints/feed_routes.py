@@ -15,12 +15,16 @@ from app.domain.models.feed_item import FeedStatus
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.feed import (
+    ExpiringListResponse,
     FeedItemResponse,
     FeedListResponse,
     RecomputeResponse,
     SetFeedStatusRequest,
     UnreadCountResponse,
 )
+
+# 临期提醒默认窗口(天)：覆盖常见"提前两周准备申报"的节奏
+_DEFAULT_EXPIRING_WINDOW_DAYS = 14
 from app.interfaces.service_dependencies import get_feed_service
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,30 @@ async def get_unread_count(
     """获取未读计数"""
     count = await service.unread_count(current_user.tenant_id)
     return Response.success(data=UnreadCountResponse(count=count))
+
+
+@router.get(
+    path="/expiring",
+    response_model=Response[ExpiringListResponse],
+    summary="临期申报机会",
+    description=(
+        "返回当前租户未来 within_days 天内申报截止且未忽略的机会(按截止日期升序，最紧的在前)。"
+        "仅含从政策正文抽取到明确截止日期的条目；截止日期以政策原文为准、供参考核对。"
+    ),
+)
+async def list_expiring(
+        within_days: int = Query(
+            _DEFAULT_EXPIRING_WINDOW_DAYS, ge=1, le=180, description="临期窗口天数(1-180)",
+        ),
+        current_user: CurrentUser = Depends(get_current_user),
+        service: FeedService = Depends(get_feed_service),
+) -> Response[ExpiringListResponse]:
+    """临期申报机会(主线⑤)"""
+    items = await service.list_expiring(current_user.tenant_id, within_days)
+    return Response.success(data=ExpiringListResponse(
+        items=[FeedItemResponse.from_domain(i) for i in items],
+        count=len(items), within_days=within_days,
+    ))
 
 
 @router.post(

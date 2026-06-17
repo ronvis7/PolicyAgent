@@ -50,14 +50,28 @@ def _clean_dash(value: str) -> str:
 
 
 class WndPolicyCrawler(PolicyCrawler):
-    """无锡新吴区门户政策爬虫(httpx + BeautifulSoup)"""
+    """无锡新吴区门户政策爬虫(httpx + BeautifulSoup)。
 
-    def __init__(self, page_size: int = _DEFAULT_PAGE_SIZE, request_delay: float = _REQUEST_DELAY) -> None:
+    两种抓取模式(同一 /info_open/search 接口)：
+    - 默认(title_keyword=None)：按「政策文件」栏目 channelIds 抓规范性文件(主线②原行为)；
+    - 申报模式(title_keyword='申报')：按标题关键词全站检索项目/资金申报通知——这类通知才
+      含申报截止日期(供主线⑤抽取)。channelIds 与 title 关键词二选一驱动列表接口。
+    """
+
+    def __init__(
+        self,
+        page_size: int = _DEFAULT_PAGE_SIZE,
+        request_delay: float = _REQUEST_DELAY,
+        title_keyword: Optional[str] = None,
+        source: str = _SOURCE,
+    ) -> None:
         self._page_size = page_size
         self._request_delay = request_delay
+        self._title_keyword = title_keyword
+        self._source = source
 
     @staticmethod
-    def _parse_list_payload(payload: dict) -> List[Policy]:
+    def _parse_list_payload(payload: dict, source: str = _SOURCE) -> List[Policy]:
         """从列表接口 JSON 解析出结构化政策(不含正文/文号，由详情页补全)"""
         data = (payload or {}).get("data") or {}
         rows = data.get("data") or []
@@ -68,7 +82,7 @@ class WndPolicyCrawler(PolicyCrawler):
                 continue
             policies.append(
                 Policy(
-                    source=_SOURCE,
+                    source=source,
                     source_url=url,
                     index_number=(row.get("indexId") or "").strip(),
                     title=(row.get("title") or "").strip(),
@@ -113,7 +127,7 @@ class WndPolicyCrawler(PolicyCrawler):
                 payload = await self._fetch_list(client, page)
                 if payload is None:
                     break
-                page_policies = self._parse_list_payload(payload)
+                page_policies = self._parse_list_payload(payload, self._source)
                 if not page_policies:
                     break
                 for policy in page_policies:
@@ -126,18 +140,26 @@ class WndPolicyCrawler(PolicyCrawler):
         return collected
 
     async def _fetch_list(self, client: httpx.AsyncClient, page: int) -> Optional[dict]:
-        """抓取某页列表 JSON，失败返回 None"""
+        """抓取某页列表 JSON，失败返回 None。
+
+        申报模式按 title 关键词全站检索(逆向确认 title 字段才真正过滤标题)；
+        默认模式按政策文件栏目 channelIds 检索。
+        """
+        data = {
+            "pageIndex": page,
+            "pageSize": self._page_size,
+            "siteId": _SITE_ID,
+            "searchType": 2,
+            "order": "writeTime",
+        }
+        if self._title_keyword:
+            data["title"] = self._title_keyword
+        else:
+            data["channelIds"] = _CHANNEL_IDS
         try:
             resp = await client.post(
                 _LIST_API,
-                data={
-                    "pageIndex": page,
-                    "pageSize": self._page_size,
-                    "siteId": _SITE_ID,
-                    "channelIds": _CHANNEL_IDS,
-                    "searchType": 2,
-                    "order": "writeTime",
-                },
+                data=data,
                 headers={"X-Requested-With": "XMLHttpRequest", "Referer": _BASE},
             )
             resp.raise_for_status()

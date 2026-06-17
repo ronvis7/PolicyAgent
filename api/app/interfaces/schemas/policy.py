@@ -39,9 +39,13 @@ class PolicyListResponse(BaseModel):
 
 
 class PolicyDetailResponse(PolicyListItem):
-    """政策详情响应(含正文与时间戳)"""
+    """政策详情响应(含正文、时间戳与申报截止)"""
     body_text: str = ""
     crawled_at: Optional[datetime] = None
+    # ---- 申报截止(主线⑤；LLM 抽取，以原文为准、供参考核对) ----
+    apply_deadline: Optional[date] = None
+    apply_window_text: str = ""
+    deadline_status: str = "unknown"  # extracted / rolling / unknown
 
     @classmethod
     def from_domain(cls, p: Policy) -> "PolicyDetailResponse":
@@ -51,6 +55,8 @@ class PolicyDetailResponse(PolicyListItem):
             doc_number=p.doc_number, status=p.status,
             publish_date=p.publish_date, region=p.region,
             body_text=p.body_text, crawled_at=p.crawled_at,
+            apply_deadline=p.apply_deadline, apply_window_text=p.apply_window_text,
+            deadline_status=p.deadline_status,
         )
 
 

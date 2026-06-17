@@ -8,10 +8,11 @@ RAG 分块/Embedding 流水线写入全局公开知识库(挂系统租户 'publi
 
 import logging
 import uuid
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 from app.application.errors.exceptions import BadRequestError
 from app.domain.external.embedding import EmbeddingProvider
+from app.domain.external.llm import LLM
 from app.domain.external.policy_crawler import PolicyCrawler
 from app.domain.models.document_chunk import DocumentChunk
 from app.domain.models.knowledge_base import KnowledgeBase
@@ -20,6 +21,7 @@ from app.domain.models.parsed_document import ParsedPage
 from app.domain.models.policy import Policy
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.chunker import chunk_pages
+from app.domain.services.deadline_extractor import extract_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +41,13 @@ class PolicyIngestService:
         uow_factory: Callable[[], IUnitOfWork],
         crawlers: Dict[str, PolicyCrawler],
         embedding: EmbeddingProvider,
+        llm: Optional[LLM] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._crawlers = crawlers
         self._embedding = embedding
+        # 用于从正文抽取申报截止日期(主线⑤)；缺省(None)则跳过抽取，保持向后兼容/可离线单测。
+        self._llm = llm
 
     async def ingest(self, source: str, max_pages: int = 1) -> Dict[str, object]:
         """按来源(source)抓取并入库，返回 {source, crawled, upserted, indexed} 计数。
@@ -53,6 +58,9 @@ class PolicyIngestService:
         if crawler is None:
             raise BadRequestError(f"未知的政策来源：{source}")
         policies = await crawler.crawl(max_pages)
+
+        for policy in policies:
+            await self._enrich_deadline(policy)
 
         upserted = 0
         async with self._uow_factory() as uow:
@@ -76,6 +84,15 @@ class PolicyIngestService:
         summary = {"source": source, "crawled": len(policies), "upserted": upserted, "indexed": indexed}
         logger.info(f"公开政策入库完成: {summary}")
         return summary
+
+    async def _enrich_deadline(self, policy: Policy) -> None:
+        """best-effort 抽取申报截止情况写回政策；无 LLM/失败时保持 unknown，绝不阻断入库。"""
+        if self._llm is None:
+            return
+        result = await extract_deadline(self._llm, policy.title, policy.body_text)
+        policy.apply_deadline = result.deadline
+        policy.apply_window_text = result.window_text
+        policy.deadline_status = result.status
 
     async def _ensure_public_kb(self) -> KnowledgeBase:
         """获取或创建全局公开政策知识库(固定 id，挂系统公开租户)"""

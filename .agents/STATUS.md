@@ -1,6 +1,6 @@
 # 当前状态
 
-最后更新：2026-06-16
+最后更新：2026-06-17
 
 ## 仓库状态
 
@@ -32,6 +32,20 @@
 - **企业档案结构化字段 A0 + 资质能力②差距分析 A1——已合并**：⑥ 主线第二块。**A0**：档案新增 成立日期/总人数/研发人数/注册资本/营收/研发投入/发明专利/其他知识产权 8 字段（**手动填写**，避开 ①b 数据源难题），经既有 `attributes`(JSONB) **零迁移**承载，数值用 `Optional` 区分"未填写≠0"；请求 schema 非负+日期格式校验；档案页加「经营与研发指标」区。**A1（能力② 混合引擎结构化部分）**：`Qualification.structured_conditions`（`ConditionMetric` 指标+门槛+方向，占比/年限由档案推导）+ 纯函数 `domain/services/qualification_gap.py::analyze_gap` → 逐条 **达标/不达标/待确认(未填)**，**缺字段判待确认绝不误报不达标**；`manual_review` 收口无结构化对应的概要条件、`prerequisites_missing` 复用能力①。端点 `GET /qualifications/{key}/gap`（注册在 `/{key}` 前，强制 disclaimer+last_reviewed）；前端详情视图加「条件差距分析」区块（资质页+④Feed 复用）。**目录仅高企已结构化**（成立满1年+科技人员≥10%），其余 24 条待逐条**校对数值**后补。全量 **134 passed**、tsc/eslint/build 绿、零迁移（`alembic head` 仍 `f7a8b9c0d1e2`）。**PR #22 已合并 main（2026-06-16）；全栈 Remote 真机走查通过**（连 .222：注册→存档案 8 字段→读回一致→高企差距分析"成立7年达标/研发人员8%不达标"计算正确，冒烟账号已清理）。详见 handoff `2026-06-16-qualification-gap-analysis`。
 - **工作台 Feed ④（物化政策信息流 + 未读红点）——已交付**：主线第④步。在 ③ 即时匹配之上物化 `policy_matches` 表（`UNIQUE(tenant_id, policy_id)`，计算快照落列免 N+1，状态机 unread/read/applied/ignored，**含 `type` 列为 ⑥ 资质/比赛预留**）。`FeedService.recompute_for_tenant`：新增→unread（驱动红点）、已存在只更新快照保留用户 status/created_at、跌出候选保留不删。**触发 (a) 抓取政策入库后 + (b) 改企业档案后**在端点排后台任务重算当前租户，(c) Feed 页「重新匹配」手动兜跨租户。端点 `/feed`（list/unread-count/recompute/mark-read/{id}/status，所有登录用户限当前租户）。前端 `/feed` 工作台页（状态筛选/重新匹配/已申报·忽略/详情弹窗复用 `/policies/{id}`）+ 左栏「工作台」入口未读红点（自定义事件 `feed:unread-changed` 同步）；**删除 `/matches` 页与「政策匹配」入口**。运维：`policy-api` healthcheck `start_period` 20s→120s（远程库冷启动不再被误判 unhealthy）。迁移 `f7a8b9c0d1e2`（**现 head**，纯新增表 + tenant_id/status 索引）。单测 FeedService 7 + 全量 **74 passed**；tsc/eslint 绿。**PR #16 已合并 main（2026-06-15），迁移已真机执行（远程库 `alembic current=f7a8b9c0d1e2`、`policy_matches` 表已建）、Docker 全栈健康。** 详见 handoff `2026-06-15-feed-impl`。
 - **政策匹配 ③（企业档案 × 公开政策）——本期交付**：主线第③步。即时计算、不落表：按当前租户企业档案现算可申报政策候选。**两路融合**：①结构化命中（档案 `keywords/tech_domains/qualifications/industry` 词表落在政策 `title`(权重高)+`body_text`，归一化命中度 + 命中词）；②语义召回（档案画像 `industry+main_business+tech_domains+keywords` 拼查询 → embedding → 检索公开库 `public-policy-kb`/系统租户 `public` → 切片按 `source_url` 聚合回政策）；两路有序候选经 **RRF**（k=60）融合排序，输出带「推荐理由」（命中关键词/地区匹配/语义相关度）。纯函数内核 `domain/services/policy_matcher.py`（`extract_profile_terms`/`build_profile_query`/`region_matches`/`score_terms`/`structured_score`/`reciprocal_rank_fusion`）+ 应用服务 `policy_match_service.py`；端点 `GET /policies/match?top_k=N`（所有登录用户，限当前租户档案，**注册在 `/{policy_id}` 之前**避免被路径参数捕获）；仓储加 `list_candidates`/`list_by_source_urls`（语义回查批量 IN，无 N+1）。前端 `/matches` 候选页（分数/命中度/语义分/推荐理由/详情弹窗复用 `/policies/{id}`）+ 左栏「政策匹配」入口。**无新表、无迁移**（`alembic heads` 仍 `e6f7a8b9c0d1`）。单测：匹配器纯函数 10 + 服务 4，全量 **67 passed**（跳过需真库的 status）；`import app.main` OK；前端 tsc/eslint 绿。**决策**：即时计算（物化留作④Feed）、本期不含 Agent 接公开库（KnowledgeBaseTool 纳入 is_public 留作后续小分支）。**PR #13 已合并 main（2026-06-15），Docker 起栈连远程库 `/matches` 走查通过。** 详见 handoff `2026-06-15-policy-matching`。
+- **政策申报截止跟踪 + 主动提醒 ⑤（LLM 抽取 + 临期 Feed）——本期交付**：把「主动情报」落到官网申报
+  互补的一层——「申报还有 N 天截止」。截止日期源站无结构化字段、只埋正文，故 **LLM 抽取 + "待核对"纪律**
+  (抽不到标 unknown/绝不编造，抽到带原文窗口+免责，沿用资质 A1/A2 风险纪律)。`Policy` 加
+  `apply_deadline`/`apply_window_text`/`deadline_status`；`deadline_extractor.py`(纯函数 prompt/解析 + LLM 封装，
+  异常一律回退 unknown)；`PolicyIngestService` 注入平台默认 LLM 逐篇 best-effort 抽取(无 key/失败不阻断入库)。
+  **提醒复用 Feed、零提醒表**：截止快照落 `policy_matches`，`GET /feed/expiring?within_days=14`(仅 extracted
+  未 ignored，按截止升序)，`days_left` 读取侧派生；前端 Feed 临期徽章(≤3天红/≤14天琥珀/过期/常年) +
+  政策详情截止区块+免责。**关键转折**：原「政策文件」栏目结构上不带申报截止(实抽 0/40)，遂扩 wnd 爬虫
+  支持**按标题关键词全站检索**(逆向确认 `/info_open/search` 的 `title` 字段过滤标题)，新增来源 `wnd-apply`
+  (项目申报通知)。迁移 `a8b9c0d1e2f3`(**现 head**，纯新增列+索引)。新增单测 deadline_extractor 13 +
+  ingest 截止 3 + feed 临期 4 + 爬虫申报模式 3，全量 **169 passed**；tsc/eslint 绿。**分支
+  `feat/policy-apply-deadline`（PR 待开）；全栈 Remote 真机走查通过**(连 .222：迁移自动落库；
+  `ingest('wnd-apply')` 60 篇 → **extracted 23**，抽取真实且处理窗口末/隐含年份/延长/多档取最终，
+  37 unknown 为附件 PDF/结果公示正确降级；申报通知数据已保留)。详见 handoff `2026-06-17-policy-apply-deadline`。
 - **公开政策库 ②（爬取+结构化入库+向量双写）**：主线第②步。爬无锡新吴区门户「政策文件」栏目（逆向 JSON 接口 `/info_open/search`，零 Playwright）→ upsert 入 `policies` 全局表（无 tenant，source_url 去重）→ 正文复用 RAG 流水线 embedding 进全局公开库（`knowledge_base.is_public` + 系统租户 `public`）。`GET /policies` 分页浏览（所有登录用户），前端 `/policies` 页 + 左栏入口。**后台抓取端点 `POST /policies/ingest`（owner/admin）**在 API 进程内跑（复用其 DB/embed 连接，免主机直连远程库的隧道/端口问题）+ 前端「抓取政策」按钮；脚本 `scripts/crawl_wnd_policies.py` 保留（主机直跑因隧道只对容器生效会连不上）。迁移 `e6f7a8b9c0d1`（**现 head**：policies 表 + is_public + 播种 public 租户）。爬虫解析单测 6 + 服务/入库 6；实弹试爬通过。**分支 `feat/public-policy-crawl`（PR #12），2026-06-14 真机验证：迁移已落库、经「抓取政策」按钮入库成功、`/policies` 列表/搜索/详情正常。** 详见 handoff `2026-06-14-public-policy-crawl`。
 
 ## 未完成
@@ -46,12 +60,16 @@
 
 ## 当前最高优先级
 
-1. 报告生成流水线。比赛因走公众号（微信封闭）暂缓。
-2. （可选）banded 条件模型 + 业务方核对数值，让更多资质可结构化差距分析；当前 triage 后仅高企+科技型中小企业已结构化。
+1. **定期重爬 `wnd-apply` 保鲜 + 多区域申报源**：⑤临期提醒已就绪，但当前样本截止多为过去(历史申报通知)；
+   待当前批次申报通知发布才有未来截止可提醒，需定期重爬。多区域同理需各门户单独逆向申报检索。
+2. 报告生成流水线**已评估价值存疑**(申报在官网平台，报告易沦为信息重排)，暂缓；若做则退化为"一键导出
+   当前匹配+差距+指引为 PDF"的轻量交付物，而非重流水线。比赛因走公众号（微信封闭）暂缓。
+3. （可选）banded 条件模型 + 业务方核对数值，让更多资质可结构化差距分析；当前 triage 后仅高企+科技型中小企业已结构化。
 
 > ⑥ 能力①②③（A0/A1/A2）均已交付并合并 main、真机走查通过；目录结构化条件已 triage（PR #26）。
 > 公开库语义检索已接入 Agent（PR #28，KnowledgeBaseTool 默认范围=私有库+全局公开库）、真机走查通过。
 > **真机修复**：发现 ②向量双写因外键 flush 顺序 bug 一直静默回滚致公开库切片为 0，已修（PR #29）；重跑 ②入库后 .222 公开库已落 154 切片/40 文件，Agent 可检索公开政策原文。
+> **⑤ 申报截止跟踪 + 主动提醒**已交付（LLM 抽取 + 临期 Feed + 新增 `wnd-apply` 项目申报通知爬虫源）、真机走查通过（申报通知实抽 extracted 23/60）。分支 `feat/policy-apply-deadline` 待开 PR。
 
 ## 分支/PR 状态（2026-06-16 收尾）
 - `main`：① 企业档案（PR #10）+ ② 公开政策库（PR #12）+ ③ 政策匹配（PR #13）+ ④ 工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19）+ ⑥ 资质 Phase 1（PR #21）+ **档案结构化字段 A0 + 资质能力② A1（PR #22）** + **⑥ 能力③ A2 资质指引 Agent 工具（PR #24）** + **公开库语义检索接入 Agent（PR #28）** + **②向量双写外键 bug 修复（PR #29）**，均已合并、真机走查通过。
