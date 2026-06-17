@@ -1,8 +1,19 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Save, X } from 'lucide-react'
+import {
+  Award,
+  Building2,
+  Loader2,
+  MapPin,
+  Pencil,
+  Save,
+  Sparkles,
+  Tags,
+  TrendingUp,
+  X,
+} from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +31,7 @@ import { profileApi } from '@/lib/api'
 import type { EnterpriseProfile, EnterpriseScale } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 
-/** 表单分区卡片样式（与政策库/工作台等页面视觉一致） */
+/** 分区卡片样式（与政策库/工作台等页面视觉一致） */
 const CARD_CLASS =
   'rounded-[18px] border border-[#e5e2de] bg-white p-6 shadow-[0_10px_30px_rgba(16,24,40,.04)]'
 
@@ -32,6 +43,14 @@ const SCALE_OPTIONS: { value: EnterpriseScale; label: string }[] = [
   { value: 'medium', label: '中型企业' },
   { value: 'large', label: '大型企业' },
 ]
+
+const SCALE_LABEL: Record<EnterpriseScale, string> = {
+  unspecified: '未填写',
+  micro: '微型企业',
+  small: '小型企业',
+  medium: '中型企业',
+  large: '大型企业',
+}
 
 /** 常见资质快捷项 */
 const QUALIFICATION_PRESETS = [
@@ -65,14 +84,59 @@ const EMPTY_PROFILE: EnterpriseProfile = {
   updated_at: '',
 }
 
-/** 数值字段输入：空串↔null 互转，非负，禁用时展示"未填写" */
+/** 档案是否为空（尚未填写企业名称视为空档案） */
+function isProfileEmpty(p: EnterpriseProfile): boolean {
+  return !p.company_name.trim()
+}
+
+/** 数值字段是否已填写（区分"未填写"与 0） */
+function hasNumber(v: number | null | undefined): v is number {
+  return v !== null && v !== undefined
+}
+
+/**
+ * 档案完整度（0-100）：按对下游匹配/资质差距分析有意义的字段加权统计。
+ * 省/市/区有默认值，不计入。
+ */
+function completeness(p: EnterpriseProfile): number {
+  const checks: boolean[] = [
+    !!p.company_name.trim(),
+    !!p.industry.trim(),
+    p.scale !== 'unspecified',
+    !!p.main_business.trim(),
+    p.qualifications.length > 0,
+    p.tech_domains.length > 0,
+    p.keywords.length > 0,
+    !!p.established_date,
+    hasNumber(p.total_staff),
+    hasNumber(p.rd_staff),
+    hasNumber(p.registered_capital_wan),
+    hasNumber(p.annual_revenue_wan),
+    hasNumber(p.rd_investment_wan),
+    hasNumber(p.invention_patents),
+    hasNumber(p.other_ip_count),
+  ]
+  const filled = checks.filter(Boolean).length
+  return Math.round((filled / checks.length) * 100)
+}
+
+function formatNumber(v: number | null): string {
+  return hasNumber(v) ? v.toLocaleString('zh-CN') : '—'
+}
+
+function formatDateLabel(v: string): string {
+  if (!v) return '—'
+  const parsed = new Date(v)
+  return Number.isNaN(parsed.getTime()) ? v : parsed.toLocaleDateString('zh-CN')
+}
+
+/** 数值字段输入（编辑态）：空串↔null 互转，非负 */
 function NumberField({
   label,
   value,
   unit,
   step,
   placeholder,
-  disabled,
   onChange,
 }: {
   label: string
@@ -80,7 +144,6 @@ function NumberField({
   unit?: string
   step?: number
   placeholder?: string
-  disabled: boolean
   onChange: (next: number | null) => void
 }) {
   return (
@@ -89,40 +152,33 @@ function NumberField({
         {label}
         {unit && <span className="ml-1 text-xs text-muted-foreground">（{unit}）</span>}
       </FieldLabel>
-      {disabled ? (
-        <span className="text-sm text-muted-foreground">
-          {value === null || value === undefined ? '未填写' : value}
-        </span>
-      ) : (
-        <Input
-          type="number"
-          min={0}
-          step={step ?? 1}
-          value={value === null || value === undefined ? '' : value}
-          placeholder={placeholder ?? '未填写'}
-          onChange={(e) => {
-            const raw = e.target.value
-            if (raw === '') {
-              onChange(null)
-              return
-            }
-            const parsed = Number(raw)
-            onChange(Number.isFinite(parsed) && parsed >= 0 ? parsed : null)
-          }}
-        />
-      )}
+      <Input
+        type="number"
+        min={0}
+        step={step ?? 1}
+        value={value === null || value === undefined ? '' : value}
+        placeholder={placeholder ?? '未填写'}
+        onChange={(e) => {
+          const raw = e.target.value
+          if (raw === '') {
+            onChange(null)
+            return
+          }
+          const parsed = Number(raw)
+          onChange(Number.isFinite(parsed) && parsed >= 0 ? parsed : null)
+        }}
+      />
     </Field>
   )
 }
 
-/** 标签输入：回车或失焦添加，去重；只读时仅展示 */
+/** 标签输入（编辑态）：回车或失焦添加，去重 */
 function TagInput({
   label,
   description,
   placeholder,
   values,
   presets,
-  disabled,
   onChange,
 }: {
   label: string
@@ -130,7 +186,6 @@ function TagInput({
   placeholder: string
   values: string[]
   presets?: string[]
-  disabled: boolean
   onChange: (next: string[]) => void
 }) {
   const [draft, setDraft] = useState('')
@@ -164,65 +219,88 @@ function TagInput({
           {values.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1">
               {tag}
-              {!disabled && (
-                <button
-                  type="button"
-                  className="cursor-pointer text-muted-foreground hover:text-destructive"
-                  onClick={() => removeTag(tag)}
-                  aria-label={`移除 ${tag}`}
-                >
-                  <X className="size-3" />
-                </button>
-              )}
+              <button
+                type="button"
+                className="cursor-pointer text-muted-foreground hover:text-destructive"
+                onClick={() => removeTag(tag)}
+                aria-label={`移除 ${tag}`}
+              >
+                <X className="size-3" />
+              </button>
             </Badge>
           ))}
         </div>
       )}
-      {!disabled && (
-        <>
-          <Input
-            value={draft}
-            placeholder={placeholder}
-            disabled={disabled}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={() => addTag(draft)}
-          />
-          {availablePresets.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {availablePresets.map((preset) => (
-                <Badge
-                  key={preset}
-                  variant="outline"
-                  className="cursor-pointer hover:bg-accent"
-                  onClick={() => addTag(preset)}
-                >
-                  + {preset}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {disabled && values.length === 0 && (
-        <span className="text-sm text-muted-foreground">未填写</span>
+      <Input
+        value={draft}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => addTag(draft)}
+      />
+      {availablePresets.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {availablePresets.map((preset) => (
+            <Badge
+              key={preset}
+              variant="outline"
+              className="cursor-pointer hover:bg-accent"
+              onClick={() => addTag(preset)}
+            >
+              + {preset}
+            </Badge>
+          ))}
+        </div>
       )}
       {description && <FieldDescription className="text-xs">{description}</FieldDescription>}
     </Field>
   )
 }
 
+/** 查看态：只读标签云（空时弱化提示） */
+function TagCloud({ values }: { values: string[] }) {
+  if (values.length === 0) {
+    return <span className="text-sm text-[#98a2b3]">未填写</span>
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {values.map((tag) => (
+        <Badge key={tag} variant="secondary" className="rounded-full px-3 py-1 text-sm font-normal">
+          {tag}
+        </Badge>
+      ))}
+    </div>
+  )
+}
+
+/** 查看态：一项经营/研发指标（数据卡） */
+function MetricCard({ label, value, unit }: { label: string; value: string; unit?: string }) {
+  const empty = value === '—'
+  return (
+    <div className="rounded-2xl border border-[#eceae6] bg-[#fafafa] px-4 py-3">
+      <div className="text-xs text-[#8b92a0]">{label}</div>
+      <div className={`mt-1 text-lg font-semibold ${empty ? 'text-[#cbd0d8]' : 'text-[#202939]'}`}>
+        {value}
+        {!empty && unit && <span className="ml-1 text-xs font-normal text-[#8b92a0]">{unit}</span>}
+      </div>
+    </div>
+  )
+}
+
 /**
  * 企业档案页：以企业为主体的主动服务链路源头。
  *
- * 租户内成员均可查看；编辑限组织 owner/admin（后端二次校验）。
- * 默认地区为无锡新吴区。Agent 联网增强（①b）后续接入。
+ * 默认进"查看态"（企业名片式展示）；owner/admin 点「编辑」切换到表单态，
+ * 保存提交后切回查看态、取消则放弃改动。租户内成员均可查看，编辑限 owner/admin
+ * （后端二次校验）。默认地区为无锡新吴区。
  */
 export default function EnterpriseProfilePage() {
   const { role } = useAuth()
   const canEdit = role === 'owner' || role === 'admin'
 
   const [profile, setProfile] = useState<EnterpriseProfile>(EMPTY_PROFILE)
+  const [draft, setDraft] = useState<EnterpriseProfile>(EMPTY_PROFILE)
+  const [mode, setMode] = useState<'view' | 'edit'>('view')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const fetchingRef = useRef(false)
@@ -248,16 +326,27 @@ export default function EnterpriseProfilePage() {
     fetchProfile()
   }, [fetchProfile])
 
+  const empty = isProfileEmpty(profile)
+  const score = useMemo(() => completeness(profile), [profile])
+
+  const startEdit = () => {
+    setDraft(profile)
+    setMode('edit')
+  }
+
+  const cancelEdit = () => setMode('view')
+
   const patch = <K extends keyof EnterpriseProfile>(key: K, value: EnterpriseProfile[K]) =>
-    setProfile((prev) => ({ ...prev, [key]: value }))
+    setDraft((prev) => ({ ...prev, [key]: value }))
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { updated_at: _updatedAt, ...payload } = profile
+      const { updated_at: _updatedAt, ...payload } = draft
       void _updatedAt
       const saved = await profileApi.update(payload)
       setProfile(saved)
+      setMode('view')
       toast.success('企业档案已保存')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '保存企业档案失败')
@@ -281,223 +370,396 @@ export default function EnterpriseProfilePage() {
             </p>
           </div>
         </div>
-        {canEdit && (
-          <Button className="cursor-pointer rounded-xl" onClick={handleSave} disabled={loading || saving}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            保存
-          </Button>
-        )}
+        {canEdit &&
+          (mode === 'view' ? (
+            <Button
+              className="cursor-pointer rounded-xl"
+              variant="outline"
+              onClick={startEdit}
+              disabled={loading}
+            >
+              <Pencil className="size-4" />
+              {empty ? '完善档案' : '编辑'}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="cursor-pointer rounded-xl bg-white"
+                onClick={cancelEdit}
+                disabled={saving}
+              >
+                取消
+              </Button>
+              <Button className="cursor-pointer rounded-xl" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                保存
+              </Button>
+            </div>
+          ))}
       </header>
 
-      {/* 表单 */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-[#778090]">
             <Loader2 className="size-5 animate-spin" />
           </div>
+        ) : mode === 'edit' ? (
+          <EditForm draft={draft} patch={patch} />
+        ) : empty ? (
+          <EmptyState canEdit={canEdit} onStart={startEdit} />
         ) : (
-          <div className="max-w-[760px] mx-auto">
-            <FieldGroup className="gap-4">
-              <div className={CARD_CLASS}>
-              <FieldSet>
-                <FieldLegend className="text-base font-bold text-[#202939]">基本信息</FieldLegend>
+          <ProfileView profile={profile} score={score} />
+        )}
+      </div>
+    </div>
+  )
+}
 
-                <Field>
-                  <FieldLabel htmlFor="company_name">企业名称</FieldLabel>
-                  <Input
-                    id="company_name"
-                    value={profile.company_name}
-                    placeholder="请输入企业全称"
-                    disabled={!canEdit}
-                    onChange={(e) => patch('company_name', e.target.value)}
-                  />
-                </Field>
+/** 空档案占位（尚未填写时） */
+function EmptyState({ canEdit, onStart }: { canEdit: boolean; onStart: () => void }) {
+  return (
+    <div className="mx-auto max-w-[760px]">
+      <div className={`${CARD_CLASS} flex flex-col items-center gap-4 py-16 text-center`}>
+        <div className="grid size-14 place-items-center rounded-2xl bg-[#eef8f8] text-[#287174]">
+          <Building2 className="size-7" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-[#202939]">尚未填写企业档案</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#778090]">
+            企业档案是政策匹配、资质差距分析和工作台主动推送的依据。
+            {canEdit ? '完善后即可在工作台看到为你筛选的政策与资质机会。' : '请联系组织所有者 / 管理员填写。'}
+          </p>
+        </div>
+        {canEdit && (
+          <Button className="cursor-pointer rounded-xl" onClick={onStart}>
+            <Pencil className="size-4" />
+            开始填写
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
 
-                <Field>
-                  <FieldLabel>所在地</FieldLabel>
-                  <div className="grid grid-cols-3 gap-2">
-                    <Input
-                      value={profile.province}
-                      placeholder="省"
-                      disabled={!canEdit}
-                      onChange={(e) => patch('province', e.target.value)}
-                    />
-                    <Input
-                      value={profile.city}
-                      placeholder="市"
-                      disabled={!canEdit}
-                      onChange={(e) => patch('city', e.target.value)}
-                    />
-                    <Input
-                      value={profile.district}
-                      placeholder="区/县"
-                      disabled={!canEdit}
-                      onChange={(e) => patch('district', e.target.value)}
-                    />
-                  </div>
-                  <FieldDescription className="text-xs">
-                    经营地决定可享受的区/市/省级政策，默认无锡新吴区。
-                  </FieldDescription>
-                </Field>
+/** 查看态：企业名片式展示 */
+function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: number }) {
+  const region = [profile.province, profile.city, profile.district].filter(Boolean).join(' / ')
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field>
-                    <FieldLabel htmlFor="industry">所属行业</FieldLabel>
-                    <Input
-                      id="industry"
-                      value={profile.industry}
-                      placeholder="如：智能制造、软件信息服务"
-                      disabled={!canEdit}
-                      onChange={(e) => patch('industry', e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="scale">企业规模</FieldLabel>
-                    <select
-                      id="scale"
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                      value={profile.scale}
-                      disabled={!canEdit}
-                      onChange={(e) => patch('scale', e.target.value as EnterpriseScale)}
-                    >
-                      {SCALE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-
-                <Field>
-                  <FieldLabel htmlFor="main_business">主营业务简介</FieldLabel>
-                  <Textarea
-                    id="main_business"
-                    value={profile.main_business}
-                    placeholder="简述企业主营业务、核心产品与技术方向"
-                    rows={4}
-                    disabled={!canEdit}
-                    onChange={(e) => patch('main_business', e.target.value)}
-                  />
-                </Field>
-              </FieldSet>
+  return (
+    <div className="mx-auto flex max-w-[860px] flex-col gap-4">
+      {/* Hero 名片 */}
+      <div className={CARD_CLASS}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#eef8f8] text-[#287174]">
+              <Building2 className="size-7" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-2xl font-bold leading-tight text-[#202939]">
+                {profile.company_name}
+              </h2>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#667085]">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="size-4 text-[#98a2b3]" />
+                  {region || '未填写'}
+                </span>
+                {profile.industry && <span>· {profile.industry}</span>}
+                {profile.scale !== 'unspecified' && (
+                  <Badge variant="outline" className="rounded-full">
+                    {SCALE_LABEL[profile.scale]}
+                  </Badge>
+                )}
               </div>
+            </div>
+          </div>
+          {profile.updated_at && (
+            <div className="text-right text-xs text-[#98a2b3]">
+              最后更新
+              <div className="mt-0.5 text-[#778090]">{formatDateLabel(profile.updated_at)}</div>
+            </div>
+          )}
+        </div>
 
-              <div className={CARD_CLASS}>
-              <FieldSet>
-                <FieldLegend className="text-base font-bold text-[#202939]">资质与领域</FieldLegend>
+        {/* 完整度 */}
+        <div className="mt-5 rounded-2xl border border-[#eceae6] bg-[#fafafa] px-4 py-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 font-medium text-[#566070]">
+              <Sparkles className="size-3.5 text-[#287174]" />
+              档案完整度
+            </span>
+            <span className="font-semibold text-[#202939]">{score}%</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8e6e2]">
+            <div
+              className="h-full rounded-full bg-[#287174] transition-all"
+              style={{ width: `${score}%` }}
+            />
+          </div>
+          {score < 100 && (
+            <p className="mt-2 text-xs text-[#98a2b3]">
+              补全经营与研发指标，可启用更精准的资质申报差距分析。
+            </p>
+          )}
+        </div>
 
-                <TagInput
-                  label="已有资质"
-                  description="回车添加，或点击下方常见资质快捷添加。"
-                  placeholder="输入资质后回车，如：高新技术企业"
-                  values={profile.qualifications}
-                  presets={QUALIFICATION_PRESETS}
-                  disabled={!canEdit}
-                  onChange={(next) => patch('qualifications', next)}
-                />
-
-                <TagInput
-                  label="技术 / 产品领域"
-                  placeholder="输入领域后回车，如：工业机器人"
-                  values={profile.tech_domains}
-                  disabled={!canEdit}
-                  onChange={(next) => patch('tech_domains', next)}
-                />
-
-                <TagInput
-                  label="关键词标签"
-                  placeholder="输入关键词后回车，如：自动化"
-                  values={profile.keywords}
-                  disabled={!canEdit}
-                  onChange={(next) => patch('keywords', next)}
-                />
-              </FieldSet>
-              </div>
-
-              <div className={CARD_CLASS}>
-              <FieldSet>
-                <FieldLegend className="text-base font-bold text-[#202939]">
-                  经营与研发指标
-                </FieldLegend>
-                <p className="-mt-1 mb-1 text-xs text-muted-foreground">
-                  用于资质申报机会的条件差距分析（如成立年限、研发人员占比、研发投入强度、知识产权数量）。按企业实际据实填写，留空表示暂未提供。
-                </p>
-
-                <Field>
-                  <FieldLabel htmlFor="established_date">成立 / 注册日期</FieldLabel>
-                  <Input
-                    id="established_date"
-                    type="date"
-                    value={profile.established_date}
-                    disabled={!canEdit}
-                    onChange={(e) => patch('established_date', e.target.value)}
-                  />
-                  <FieldDescription className="text-xs">
-                    许多资质要求“成立满 N 年”，据此判断年限是否达标。
-                  </FieldDescription>
-                </Field>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <NumberField
-                    label="员工总数"
-                    unit="人"
-                    value={profile.total_staff}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('total_staff', v)}
-                  />
-                  <NumberField
-                    label="研发人员数"
-                    unit="人"
-                    value={profile.rd_staff}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('rd_staff', v)}
-                  />
-                  <NumberField
-                    label="注册资本"
-                    unit="万元"
-                    step={0.01}
-                    value={profile.registered_capital_wan}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('registered_capital_wan', v)}
-                  />
-                  <NumberField
-                    label="上年度营业收入"
-                    unit="万元"
-                    step={0.01}
-                    value={profile.annual_revenue_wan}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('annual_revenue_wan', v)}
-                  />
-                  <NumberField
-                    label="上年度研发投入"
-                    unit="万元"
-                    step={0.01}
-                    value={profile.rd_investment_wan}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('rd_investment_wan', v)}
-                  />
-                  <NumberField
-                    label="发明专利数"
-                    unit="件"
-                    value={profile.invention_patents}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('invention_patents', v)}
-                  />
-                  <NumberField
-                    label="其他知识产权数"
-                    unit="件（实用新型/软著/外观等）"
-                    value={profile.other_ip_count}
-                    disabled={!canEdit}
-                    onChange={(v) => patch('other_ip_count', v)}
-                  />
-                </div>
-              </FieldSet>
-              </div>
-            </FieldGroup>
+        {profile.main_business && (
+          <div className="mt-5">
+            <div className="text-xs font-semibold text-[#8b92a0]">主营业务</div>
+            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-7 text-[#475467]">
+              {profile.main_business}
+            </p>
           </div>
         )}
       </div>
+
+      {/* 资质与领域 */}
+      <div className={CARD_CLASS}>
+        <div className="mb-4 flex items-center gap-2 text-base font-bold text-[#202939]">
+          <Award className="size-5 text-[#287174]" />
+          资质与领域
+        </div>
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="mb-2 text-xs font-semibold text-[#8b92a0]">已有资质</div>
+            <TagCloud values={profile.qualifications} />
+          </div>
+          <div>
+            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-[#8b92a0]">
+              <Tags className="size-3.5" />
+              技术 / 产品领域
+            </div>
+            <TagCloud values={profile.tech_domains} />
+          </div>
+          <div>
+            <div className="mb-2 text-xs font-semibold text-[#8b92a0]">关键词标签</div>
+            <TagCloud values={profile.keywords} />
+          </div>
+        </div>
+      </div>
+
+      {/* 经营与研发指标 */}
+      <div className={CARD_CLASS}>
+        <div className="mb-1 flex items-center gap-2 text-base font-bold text-[#202939]">
+          <TrendingUp className="size-5 text-[#287174]" />
+          经营与研发指标
+        </div>
+        <p className="mb-4 text-xs text-[#98a2b3]">用于资质申报机会的条件差距分析（成立年限、研发占比、研发投入强度、知识产权等）。</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <MetricCard label="成立 / 注册日期" value={formatDateLabel(profile.established_date)} />
+          <MetricCard label="员工总数" value={formatNumber(profile.total_staff)} unit="人" />
+          <MetricCard label="研发人员数" value={formatNumber(profile.rd_staff)} unit="人" />
+          <MetricCard
+            label="注册资本"
+            value={formatNumber(profile.registered_capital_wan)}
+            unit="万元"
+          />
+          <MetricCard
+            label="上年度营业收入"
+            value={formatNumber(profile.annual_revenue_wan)}
+            unit="万元"
+          />
+          <MetricCard
+            label="上年度研发投入"
+            value={formatNumber(profile.rd_investment_wan)}
+            unit="万元"
+          />
+          <MetricCard label="发明专利数" value={formatNumber(profile.invention_patents)} unit="件" />
+          <MetricCard label="其他知识产权数" value={formatNumber(profile.other_ip_count)} unit="件" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** 编辑态：表单（沿用原有分区字段，绑定 draft） */
+function EditForm({
+  draft,
+  patch,
+}: {
+  draft: EnterpriseProfile
+  patch: <K extends keyof EnterpriseProfile>(key: K, value: EnterpriseProfile[K]) => void
+}) {
+  return (
+    <div className="mx-auto max-w-[760px]">
+      <FieldGroup className="gap-4">
+        <div className={CARD_CLASS}>
+          <FieldSet>
+            <FieldLegend className="text-base font-bold text-[#202939]">基本信息</FieldLegend>
+
+            <Field>
+              <FieldLabel htmlFor="company_name">企业名称</FieldLabel>
+              <Input
+                id="company_name"
+                value={draft.company_name}
+                placeholder="请输入企业全称"
+                onChange={(e) => patch('company_name', e.target.value)}
+              />
+            </Field>
+
+            <Field>
+              <FieldLabel>所在地</FieldLabel>
+              <div className="grid grid-cols-3 gap-2">
+                <Input
+                  value={draft.province}
+                  placeholder="省"
+                  onChange={(e) => patch('province', e.target.value)}
+                />
+                <Input
+                  value={draft.city}
+                  placeholder="市"
+                  onChange={(e) => patch('city', e.target.value)}
+                />
+                <Input
+                  value={draft.district}
+                  placeholder="区/县"
+                  onChange={(e) => patch('district', e.target.value)}
+                />
+              </div>
+              <FieldDescription className="text-xs">
+                经营地决定可享受的区/市/省级政策，默认无锡新吴区。
+              </FieldDescription>
+            </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field>
+                <FieldLabel htmlFor="industry">所属行业</FieldLabel>
+                <Input
+                  id="industry"
+                  value={draft.industry}
+                  placeholder="如：智能制造、软件信息服务"
+                  onChange={(e) => patch('industry', e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="scale">企业规模</FieldLabel>
+                <select
+                  id="scale"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={draft.scale}
+                  onChange={(e) => patch('scale', e.target.value as EnterpriseScale)}
+                >
+                  {SCALE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <Field>
+              <FieldLabel htmlFor="main_business">主营业务简介</FieldLabel>
+              <Textarea
+                id="main_business"
+                value={draft.main_business}
+                placeholder="简述企业主营业务、核心产品与技术方向"
+                rows={4}
+                onChange={(e) => patch('main_business', e.target.value)}
+              />
+            </Field>
+          </FieldSet>
+        </div>
+
+        <div className={CARD_CLASS}>
+          <FieldSet>
+            <FieldLegend className="text-base font-bold text-[#202939]">资质与领域</FieldLegend>
+
+            <TagInput
+              label="已有资质"
+              description="回车添加，或点击下方常见资质快捷添加。"
+              placeholder="输入资质后回车，如：高新技术企业"
+              values={draft.qualifications}
+              presets={QUALIFICATION_PRESETS}
+              onChange={(next) => patch('qualifications', next)}
+            />
+
+            <TagInput
+              label="技术 / 产品领域"
+              placeholder="输入领域后回车，如：工业机器人"
+              values={draft.tech_domains}
+              onChange={(next) => patch('tech_domains', next)}
+            />
+
+            <TagInput
+              label="关键词标签"
+              placeholder="输入关键词后回车，如：自动化"
+              values={draft.keywords}
+              onChange={(next) => patch('keywords', next)}
+            />
+          </FieldSet>
+        </div>
+
+        <div className={CARD_CLASS}>
+          <FieldSet>
+            <FieldLegend className="text-base font-bold text-[#202939]">经营与研发指标</FieldLegend>
+            <p className="-mt-1 mb-1 text-xs text-muted-foreground">
+              用于资质申报机会的条件差距分析（如成立年限、研发人员占比、研发投入强度、知识产权数量）。按企业实际据实填写，留空表示暂未提供。
+            </p>
+
+            <Field>
+              <FieldLabel htmlFor="established_date">成立 / 注册日期</FieldLabel>
+              <Input
+                id="established_date"
+                type="date"
+                value={draft.established_date}
+                onChange={(e) => patch('established_date', e.target.value)}
+              />
+              <FieldDescription className="text-xs">
+                许多资质要求“成立满 N 年”，据此判断年限是否达标。
+              </FieldDescription>
+            </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <NumberField
+                label="员工总数"
+                unit="人"
+                value={draft.total_staff}
+                onChange={(v) => patch('total_staff', v)}
+              />
+              <NumberField
+                label="研发人员数"
+                unit="人"
+                value={draft.rd_staff}
+                onChange={(v) => patch('rd_staff', v)}
+              />
+              <NumberField
+                label="注册资本"
+                unit="万元"
+                step={0.01}
+                value={draft.registered_capital_wan}
+                onChange={(v) => patch('registered_capital_wan', v)}
+              />
+              <NumberField
+                label="上年度营业收入"
+                unit="万元"
+                step={0.01}
+                value={draft.annual_revenue_wan}
+                onChange={(v) => patch('annual_revenue_wan', v)}
+              />
+              <NumberField
+                label="上年度研发投入"
+                unit="万元"
+                step={0.01}
+                value={draft.rd_investment_wan}
+                onChange={(v) => patch('rd_investment_wan', v)}
+              />
+              <NumberField
+                label="发明专利数"
+                unit="件"
+                value={draft.invention_patents}
+                onChange={(v) => patch('invention_patents', v)}
+              />
+              <NumberField
+                label="其他知识产权数"
+                unit="件（实用新型/软著/外观等）"
+                value={draft.other_ip_count}
+                onChange={(v) => patch('other_ip_count', v)}
+              />
+            </div>
+          </FieldSet>
+        </div>
+      </FieldGroup>
     </div>
   )
 }
