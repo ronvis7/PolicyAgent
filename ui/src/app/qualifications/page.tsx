@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Award, CheckCircle2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -59,23 +59,21 @@ export default function QualificationsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="flex justify-between items-center w-full py-2 px-4 border-b">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="cursor-pointer" />
-          <h1 className="text-base font-semibold">资质机会</h1>
+    <div className="h-full flex flex-col bg-[#f8f8f7]">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-[#202939]">资质机会</h1>
+            <p className="hidden text-xs text-[#778090] sm:block">
+              依据企业档案匹配可申报资质，按「可申报优先」排序；条件为概要，具体以官方最新办法为准。
+            </p>
+          </div>
         </div>
       </header>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="max-w-[900px] mx-auto">
-          <div className="mb-4 flex items-center gap-2 text-muted-foreground">
-            <Award className="size-5" />
-            <span className="text-sm">
-              依据企业档案匹配可申报资质，按“可申报优先”排序。条件为概要，具体以官方最新办法为准。
-            </span>
-          </div>
-
           {loading ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -83,13 +81,13 @@ export default function QualificationsPage() {
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground text-sm">
+            <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
               <p>暂无匹配的资质。</p>
               <p className="mt-2">
                 请先完善
                 <Button
                   variant="link"
-                  className="px-1 cursor-pointer"
+                  className="px-1 cursor-pointer text-[#287174]"
                   onClick={() => router.push('/enterprise-profile')}
                 >
                   企业档案
@@ -99,16 +97,16 @@ export default function QualificationsPage() {
             </div>
           ) : (
             <>
-              <p className="mb-3 text-sm text-muted-foreground">
+              <p className="mb-3 text-sm text-[#778090]">
                 共 {items.length} 项适用，其中
-                <span className="mx-1 font-medium text-foreground">{eligibleCount}</span>
+                <span className="mx-1 font-semibold text-[#202939]">{eligibleCount}</span>
                 项可申报。
               </p>
               <ul className="space-y-3">
                 {items.map((q) => (
                   <li
                     key={q.key}
-                    className="rounded-lg border p-4 transition-colors hover:border-primary/50"
+                    className="rounded-2xl border border-[#e5e2de] bg-white p-4 shadow-[0_10px_30px_rgba(16,24,40,.04)] transition hover:border-[#cdd5df]"
                   >
                     <div className="flex items-start gap-2 mb-1">
                       {q.eligible ? (
@@ -122,7 +120,7 @@ export default function QualificationsPage() {
                       )}
                       <button
                         type="button"
-                        className="text-left font-medium line-clamp-2 cursor-pointer hover:underline"
+                        className="text-left font-semibold leading-snug text-[#287174] line-clamp-2 cursor-pointer hover:underline"
                         onClick={() => openDetail(q.key)}
                       >
                         {q.name}

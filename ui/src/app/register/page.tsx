@@ -100,10 +100,13 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-[#f8f8f7] px-4 py-8">
-      <div className="w-full max-w-sm rounded-xl border bg-white p-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-[18px] border border-[#e5e2de] bg-white p-8 shadow-[0_10px_30px_rgba(16,24,40,.06)]">
         <div className="mb-6 text-center">
-          <h1 className="text-xl font-semibold">注册 PolicyManus</h1>
-          <p className="mt-1 text-sm text-muted-foreground">创建新组织，或申请加入已有组织</p>
+          <div className="mx-auto mb-4 inline-flex rounded-full border border-[#e5e2de] bg-[#f8f8f7] px-3 py-1 text-xs font-semibold text-[#667085]">
+            PolicyManus
+          </div>
+          <h1 className="text-xl font-semibold text-[#202939]">注册 PolicyManus</h1>
+          <p className="mt-1 text-sm text-[#778090]">创建新组织，或申请加入已有组织</p>
         </div>
 
         {/* 模式切换 */}
@@ -254,9 +257,9 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
+        <p className="mt-6 text-center text-sm text-[#778090]">
           已有账号？{' '}
-          <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
+          <Link href="/login" className="font-medium text-[#287174] underline-offset-4 hover:underline">
             去登录
           </Link>
         </p>
