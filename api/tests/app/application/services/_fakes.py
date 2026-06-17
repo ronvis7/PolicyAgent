@@ -192,6 +192,18 @@ class FakeFeedRepository:
             if i.tenant_id == tenant_id and i.status == status
         )
 
+    async def list_expiring(self, tenant_id, today, until):
+        items = [
+            i for i in self._store.values()
+            if i.tenant_id == tenant_id
+            and i.deadline_status == "extracted"
+            and i.apply_deadline is not None
+            and today <= i.apply_deadline <= until
+            and i.status != FeedStatus.IGNORED
+        ]
+        items.sort(key=lambda i: i.apply_deadline)
+        return items
+
     async def mark_all_read(self, tenant_id: str) -> int:
         count = 0
         for item_id, item in list(self._store.items()):

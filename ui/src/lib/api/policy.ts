@@ -16,10 +16,17 @@ export type PolicyListItem = {
   region: string;
 };
 
-/** 政策详情（含正文） */
+/** 申报截止抽取状态（主线⑤） */
+export type DeadlineStatus = "extracted" | "rolling" | "unknown";
+
+/** 政策详情（含正文与申报截止） */
 export type PolicyDetail = PolicyListItem & {
   body_text: string;
   crawled_at: string | null;
+  // 申报截止（LLM 抽取，以原文为准、供参考核对）
+  apply_deadline: string | null;
+  apply_window_text: string;
+  deadline_status: DeadlineStatus;
 };
 
 /** 政策分页列表响应 */

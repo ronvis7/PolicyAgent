@@ -49,6 +49,15 @@ class PolicyModel(Base):
     region: Mapped[str] = mapped_column(
         String(128), nullable=False, server_default=text("''"), index=True,
     )  # 适用地区
+    apply_deadline: Mapped[date] = mapped_column(
+        Date, nullable=True, index=True,
+    )  # 申报截止日期(LLM 抽取，仅 extracted 时有值；索引供临期查询)
+    apply_window_text: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("''"),
+    )  # 原文申报窗口描述(展示+人工核对)
+    deadline_status: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default=text("'unknown'"),
+    )  # extracted / rolling / unknown
     crawled_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"),
     )  # 最近抓取时间
@@ -75,6 +84,9 @@ class PolicyModel(Base):
             publish_date=policy.publish_date,
             body_text=policy.body_text,
             region=policy.region,
+            apply_deadline=policy.apply_deadline,
+            apply_window_text=policy.apply_window_text,
+            deadline_status=policy.deadline_status,
             crawled_at=policy.crawled_at,
             updated_at=policy.updated_at,
             created_at=policy.created_at,
@@ -94,6 +106,9 @@ class PolicyModel(Base):
             publish_date=self.publish_date,
             body_text=self.body_text,
             region=self.region,
+            apply_deadline=self.apply_deadline,
+            apply_window_text=self.apply_window_text,
+            deadline_status=self.deadline_status,
             crawled_at=self.crawled_at,
             updated_at=self.updated_at,
             created_at=self.created_at,
@@ -110,4 +125,7 @@ class PolicyModel(Base):
         self.publish_date = policy.publish_date
         self.body_text = policy.body_text
         self.region = policy.region
+        self.apply_deadline = policy.apply_deadline
+        self.apply_window_text = policy.apply_window_text
+        self.deadline_status = policy.deadline_status
         self.crawled_at = policy.crawled_at

@@ -5,7 +5,7 @@
 """
 
 import asyncio
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List
 
 from app.application.errors.exceptions import NotFoundError
@@ -210,6 +210,75 @@ def test_set_status_rejects_cross_tenant_item() -> None:
         assert False, "应抛出 NotFoundError"
     except NotFoundError:
         pass
+
+
+def _match_with_deadline(
+    policy_id: str, title: str, deadline: date, deadline_status: str = "extracted",
+) -> PolicyMatch:
+    policy = Policy(
+        id=policy_id, source_url=f"url-{policy_id}", title=title,
+        region="江苏省无锡市新吴区", publish_date=date(2026, 6, 1),
+        apply_deadline=deadline if deadline_status == "extracted" else None,
+        deadline_status=deadline_status,
+    )
+    return PolicyMatch(policy=policy, score=1.0, structured_score=1.0)
+
+
+def test_recompute_carries_deadline_snapshot_to_feed() -> None:
+    feed: dict = {}
+    dl = date.today() + timedelta(days=5)
+    service = _service({"t1": [_match_with_deadline("p1", "高企申报", dl)]}, feed)
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    item = next(iter(feed.values()))
+    assert item.apply_deadline == dl
+    assert item.deadline_status == "extracted"
+
+
+def test_list_expiring_returns_only_extracted_within_window_sorted() -> None:
+    feed: dict = {}
+    today = date.today()
+    matches = {"t1": [
+        _match_with_deadline("p-soon", "5天后截止", today + timedelta(days=5)),
+        _match_with_deadline("p-later", "3天后截止", today + timedelta(days=3)),
+        _match_with_deadline("p-far", "30天后截止", today + timedelta(days=30)),
+        _match_with_deadline("p-rolling", "常年受理", today, deadline_status="rolling"),
+        _match_with_deadline("p-unknown", "无截止", today, deadline_status="unknown"),
+    ]}
+    service = _service(matches, feed)
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    expiring = asyncio.run(service.list_expiring("t1", within_days=14))
+
+    # 仅 extracted 且落在 14 天内；按截止升序(最紧的在前)
+    assert [i.policy_id for i in expiring] == ["p-later", "p-soon"]
+
+
+def test_list_expiring_excludes_ignored() -> None:
+    feed: dict = {}
+    dl = date.today() + timedelta(days=2)
+    service = _service({"t1": [_match_with_deadline("p1", "临期政策", dl)]}, feed)
+    asyncio.run(service.recompute_for_tenant("t1"))
+    item_id = next(iter(feed.values())).id
+    asyncio.run(service.set_status("t1", item_id, FeedStatus.IGNORED))
+
+    assert asyncio.run(service.list_expiring("t1", within_days=14)) == []
+
+
+def test_list_expiring_is_tenant_scoped() -> None:
+    feed: dict = {}
+    dl = date.today() + timedelta(days=3)
+    service = _service(
+        {"t1": [_match_with_deadline("p1", "t1政策", dl)],
+         "t2": [_match_with_deadline("p2", "t2政策", dl)]},
+        feed,
+    )
+    asyncio.run(service.recompute_for_tenant("t1"))
+    asyncio.run(service.recompute_for_tenant("t2"))
+
+    t1_expiring = asyncio.run(service.list_expiring("t1", within_days=14))
+    assert [i.policy_id for i in t1_expiring] == ["p1"]
 
 
 def test_unread_count_is_tenant_scoped() -> None:

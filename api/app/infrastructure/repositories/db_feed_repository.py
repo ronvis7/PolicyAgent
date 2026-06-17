@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional, Tuple
 
 from sqlalchemy import func, select, update
@@ -85,6 +86,25 @@ class DBFeedRepository(FeedRepository):
             )
         )
         return (await self.db_session.execute(stmt)).scalar_one()
+
+    async def list_expiring(
+        self, tenant_id: str, today: date, until: date,
+    ) -> List[FeedItem]:
+        """返回当前租户申报截止落在 [today, until] 内且未忽略的条目，按截止日期升序"""
+        stmt = (
+            select(FeedItemModel)
+            .where(
+                FeedItemModel.tenant_id == tenant_id,
+                FeedItemModel.deadline_status == "extracted",
+                FeedItemModel.apply_deadline.is_not(None),
+                FeedItemModel.apply_deadline >= today,
+                FeedItemModel.apply_deadline <= until,
+                FeedItemModel.status != FeedStatus.IGNORED.value,
+            )
+            .order_by(FeedItemModel.apply_deadline.asc())
+        )
+        records = (await self.db_session.execute(stmt)).scalars().all()
+        return [r.to_domain() for r in records]
 
     async def mark_all_read(self, tenant_id: str) -> int:
         """把当前租户所有 unread 批量置为 read，返回受影响条数(单条 UPDATE，免逐条加载)"""

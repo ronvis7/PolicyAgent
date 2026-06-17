@@ -46,6 +46,9 @@ class FeedItem(BaseModel):
     semantic_score: float = 0.0  # 语义最高相似度
     matched_terms: List[str] = Field(default_factory=list)  # 命中的档案词
     reasons: List[str] = Field(default_factory=list)  # 可读推荐理由
+    # ---- 申报截止快照(主线⑤；资质无截止概念，留默认) ----
+    apply_deadline: Optional[date] = None  # 申报截止日期(仅 deadline_status=extracted 时有值)
+    deadline_status: str = "unknown"  # extracted / rolling / unknown
     # ---- 状态机 ----
     status: FeedStatus = FeedStatus.UNREAD
     created_at: datetime = Field(default_factory=datetime.now)
@@ -69,6 +72,8 @@ class FeedItem(BaseModel):
             semantic_score=match.semantic_score,
             matched_terms=match.matched_terms,
             reasons=match.reasons,
+            apply_deadline=p.apply_deadline,
+            deadline_status=p.deadline_status,
         )
 
     @classmethod
@@ -107,5 +112,7 @@ class FeedItem(BaseModel):
             "semantic_score": other.semantic_score,
             "matched_terms": other.matched_terms,
             "reasons": other.reasons,
+            "apply_deadline": other.apply_deadline,
+            "deadline_status": other.deadline_status,
             "updated_at": datetime.now(),
         })

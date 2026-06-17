@@ -24,6 +24,10 @@ class Policy(BaseModel):
     publish_date: Optional[date] = None  # 发文/公开日期
     body_text: str = ""  # 政策正文纯文本
     region: str = ""  # 适用地区(如 江苏省无锡市新吴区)
+    # ---- 申报截止(由 LLM 从正文抽取，遵循"待核对"纪律，以原文为准) ----
+    apply_deadline: Optional[date] = None  # 申报截止日期(仅 deadline_status=extracted 时有值)
+    apply_window_text: str = ""  # 原文申报窗口描述(如"常年受理"/"分两批"，供展示+人工核对)
+    deadline_status: str = "unknown"  # extracted=抽到明确日期 / rolling=常年或无固定截止 / unknown=未识别
     crawled_at: datetime = Field(default_factory=datetime.now)  # 最近抓取时间
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间

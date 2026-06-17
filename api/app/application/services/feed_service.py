@@ -11,7 +11,7 @@
 """
 
 import logging
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Callable, List, Optional, Protocol, Tuple
 
 from app.application.errors.exceptions import NotFoundError
@@ -108,6 +108,16 @@ class FeedService:
         """当前租户未读条数(左栏红点)。"""
         async with self._uow_factory() as uow:
             return await uow.feed.count_by_status(tenant_id, FeedStatus.UNREAD)
+
+    async def list_expiring(self, tenant_id: str, within_days: int) -> List[FeedItem]:
+        """主线⑤：返回当前租户未来 within_days 天内申报截止且未忽略的机会(最紧的在前)。
+
+        只含有明确截止日期(deadline_status=extracted)的条目；rolling/unknown 不进临期提醒。
+        """
+        today = date.today()
+        until = today + timedelta(days=within_days)
+        async with self._uow_factory() as uow:
+            return await uow.feed.list_expiring(tenant_id, today, until)
 
     async def set_status(
         self, tenant_id: str, item_id: str, status: FeedStatus,

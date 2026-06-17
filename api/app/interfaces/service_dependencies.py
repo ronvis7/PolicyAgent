@@ -245,13 +245,23 @@ def get_policy_service() -> PolicyService:
 
 
 def get_policy_ingest_service() -> PolicyIngestService:
-    """获取公开政策入库编排服务(按来源选择爬虫 + 结构化 upsert + 向量双写)"""
+    """获取公开政策入库编排服务(按来源选择爬虫 + 结构化 upsert + 向量双写 + 截止日期抽取)。
+
+    抽取用平台默认 LLM(系统级入库无租户)；平台未配 key 时 OpenAILLM 会抛错，
+    此处吞掉传 None，让入库照常进行(截止字段留 unknown)，与 best-effort 纪律一致。
+    """
     app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
     embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
+    try:
+        llm = OpenAILLM(app_config.llm_config)
+    except Exception as e:  # noqa: BLE001 — 抽取为可选增强，缺 key 不应阻断②入库
+        logger.warning("平台 LLM 未就绪，本次入库跳过截止日期抽取: %s", e)
+        llm = None
     return PolicyIngestService(
         uow_factory=get_uow,
         crawlers=build_crawlers(),
         embedding=embedding,
+        llm=llm,
     )
 
 

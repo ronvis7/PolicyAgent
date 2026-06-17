@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, ExternalLink, Loader2, LayoutDashboard, XCircle } from 'lucide-react'
+import { AlarmClock, CheckCircle2, ExternalLink, Loader2, LayoutDashboard, XCircle } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,6 +41,44 @@ const STATUS_LABEL: Record<FeedStatus, string> = {
   read: '已读',
   applied: '已申报',
   ignored: '已忽略',
+}
+
+/** 临期提醒阈值（天）：≤3 天标红、≤14 天标琥珀，与后端默认窗口一致 */
+const DEADLINE_URGENT_DAYS = 3
+const DEADLINE_SOON_DAYS = 14
+
+/** 申报截止徽章：依抽取状态/剩余天数渲染，截止日期以政策原文为准。 */
+function DeadlineBadge({ item }: { item: FeedItem }) {
+  // 仅政策类有截止概念；资质走目录，无此字段
+  if (item.type === 'qualification') return null
+
+  if (item.deadline_status === 'extracted' && item.days_left !== null) {
+    const d = item.days_left
+    const label =
+      d < 0 ? '已过期' : d === 0 ? '今天截止' : `还剩 ${d} 天截止`
+    const tone =
+      d < 0
+        ? 'border-muted text-muted-foreground line-through'
+        : d <= DEADLINE_URGENT_DAYS
+          ? 'border-red-400 text-red-600 dark:text-red-400'
+          : d <= DEADLINE_SOON_DAYS
+            ? 'border-amber-400 text-amber-600 dark:text-amber-400'
+            : 'border-muted text-muted-foreground'
+    return (
+      <Badge variant="outline" className={`mt-0.5 shrink-0 gap-1 ${tone}`} title={`申报截止：${item.apply_deadline}（以原文为准）`}>
+        <AlarmClock className="size-3" />
+        {label}
+      </Badge>
+    )
+  }
+  if (item.deadline_status === 'rolling') {
+    return (
+      <Badge variant="outline" className="mt-0.5 shrink-0 text-muted-foreground" title="常年受理/无固定截止">
+        常年受理
+      </Badge>
+    )
+  }
+  return null
 }
 
 /** 工作台 Feed 页（④）：持久化的可申报政策信息流 + 状态流转 + 重新匹配。 */
@@ -242,6 +280,8 @@ export default function FeedPage() {
                     >
                       {m.type === 'qualification' ? '资质' : '政策'}
                     </Badge>
+                    {/* 申报截止徽章（主线⑤；临期标红/琥珀） */}
+                    <DeadlineBadge item={m} />
                     <button
                       type="button"
                       className="text-left font-medium line-clamp-2 cursor-pointer hover:underline"
@@ -325,6 +365,23 @@ export default function FeedPage() {
                   {detail.doc_number && <span>文号：{detail.doc_number}</span>}
                 </DialogDescription>
               </DialogHeader>
+              {/* 申报截止（主线⑤；LLM 抽取，以原文为准、供参考核对） */}
+              {detail.deadline_status !== 'unknown' && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/20 px-3 py-2 text-sm">
+                  <div className="flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400">
+                    <AlarmClock className="size-3.5" />
+                    {detail.deadline_status === 'extracted'
+                      ? `申报截止：${detail.apply_deadline}`
+                      : '常年受理 / 无固定截止'}
+                  </div>
+                  {detail.apply_window_text && (
+                    <p className="mt-1 text-muted-foreground">原文窗口：{detail.apply_window_text}</p>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    截止日期由系统从正文自动抽取，可能存在偏差，请以政策原文与官方申报平台为准。
+                  </p>
+                </div>
+              )}
               <div className="overflow-auto flex-1 whitespace-pre-wrap text-sm leading-7 text-foreground/90">
                 {detail.body_text || '（暂无正文，请查看原文链接）'}
               </div>
