@@ -7,10 +7,12 @@ import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {SuggestedQuestions} from '@/components/suggested-questions'
 import {sessionApi} from '@/lib/api/session'
 import type {FileInfo} from '@/lib/api/types'
+import {useAuth} from '@/providers/auth-provider'
 import {toast} from 'sonner'
 
 export default function Page() {
   const router = useRouter()
+  const {user} = useAuth()
   const chatInputRef = useRef<ChatInputRef>(null)
   const [sending, setSending] = useState(false)
 
@@ -54,8 +56,8 @@ export default function Page() {
         <div className="w-full max-w-full sm:max-w-[768px] sm:min-w-[390px] mx-auto">
           {/* 对话提示内容 */}
           <div className="text-[24px] sm:text-[32px] font-bold mb-4 sm:mb-6 text-center sm:text-left">
-            <div className="text-gray-700">您好, Ronvis9</div>
-            <div className="text-gray-500">我能为您做什么?</div>
+            <div className="text-[#202939]">您好，{user?.display_name ?? '欢迎回来'}</div>
+            <div className="text-[#8b92a0]">需要我帮您做什么？</div>
           </div>
           {/* 对话框 */}
           <ChatInput

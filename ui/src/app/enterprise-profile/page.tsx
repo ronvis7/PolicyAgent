@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
-import { Building2, Loader2, Save, X } from 'lucide-react'
+import { Loader2, Save, X } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,10 @@ import {
 import { profileApi } from '@/lib/api'
 import type { EnterpriseProfile, EnterpriseScale } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
+
+/** 表单分区卡片样式（与政策库/工作台等页面视觉一致） */
+const CARD_CLASS =
+  'rounded-[18px] border border-[#e5e2de] bg-white p-6 shadow-[0_10px_30px_rgba(16,24,40,.04)]'
 
 /** 企业规模选项 */
 const SCALE_OPTIONS: { value: EnterpriseScale; label: string }[] = [
@@ -263,15 +267,22 @@ export default function EnterpriseProfilePage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-[#f8f8f7]">
       {/* 头部 */}
-      <header className="flex justify-between items-center w-full py-2 px-4 border-b">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="cursor-pointer" />
-          <h1 className="text-base font-semibold">企业档案</h1>
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-[#202939]">企业档案</h1>
+            <p className="hidden text-xs text-[#778090] sm:block">
+              {canEdit
+                ? '完善企业档案，作为后续政策匹配与主动推送的依据。'
+                : '仅组织所有者 / 管理员可编辑企业档案。'}
+            </p>
+          </div>
         </div>
         {canEdit && (
-          <Button className="cursor-pointer" onClick={handleSave} disabled={loading || saving}>
+          <Button className="cursor-pointer rounded-xl" onClick={handleSave} disabled={loading || saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             保存
           </Button>
@@ -281,23 +292,15 @@ export default function EnterpriseProfilePage() {
       {/* 表单 */}
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <div className="flex items-center justify-center py-20 text-[#778090]">
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : (
           <div className="max-w-[760px] mx-auto">
-            <div className="mb-4 flex items-center gap-2 text-muted-foreground">
-              <Building2 className="size-5" />
-              <span className="text-sm">
-                {canEdit
-                  ? '完善企业档案，作为后续政策匹配与主动推送的依据。'
-                  : '仅组织所有者/管理员可编辑企业档案。'}
-              </span>
-            </div>
-
-            <FieldGroup>
+            <FieldGroup className="gap-4">
+              <div className={CARD_CLASS}>
               <FieldSet>
-                <FieldLegend className="text-base font-bold text-gray-700">基本信息</FieldLegend>
+                <FieldLegend className="text-base font-bold text-[#202939]">基本信息</FieldLegend>
 
                 <Field>
                   <FieldLabel htmlFor="company_name">企业名称</FieldLabel>
@@ -378,9 +381,11 @@ export default function EnterpriseProfilePage() {
                   />
                 </Field>
               </FieldSet>
+              </div>
 
+              <div className={CARD_CLASS}>
               <FieldSet>
-                <FieldLegend className="text-base font-bold text-gray-700">资质与领域</FieldLegend>
+                <FieldLegend className="text-base font-bold text-[#202939]">资质与领域</FieldLegend>
 
                 <TagInput
                   label="已有资质"
@@ -408,9 +413,11 @@ export default function EnterpriseProfilePage() {
                   onChange={(next) => patch('keywords', next)}
                 />
               </FieldSet>
+              </div>
 
+              <div className={CARD_CLASS}>
               <FieldSet>
-                <FieldLegend className="text-base font-bold text-gray-700">
+                <FieldLegend className="text-base font-bold text-[#202939]">
                   经营与研发指标
                 </FieldLegend>
                 <p className="-mt-1 mb-1 text-xs text-muted-foreground">
@@ -486,6 +493,7 @@ export default function EnterpriseProfilePage() {
                   />
                 </div>
               </FieldSet>
+              </div>
             </FieldGroup>
           </div>
         )}
