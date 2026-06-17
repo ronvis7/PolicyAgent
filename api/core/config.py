@@ -54,6 +54,22 @@ class Settings(BaseSettings):
     sandbox_http_proxy: Optional[str] = Field(default=None, alias="SANDBOX_HTTP_PROXY")
     sandbox_no_proxy: Optional[str] = Field(default=None, alias="SANDBOX_NO_PROXY")
 
+    # 公开政策定时重爬配置（主线⑤：保鲜申报通知的申报截止日期）
+    # 应用内调度器在 api 进程内按 cron 触发 ingest，复用进程内 DB/Embedding/LLM 连接。
+    # 默认每天 04:00（错开备份 cron 03:30）重爬项目申报通知源 wnd-apply。
+    policy_recrawl_enabled: bool = Field(default=True, alias="POLICY_RECRAWL_ENABLED")
+    policy_recrawl_sources: str = Field(default="wnd-apply", alias="POLICY_RECRAWL_SOURCES")  # 逗号分隔
+    policy_recrawl_hour: int = Field(default=4, alias="POLICY_RECRAWL_HOUR")
+    policy_recrawl_minute: int = Field(default=0, alias="POLICY_RECRAWL_MINUTE")
+    policy_recrawl_max_pages: int = Field(default=3, alias="POLICY_RECRAWL_MAX_PAGES")
+    # 触发时区：默认按数据源所在地(无锡)的北京时间解释 hour，避免容器 UTC 下 04:00 实跑成中午。
+    policy_recrawl_timezone: str = Field(default="Asia/Shanghai", alias="POLICY_RECRAWL_TIMEZONE")
+
+    @property
+    def policy_recrawl_source_list(self) -> list[str]:
+        """解析逗号分隔的重爬来源为去空白的非空列表。"""
+        return [s.strip() for s in self.policy_recrawl_sources.split(",") if s.strip()]
+
     # JWT认证配置
     jwt_secret_key: str = Field(default="dev-insecure-secret-change-me-in-production-please", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")

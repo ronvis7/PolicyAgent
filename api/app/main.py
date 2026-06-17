@@ -8,12 +8,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.infrastructure.logging import setup_logging
+from app.infrastructure.scheduler.policy_recrawl_scheduler import PolicyRecrawlScheduler
 from app.infrastructure.storage.cos import get_cos
 from app.infrastructure.storage.postgres import get_postgres
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
-from app.interfaces.service_dependencies import get_default_agent_service
+from app.interfaces.service_dependencies import get_default_agent_service, get_policy_ingest_service
 from core.config import get_settings
 
 
@@ -50,10 +51,29 @@ async def lifespan(app: FastAPI):
     await get_postgres().init()
     await get_cos().init()
 
+    # 3.5 启动公开政策定时重爬调度器(主线⑤；DB 初始化后再起，任务依赖 uow)
+    recrawl_scheduler: PolicyRecrawlScheduler | None = None
+    if settings.policy_recrawl_enabled:
+        recrawl_scheduler = PolicyRecrawlScheduler(
+            sources=settings.policy_recrawl_source_list,
+            hour=settings.policy_recrawl_hour,
+            minute=settings.policy_recrawl_minute,
+            max_pages=settings.policy_recrawl_max_pages,
+            ingest=lambda source, max_pages: get_policy_ingest_service().ingest(source, max_pages),
+            timezone=settings.policy_recrawl_timezone,
+        )
+        recrawl_scheduler.start()
+    else:
+        logger.info("公开政策定时重爬已禁用(POLICY_RECRAWL_ENABLED=false)")
+
     try:
         # 4.lifespan分界点
         yield
     finally:
+        # 4.5 停止重爬调度器
+        if recrawl_scheduler is not None:
+            recrawl_scheduler.shutdown()
+
         try:
             # 5.等待agent服务关闭
             logger.info("PolicyManus正在关闭")
