@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Bot,
@@ -34,6 +34,9 @@ import { useAuth } from '@/providers/auth-provider'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 20
+// 抓取是后端 fire-and-forget 后台任务(约 1-2 分钟)，端点立即返回。
+// 前端在此窗口内保持"抓取中"态 + 横幅提示，窗口结束自动刷新列表，避免用户误以为没工作。
+const INGEST_WINDOW_MS = 90_000
 
 function formatDate(date: string | null) {
   if (!date) return '未标注日期'
@@ -67,6 +70,8 @@ export default function PoliciesPage() {
   const [issuer, setIssuer] = useState('')
   const [loading, setLoading] = useState(true)
   const [ingesting, setIngesting] = useState(false)
+  const [ingestingSource, setIngestingSource] = useState<string | null>(null)
+  const ingestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sources, setSources] = useState<PolicySourceItem[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
@@ -114,15 +119,30 @@ export default function PoliciesPage() {
     setSearch(keyword.trim())
   }
 
+  // 组件卸载时清掉抓取窗口定时器，避免卸载后 setState
+  useEffect(() => () => {
+    if (ingestTimerRef.current) clearTimeout(ingestTimerRef.current)
+  }, [])
+
   const handleIngest = async (sourceKey: string, sourceName: string) => {
+    if (ingesting) return
     setIngesting(true)
+    setIngestingSource(sourceName)
     try {
       const res = await policyApi.ingest(sourceKey, 3)
-      toast.success(`已开始抓取「${sourceName}」（最多 ${res.max_pages} 页），稍后刷新查看`)
+      toast.success(`已开始后台抓取「${sourceName}」（最多 ${res.max_pages} 页），约 1-2 分钟，完成后自动刷新`)
+      if (ingestTimerRef.current) clearTimeout(ingestTimerRef.current)
+      ingestTimerRef.current = setTimeout(() => {
+        ingestTimerRef.current = null
+        setIngesting(false)
+        setIngestingSource(null)
+        fetchList()
+        toast.success(`「${sourceName}」抓取窗口结束，已刷新列表`)
+      }, INGEST_WINDOW_MS)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '触发抓取失败')
-    } finally {
       setIngesting(false)
+      setIngestingSource(null)
     }
   }
 
@@ -159,7 +179,7 @@ export default function PoliciesPage() {
               <DropdownMenuTrigger asChild disabled={ingesting}>
                 <Button variant="outline" className="cursor-pointer rounded-xl bg-white" title="选择来源后台抓取最新政策入库">
                   {ingesting ? <Loader2 className="size-4 animate-spin" /> : <DownloadCloud className="size-4" />}
-                  抓取政策
+                  {ingesting ? '抓取中…' : '抓取政策'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-60">
@@ -180,6 +200,13 @@ export default function PoliciesPage() {
           </Button>
         </div>
       </header>
+
+      {ingestingSource && (
+        <div className="flex items-center gap-2 border-b border-[#f2e6c2] bg-[#fff8e8] px-4 py-2 text-sm text-[#8a6d3b]">
+          <Loader2 className="size-4 shrink-0 animate-spin" />
+          正在后台抓取「{ingestingSource}」最新政策，约 1-2 分钟，完成后会自动刷新列表（也可随时点右上角「刷新」）。
+        </div>
+      )}
 
       <div className="grid h-[calc(100vh-4rem)] grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_390px]">
         <main className="min-w-0 overflow-auto pr-0 xl:pr-1">
