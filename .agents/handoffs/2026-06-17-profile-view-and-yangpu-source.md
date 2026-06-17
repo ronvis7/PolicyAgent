@@ -1,8 +1,8 @@
 # 企业档案查看态打磨 + 上海杨浦区政策来源
 
-Issue：待创建
-分支：**未提交，改动在 `main` 工作区**（建议开 `feat/yangpu-source-and-profile-view` 提交）
-更新时间：2026-06-17
+Issue：无
+分支：`feat/yangpu-source-and-profile-view` → **PR #37 已合并 main（2026-06-17），分支已删**
+更新时间：2026-06-17（合并后回填）
 
 ## 背景 / 目标
 
@@ -37,6 +37,14 @@ Issue：待创建
 - 新增 `api/app/infrastructure/external/crawler/shyp_policy_crawler.py::ShypPolicyCrawler`：纯解析（`_parse_list_payload`/`_parse_detail`/`_parse_publish_date_ms` 毫秒→date/`_meta_value` 取 span 对）与网络 I/O 分离，限速 0.8s、详情失败容错跳过、不下载附件。
 - `registry.py` 注册 `CrawlerSource(key="shyp", name="上海杨浦区门户·政府文件", region="上海市杨浦区", factory=ShypPolicyCrawler)`。
 - 入库编排/端点**零改动**（按 source 选择爬虫的框架已就绪）；前端地区下拉/抓取来源下拉**零改动**自动出现"上海市杨浦区"。
+- `core/config.py`：`POLICY_RECRAWL_SOURCES` 默认值 `wnd-apply` → `wnd-apply,shyp`，杨浦区随无锡 04:00 一同定时重爬保鲜（调度器零改动，`policy_recrawl_source_list` 按逗号切分）。
+
+### ③ 公开政策库抓取反馈（纯前端，`ui/src/app/policies/page.tsx`）
+抓取端点是 fire-and-forget `BackgroundTasks`（约 1-2 分钟），原前端 POST 一返回就 `setIngesting(false)`，按钮转圈瞬停像"秒完成"、无完成信号、需手动猜时机刷新（用户实测踩到："以为没工作"）。
+- 抓取中保持按钮 loading + 文案"抓取中…"，整个后台窗口持续；新增顶部琥珀色横幅"正在后台抓取「X」…约 1-2 分钟，完成后自动刷新"。
+- 固定 `INGEST_WINDOW_MS=90_000`（落在后端 1-2 分钟区间）后自动刷新列表 + toast 收尾；卸载清理定时器防卸载后 setState。
+- toast 文案对齐后端"约 1-2 分钟"，弃用模糊的"稍后"。
+- **注**：仍是定时窗口的近似反馈，非真实进度；要精确进度需后端 job 状态表/端点（本轮按"纯前端轻量修"档位决策，不动后端）。
 
 ## 接口
 - 无新表、无迁移、无新端点。`alembic head` 不变（`a8b9c0d1e2f3`）。
@@ -49,10 +57,15 @@ Issue：待创建
 - 前端 `tsc`/`eslint`（改动文件）绿。
 - ruff/black 本机 venv 未装（CI 仅 compile + 跑 tests），未跑格式化。
 
-## 未完成 / 下一步（用户回来再定）
-1. **杨浦区数据需跑一次入库才出现在列表**：地区下拉立刻有，但 `/policies` 列表要 owner/admin 点「抓取政策→上海杨浦区门户·政府文件」（或 `POST /policies/ingest?source=shyp`）落库，建议连 .222 真机走查一次（含向量双写进公开库）。
-2. **是否加定时重爬**：要保鲜就把 `shyp` 追加进 `POLICY_RECRAWL_SOURCES`（无锡 `wnd-apply` 已 04:00 跑）。
-3. **提交**：改动尚在 `main` 工作区未提交，建议开分支 `feat/yangpu-source-and-profile-view` 提交（含前端档案页 + 后端爬虫/注册/单测）。
+## 收尾状态（本轮已闭环）
+1. ✅ **真机入库走查**：连 .222 跑 `ingest(source=shyp)`，杨浦区数据落库、`/policies?region=上海市杨浦区` 可见、列表/正文/文号/索引号正确（含向量双写进公开库）。
+2. ✅ **定时重爬已加**：`shyp` 进 `POLICY_RECRAWL_SOURCES` 默认值，随无锡 04:00 跑。
+3. ✅ **已提交并合并**：PR #37（CI backend+frontend 双绿）合并 main，分支已删。
+
+## 下一步 / 遗留观察项（非阻塞，用户回来再定）
+1. **杨浦区栏目噪音**：`1899`"政府文件"含部分非惠企公文（请示、统计法转载等），与无锡同粒度。本轮决策**先上线观察**；真有噪音再在 catalog/匹配侧做聚焦过滤，或换更细栏目 id（逆向同法）。
+2. **抓取真实进度**：当前是 90s 定时窗口的近似反馈；若要精确进度/完成通知，需后端 job 状态表 + 轮询或 SSE（本轮按"纯前端轻量修"档位明确不做）。
+3. **历史回填**：手动抓取写死 `max_pages=3`（最新约 60 条保鲜）；杨浦区有 1463 条，要回填得走 API 把 `max_pages` 调大（最大 20），前端未暴露该参数。
 
 ## 风险 / 注记
 - 杨浦区"政府文件"栏目含部分非企业政策类公文（如请示、统计法转载），与无锡同属"政府文件"粒度；如需更聚焦"惠企政策"，后续可在 catalog/匹配侧过滤，或换更细栏目 id（逆向同法）。
