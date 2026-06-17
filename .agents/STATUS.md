@@ -70,8 +70,8 @@
 > ⑥ 能力①②③（A0/A1/A2）均已交付并合并 main、真机走查通过；目录结构化条件已 triage（PR #26）。
 > 公开库语义检索已接入 Agent（PR #28，KnowledgeBaseTool 默认范围=私有库+全局公开库）、真机走查通过。
 > **真机修复**：发现 ②向量双写因外键 flush 顺序 bug 一直静默回滚致公开库切片为 0，已修（PR #29）；重跑 ②入库后 .222 公开库已落 154 切片/40 文件，Agent 可检索公开政策原文。
-> **⑤ 申报截止跟踪 + 主动提醒**已交付（LLM 抽取 + 临期 Feed + 新增 `wnd-apply` 项目申报通知爬虫源）、真机走查通过（申报通知实抽 extracted 23/60）。分支 `feat/policy-apply-deadline`（PR #32）。
-> **定时重爬**：应用内 APScheduler 调度器每天 04:00 CST 重爬 `wnd-apply` 保鲜（env 全可调），真机验证 job 注册/next_run 正确。分支 `feat/scheduled-apply-recrawl`（派生自 #32，待开 PR）。详见 handoff `2026-06-17-scheduled-apply-recrawl`。
+> **⑤ 申报截止跟踪 + 主动提醒**已交付（LLM 抽取 + 临期 Feed + 新增 `wnd-apply` 项目申报通知爬虫源）、真机走查通过（申报通知实抽 extracted 23/60）。**PR #32 已合并 main**。
+> **定时重爬**：应用内 APScheduler 调度器每天 04:00 CST 重爬 `wnd-apply` 保鲜（env 全可调），真机验证 job 注册/next_run 正确。**PR #34**（base=main，待合并）。⚠️ 最初 #33 base 误设为 stacked 特性分支、未进 main，已重开 #34 修正（教训：stacked PR 父分支合并后须改 base 回 main）。详见 handoff `2026-06-17-scheduled-apply-recrawl`。
 
 ## 分支/PR 状态（2026-06-16 收尾）
 - `main`：① 企业档案（PR #10）+ ② 公开政策库（PR #12）+ ③ 政策匹配（PR #13）+ ④ 工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19）+ ⑥ 资质 Phase 1（PR #21）+ **档案结构化字段 A0 + 资质能力② A1（PR #22）** + **⑥ 能力③ A2 资质指引 Agent 工具（PR #24）** + **公开库语义检索接入 Agent（PR #28）** + **②向量双写外键 bug 修复（PR #29）**，均已合并、真机走查通过。

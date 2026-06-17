@@ -1,7 +1,12 @@
 # 公开政策定时重爬（应用内调度器，保鲜 ⑤ 申报截止）
 
 更新时间：2026-06-17
-分支/PR：`feat/scheduled-apply-recrawl`（从 `feat/policy-apply-deadline`/PR #32 派生，待开 PR）。
+分支/PR：`feat/scheduled-apply-recrawl` → **PR #34**（base=main）。
+
+> ⚠️ PR 路由教训：本功能最初开的 **PR #33 base 误设为 `feat/policy-apply-deadline`（stacked）**。
+> 合并顺序为 #32(`feat/policy-apply-deadline`→main, 06:08:44) 先合，#33 在 17 秒后(06:09:01)才合，
+> 结果 #33 并进了**已出栈、不再流向 main 的特性分支**，调度器代码没进 main。已重开 **PR #34**
+> (base=main，diff 只剩调度器 1 提交) 修正。**教训：stacked PR 在父 PR 合并后须把 base 改回 main 再合。**
 
 ## 背景
 
