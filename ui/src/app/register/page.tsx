@@ -88,7 +88,11 @@ export default function RegisterPage() {
         org_name: mode === 'create' ? orgName.trim() : '',
         org_id: mode === 'join' ? selectedOrg!.id : '',
       })
-      toast.success(mode === 'join' ? '注册成功，加入申请已提交待审批' : '注册成功')
+      toast.success(
+        mode === 'join'
+          ? '注册成功，加入申请已提交，待管理员批准前你在临时个人工作区'
+          : '注册成功',
+      )
       router.replace('/')
     } catch (error) {
       const message = error instanceof ApiError ? error.msg : '注册失败，请稍后重试'
@@ -110,7 +114,7 @@ export default function RegisterPage() {
         </div>
 
         {/* 模式切换 */}
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
+        <div className="mb-2 grid grid-cols-2 gap-2 rounded-lg bg-muted p-1">
           {(['create', 'join'] as RegisterMode[]).map((m) => (
             <button
               key={m}
@@ -123,6 +127,23 @@ export default function RegisterPage() {
               {m === 'create' ? '创建新组织' : '加入已有组织'}
             </button>
           ))}
+        </div>
+
+        {/* 场景化说明：帮助用户区分"自己建"还是"加入同事的" */}
+        <div className="mb-5 rounded-lg border border-[#e5e2de] bg-[#f8f8f7] px-3 py-2 text-xs leading-5 text-[#667085]">
+          {mode === 'create' ? (
+            <>
+              <span className="font-medium text-[#344054]">适合：你为自己的公司/单位首次建立工作区。</span>
+              <br />
+              你将成为所有者，立即拥有完整工作区并开始填写企业档案。
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-[#344054]">适合：你的同事已建好公司工作区，你想加入它。</span>
+              <br />
+              提交后需等待该组织管理员<span className="font-medium text-[#b54708]">批准</span>；批准前你会先进入一个临时的个人工作区。
+            </>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

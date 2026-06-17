@@ -1,8 +1,8 @@
 'use client'
 
-import React, {useEffect} from 'react'
+import React, {useEffect, useState} from 'react'
 import {usePathname, useRouter} from 'next/navigation'
-import {Loader2} from 'lucide-react'
+import {Info, Loader2, X} from 'lucide-react'
 import {SidebarProvider} from '@/components/ui/sidebar'
 import {SessionsProvider} from '@/providers/sessions-provider'
 import {LeftPanel} from '@/components/left-panel'
@@ -28,11 +28,14 @@ function FullScreenLoader() {
  * - 以 activeTenantId 作为 key 重挂载，切换组织时自动重新加载该租户数据
  */
 export function AppShell({children}: { children: React.ReactNode }) {
-  const {status, activeTenantId} = useAuth()
+  const {status, activeTenantId, tenants} = useAuth()
   const pathname = usePathname()
   const router = useRouter()
+  const [personalNoticeDismissed, setPersonalNoticeDismissed] = useState(false)
 
   const isPublicRoute = PUBLIC_ROUTES.includes(pathname)
+  const activeTenant = tenants.find((t) => t.id === activeTenantId) ?? null
+  const showPersonalNotice = activeTenant?.is_personal === true && !personalNoticeDismissed
 
   useEffect(() => {
     if (status === 'loading') return
@@ -68,8 +71,28 @@ export function AppShell({children}: { children: React.ReactNode }) {
         } as React.CSSProperties}
       >
         <LeftPanel/>
-        <div className="flex-1 bg-[#f8f8f7] h-screen overflow-hidden">
-          {children}
+        <div className="flex flex-1 flex-col bg-[#f8f8f7] h-screen overflow-hidden">
+          {showPersonalNotice && (
+            <div className="flex items-start gap-2 border-b border-[#f2e6c2] bg-[#fff8e8] px-4 py-2 text-sm text-[#8a6d3b]">
+              <Info className="mt-0.5 size-4 shrink-0" />
+              <div className="min-w-0 flex-1">
+                你当前在<span className="font-medium">个人工作区「{activeTenant?.name}」</span>。
+                这是提交加入申请后的临时空间——若在等待管理员批准，请耐心等待；
+                若你本想为自己的公司首次建工作区，请退出后用「创建新组织」重新注册。
+              </div>
+              <button
+                type="button"
+                aria-label="关闭提示"
+                className="shrink-0 cursor-pointer rounded p-0.5 hover:bg-[#f2e6c2]"
+                onClick={() => setPersonalNoticeDismissed(true)}
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {children}
+          </div>
         </div>
       </SidebarProvider>
     </SessionsProvider>

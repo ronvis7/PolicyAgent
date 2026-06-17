@@ -66,6 +66,7 @@ class TenantInfo(BaseModel):
     name: str
     slug: str
     plan: str
+    is_personal: bool = False  # 个人工作区(join 未获批前的临时空间)，供前端给出提示
 
 
 class AuthData(BaseModel):
