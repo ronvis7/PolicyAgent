@@ -28,7 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { policyApi } from '@/lib/api'
+import { policyApi, profileApi } from '@/lib/api'
 import type { PolicyDetail, PolicyListItem, PolicySourceItem } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 import { cn } from '@/lib/utils'
@@ -49,6 +49,22 @@ function excerpt(text: string, length = 180) {
   const clean = text.replace(/\s+/g, ' ').trim()
   if (!clean) return '该政策正文暂未入库，请查看原文链接确认完整内容。'
   return clean.length > length ? `${clean.slice(0, length)}...` : clean
+}
+
+/** 在可选地区里找与企业所在地最匹配的一项：优先区/县名包含，其次市名（含去「市」后缀） */
+function matchRegionByProfile(options: string[], city: string, district: string): string | null {
+  const d = district.trim()
+  if (d) {
+    const hit = options.find((o) => o.includes(d))
+    if (hit) return hit
+  }
+  const c = city.trim()
+  if (c) {
+    const cityCore = c.replace(/市$/, '')
+    const hit = options.find((o) => o.includes(c) || (cityCore && o.includes(cityCore)))
+    if (hit) return hit
+  }
+  return null
 }
 
 function statusClass(status: string) {
@@ -74,6 +90,8 @@ export default function PoliciesPage() {
   const ingestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sources, setSources] = useState<PolicySourceItem[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // 只在首次挂载按企业所在地自动预选一次地区，之后不覆盖用户手动切换
+  const didDefaultRegionRef = useRef(false)
 
   const [detail, setDetail] = useState<PolicyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -110,7 +128,23 @@ export default function PoliciesPage() {
   useEffect(() => {
     policyApi
       .listSources()
-      .then((res) => setSources(res.items))
+      .then(async (res) => {
+        setSources(res.items)
+        // 默认跟随企业所在地：在已有来源地区里匹配档案的市/区，命中则预选
+        if (didDefaultRegionRef.current) return
+        didDefaultRegionRef.current = true
+        try {
+          const profile = await profileApi.get()
+          const options = Array.from(new Set(res.items.map((s) => s.region)))
+          const matched = matchRegionByProfile(options, profile.city, profile.district)
+          if (matched) {
+            setPage(1)
+            setRegion(matched)
+          }
+        } catch {
+          // 取不到档案就维持「全部地区」，不阻塞页面
+        }
+      })
       .catch(() => setSources([]))
   }, [])
 

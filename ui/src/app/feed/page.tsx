@@ -37,6 +37,14 @@ const FILTERS: { label: string; value: FeedStatus | '' }[] = [
   { label: '已忽略', value: 'ignored' },
 ]
 
+/** 机会类型分栏（空串=全部）：把政策与资质分开看，避免混在一个列表 */
+type OpportunityType = 'policy' | 'qualification'
+const TYPE_TABS: { label: string; value: OpportunityType | '' }[] = [
+  { label: '全部机会', value: '' },
+  { label: '政策机会', value: 'policy' },
+  { label: '资质机会', value: 'qualification' },
+]
+
 const STATUS_LABEL: Record<FeedStatus, string> = {
   unread: '新',
   read: '已读',
@@ -87,6 +95,7 @@ export default function FeedPage() {
   const router = useRouter()
 
   const [filter, setFilter] = useState<FeedStatus | ''>('')
+  const [typeFilter, setTypeFilter] = useState<OpportunityType | ''>('')
   const [items, setItems] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [recomputing, setRecomputing] = useState(false)
@@ -185,6 +194,13 @@ export default function FeedPage() {
     }
   }
 
+  // 类型分栏在前端按已加载列表过滤（状态过滤走服务端）
+  const visibleItems = typeFilter
+    ? items.filter((m) =>
+        typeFilter === 'qualification' ? m.type === 'qualification' : m.type !== 'qualification',
+      )
+    : items
+
   return (
     <div className="h-full flex flex-col bg-[#f8f8f7]">
       {/* 头部 */}
@@ -211,6 +227,25 @@ export default function FeedPage() {
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="max-w-[900px] mx-auto">
+          {/* 机会类型分栏：政策 / 资质分开看 */}
+          <div className="mb-3 inline-flex rounded-xl border border-[#e5e2de] bg-white p-1">
+            {TYPE_TABS.map((t) => (
+              <button
+                key={t.value || 'all'}
+                type="button"
+                className={cn(
+                  'cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  typeFilter === t.value
+                    ? 'bg-[#2f3747] text-white shadow-sm'
+                    : 'text-[#667085] hover:bg-[#f2f1ef]',
+                )}
+                onClick={() => setTypeFilter(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           {/* 状态筛选 */}
           <div className="mb-4 flex flex-wrap gap-2">
             {FILTERS.map((f) => (
@@ -232,24 +267,26 @@ export default function FeedPage() {
                 <Skeleton key={i} className="h-28 w-full" />
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : visibleItems.length === 0 ? (
             <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
-              <p>暂无可申报机会。</p>
-              <p className="mt-2">
-                请先完善
-                <Button
-                  variant="link"
-                  className="px-1 cursor-pointer text-[#287174]"
-                  onClick={() => router.push('/enterprise-profile')}
-                >
-                  企业档案
-                </Button>
-                ，并确保公开政策库已抓取入库；或点右上角「重新匹配」。
-              </p>
+              <p>{typeFilter ? '该分类下暂无可申报机会。' : '暂无可申报机会。'}</p>
+              {items.length === 0 && (
+                <p className="mt-2">
+                  请先完善
+                  <Button
+                    variant="link"
+                    className="px-1 cursor-pointer text-[#287174]"
+                    onClick={() => router.push('/enterprise-profile')}
+                  >
+                    企业档案
+                  </Button>
+                  ，并确保公开政策库已抓取入库；或点右上角「重新匹配」。
+                </p>
+              )}
             </div>
           ) : (
             <ul className="space-y-3">
-              {items.map((m) => (
+              {visibleItems.map((m) => (
                 <li
                   key={m.id}
                   className="rounded-2xl border border-[#e5e2de] bg-white p-4 shadow-[0_10px_30px_rgba(16,24,40,.04)] transition hover:border-[#cdd5df]"
