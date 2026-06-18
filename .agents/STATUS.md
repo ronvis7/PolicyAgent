@@ -63,6 +63,13 @@
 
 ## 当前最高优先级
 
+**进行中：私有政策库 + 双轨 Embedding（ADR 003）** —— 阶段 A 租户级 Embedding BYO key 已交付
+（后端+前端，PR #42 待合并；迁移 `b9c0d1e2f3a4` 已落 .222、端点真机冒烟通过）。**阶段 B 待续**：
+Agent `knowledge_base_search` 去全局公开库 + 私有政策库（知识库加 `type` + 从公开库收藏政策入私有库
+向量化 + UI 对齐真实能力）。双轨 = 平台 key 管公开库向量化/③匹配查询、租户 key 管私有库向量化/Agent
+问答；两轨不交叉检索、pgvector 单库锁 1024 维，**③语义匹配完整保留**。详见 ADR `003` + handoff
+`2026-06-18-tenant-embedding-stage-a`。
+
 1. **多区域申报源**：⑤临期提醒 + 定时重爬已就绪（`wnd-apply` 每天 04:00 CST 应用内调度重爬，见下）；
    要扩覆盖需各门户单独逆向申报检索，并在 `POLICY_RECRAWL_SOURCES` 追加其 key。当前样本截止多为过去
    (历史申报通知)，待当前批次申报通知发布即有未来截止可提醒。
@@ -82,6 +89,8 @@
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏；落后 main 多个 PR、已冲突，待复活时一并 rebase 解，见对话记录）。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
 - 远程分支 `ui`（同事原始 UI 刷新分支）：内容已随 PR #35 并入 main，可删。
+- **PR #41 `test/cross-tenant-isolation-probe`：跨租户隔离对撞探针 + STATUS 风险降级，已合并 main**（见 handoff `2026-06-18-cross-tenant-isolation-probe`）。
+- **PR #42 `feat/private-policy-kb`：ADR 003 阶段 A 租户级 Embedding BYO key（后端+前端），待 CI/合并**；阶段 B 继续在本分支或新分支。
 
 ## 已知风险
 

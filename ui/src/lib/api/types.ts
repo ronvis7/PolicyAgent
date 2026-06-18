@@ -44,6 +44,19 @@ export type LLMConfig = {
 };
 
 /**
+ * Embedding 配置（双轨私有侧）
+ * base_url/model_name/dimension 为平台锁定值（只读展示），组织仅可配 api_key（BYO 计费）。
+ */
+export type EmbedConfig = {
+  base_url?: string;
+  model_name?: string;
+  dimension?: number;
+  api_key?: string;
+  api_key_configured?: boolean;
+  is_custom?: boolean;
+};
+
+/**
  * Agent 通用配置
  */
 export type AgentConfig = {

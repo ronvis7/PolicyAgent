@@ -17,6 +17,23 @@ class PublicLLMConfig(BaseModel):
     is_custom: bool = False  # 是否为当前组织自定义(False表示正在使用平台默认配置)
 
 
+class PublicEmbedConfig(BaseModel):
+    """可安全返回给前端的Embedding配置，不含密钥明文。
+
+    双轨私有侧：base_url/model_name/dimension 为平台锁定值(只读展示)，租户仅可配 api_key。
+    """
+    base_url: HttpUrl
+    model_name: str
+    dimension: int
+    api_key_configured: bool
+    is_custom: bool = False  # 是否为当前组织自定义(False表示回落平台默认key)
+
+
+class UpdateEmbedConfigRequest(BaseModel):
+    """更新组织Embedding配置请求：租户只能配 api_key(其余锁平台)"""
+    api_key: str = ""  # 为空表示不修改(沿用已有或回落平台默认)
+
+
 class ListMCPServerItem(BaseModel):
     """MCP服务列表条目选项"""
     server_name: str = ""  # 服务名字

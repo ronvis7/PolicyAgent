@@ -88,30 +88,6 @@ def get_file_service(
         file_storage=file_storage,
     )
 
-def get_knowledge_service(
-        cos: Cos = Depends(get_cos),
-) -> KnowledgeService:
-    """获取知识库服务(含 COS 文件存储 + Embedding + 文档解析)"""
-    # 1. 实时读取应用配置(embed_config 的 base_url/model/dimension)
-    app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
-
-    # 2. 构建依赖：COS 文件存储 + Embedding 提供商(api_key 来自 .env) + 解析器
-    file_storage = CosFileStorage(
-        bucket=settings.cos_bucket,
-        cos=cos,
-        uow_factory=get_uow,
-    )
-    embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
-
-    # 3. 构建知识库服务并返回
-    return KnowledgeService(
-        uow_factory=get_uow,
-        file_storage=file_storage,
-        embedding=embedding,
-        parser=PyMuPDFParser(),
-    )
-
-
 def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
 
@@ -192,6 +168,47 @@ async def _get_optional_tenant_id(
     if claims.get("type") != "access":
         return None
     return claims.get("tid")
+
+
+async def get_knowledge_service(
+        cos: Cos = Depends(get_cos),
+        tenant_id: Optional[str] = Depends(_get_optional_tenant_id),
+) -> KnowledgeService:
+    """获取知识库服务(含 COS 文件存储 + Embedding + 文档解析)。
+
+    Embedding 为双轨私有侧(见 ADR 003)：按当前登录租户解析——组织 BYO api_key 优先，
+    回落平台 .env key；base_url/model/dimension 始终锁平台(维度恒 1024、同向量空间)。
+    上传文件的后台向量化复用本次请求注入的 service，故按租户 key 计费。
+    """
+    # 1. 实时读取应用配置(embed_config 的 base_url/model/dimension)
+    app_config_repository = FileAppConfigRepository(config_path=settings.app_config_filepath)
+
+    # 2. 解析当前租户生效的 Embedding 配置；无租户上下文时用平台默认
+    embed_config = app_config_repository.load().embed_config
+    if tenant_id is not None:
+        tenant_settings_service = TenantSettingsService(
+            uow_factory=get_uow,
+            app_config_repository=app_config_repository,
+        )
+        embed_config, _ = await tenant_settings_service.resolve_embed_config(tenant_id)
+    # 组织未配 key 时 embed_config.api_key 为占位/空 → 回落平台 .env key
+    api_key = embed_config.api_key.strip() or settings.embed_api_key
+
+    # 3. 构建依赖：COS 文件存储 + Embedding 提供商 + 解析器
+    file_storage = CosFileStorage(
+        bucket=settings.cos_bucket,
+        cos=cos,
+        uow_factory=get_uow,
+    )
+    embedding = OpenAIEmbedding(embed_config, api_key=api_key)
+
+    # 4. 构建知识库服务并返回
+    return KnowledgeService(
+        uow_factory=get_uow,
+        file_storage=file_storage,
+        embedding=embedding,
+        parser=PyMuPDFParser(),
+    )
 
 
 async def get_agent_service(
