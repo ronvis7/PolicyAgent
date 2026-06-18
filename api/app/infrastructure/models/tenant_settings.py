@@ -6,12 +6,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
-from ...domain.models.app_config import LLMConfig
+from ...domain.models.app_config import EmbedConfig, LLMConfig
 from ...domain.models.tenant_settings import TenantSettings
 
 
 class TenantSettingsModel(Base):
-    """租户级设置ORM模型，每个租户一行，承载LLM配置覆盖"""
+    """租户级设置ORM模型，每个租户一行，承载LLM与Embedding配置覆盖"""
     __tablename__ = "tenant_settings"
 
     tenant_id: Mapped[str] = mapped_column(
@@ -24,6 +24,10 @@ class TenantSettingsModel(Base):
         JSONB,
         nullable=True,
     )  # 组织自定义LLM配置(JSON)，NULL表示未覆盖
+    embed_config: Mapped[Optional[dict]] = mapped_column(
+        JSONB,
+        nullable=True,
+    )  # 组织自定义Embedding配置(JSON，仅api_key生效)，NULL表示未覆盖
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
@@ -42,6 +46,7 @@ class TenantSettingsModel(Base):
         return cls(
             tenant_id=settings.tenant_id,
             llm_config=settings.llm_config.model_dump(mode="json") if settings.llm_config else None,
+            embed_config=settings.embed_config.model_dump(mode="json") if settings.embed_config else None,
             updated_at=settings.updated_at,
             created_at=settings.created_at,
         )
@@ -51,6 +56,7 @@ class TenantSettingsModel(Base):
         return TenantSettings(
             tenant_id=self.tenant_id,
             llm_config=LLMConfig.model_validate(self.llm_config) if self.llm_config else None,
+            embed_config=EmbedConfig.model_validate(self.embed_config) if self.embed_config else None,
             updated_at=self.updated_at,
             created_at=self.created_at,
         )
@@ -58,3 +64,4 @@ class TenantSettingsModel(Base):
     def update_from_domain(self, settings: TenantSettings) -> None:
         """从领域模型更新数据"""
         self.llm_config = settings.llm_config.model_dump(mode="json") if settings.llm_config else None
+        self.embed_config = settings.embed_config.model_dump(mode="json") if settings.embed_config else None
