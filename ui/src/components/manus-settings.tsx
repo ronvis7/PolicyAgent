@@ -2,7 +2,7 @@
 
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
+import {Boxes, LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -22,7 +22,7 @@ import {Badge} from '@/components/ui/badge'
 import {Switch} from '@/components/ui/switch'
 import {Textarea} from '@/components/ui/textarea'
 import {configApi} from '@/lib/api'
-import type {AgentConfig, LLMConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
+import type {AgentConfig, LLMConfig, EmbedConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
 import {MembersSetting} from '@/components/members-setting'
 import {useAuth} from '@/providers/auth-provider'
 
@@ -535,9 +535,61 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
   )
 }
 
+// ==================== 向量模型（Embedding） ====================
+
+type EmbedSettingProps = {
+  config: EmbedConfig
+  onChange: (config: EmbedConfig) => void
+}
+
+function EmbedSetting({config, onChange}: EmbedSettingProps) {
+  return (
+    <form className="w-full px-1" onSubmit={(e) => e.preventDefault()}>
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend className="text-lg font-bold text-gray-700">向量模型（Embedding）</FieldLegend>
+          <FieldDescription className="text-sm">
+            用于本组织私有知识库 / 政策库的文档向量化。组织自配密钥后，向量化消费记在组织账户。
+            <br/>
+            API Key 状态：
+            <span className={config.api_key_configured ? 'text-green-600' : 'text-amber-600'}>
+              {config.api_key_configured ? ' 已配置' : ' 未配置（回落平台默认）'}
+            </span>
+            {config.is_custom ? '（组织自定义）' : ''}
+          </FieldDescription>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="embed_api_key">组织 Embedding 密钥</FieldLabel>
+              <Input
+                id="embed_api_key"
+                type="password"
+                autoComplete="new-password"
+                placeholder="填写新密钥；留空则保留当前密钥（从未配置则回落平台默认）"
+                value={config.api_key ?? ''}
+                onChange={(e) => onChange({...config, api_key: e.target.value})}
+              />
+              <FieldDescription className="text-xs">
+                密钥仅保存到服务端，页面不会回显已保存的密钥。请在该模型对应平台开通同名模型后填入 key。
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="embed_model">模型（平台锁定，不可更改）</FieldLabel>
+              <Input id="embed_model" type="text" disabled value={config.model_name ?? ''}/>
+              <FieldDescription className="text-xs">
+                向量模型与维度由平台统一锁定（当前 {config.dimension ?? 1024} 维），以保证检索向量空间一致，组织不可更改。
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+        </FieldSet>
+      </FieldGroup>
+    </form>
+  )
+}
+
+
 // ==================== 设置弹窗主组件 ====================
 
-type SettingTab = 'common-setting' | 'llm-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
 
 // scope 决定可见性：'org' 对组织 owner/admin 开放；'platform' 仅平台管理员
 type SettingScope = 'org' | 'platform'
@@ -549,6 +601,7 @@ const SETTING_MENUS: Array<{
   scope: SettingScope
 }> = [
   {key: 'llm-setting', icon: Languages, title: '模型提供商', scope: 'org'},
+  {key: 'embedding-setting', icon: Boxes, title: '向量模型', scope: 'org'},
   {key: 'members-setting', icon: Users, title: '组织成员', scope: 'org'},
   {key: 'common-setting', icon: Settings, title: '通用配置', scope: 'platform'},
   {key: 'a2a-setting', icon: LayoutGrid, title: 'A2A Agent 配置', scope: 'platform'},
@@ -585,6 +638,7 @@ export function ManusSettings({
   // ---- 数据 ----
   const [agentConfig, setAgentConfig] = useState<AgentConfig>({})
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({})
+  const [embedConfig, setEmbedConfig] = useState<EmbedConfig>({})
   const [mcpServers, setMcpServers] = useState<ListMCPServerItem[]>([])
   const [a2aServers, setA2aServers] = useState<ListA2AServerItem[]>([])
 
@@ -605,6 +659,12 @@ export function ManusSettings({
     // 1. LLM 配置：组织 owner/admin 可读(租户级)
     if (isOrgAdmin) {
       setLoadingConfig(true)
+      configApi
+        .getEmbedConfig()
+        .then((embed) => setEmbedConfig(embed))
+        .catch((err) => {
+          console.error('[Settings] 获取 Embedding 配置失败:', err)
+        })
       configApi
         .getLLMConfig()
         .then((llm) => setLlmConfig(llm))
@@ -674,6 +734,10 @@ export function ManusSettings({
         const updatedConfig = await configApi.updateLLMConfig(llmConfig)
         setLlmConfig({...updatedConfig, api_key: ''})
         toast.success('模型提供商配置保存成功')
+      } else if (activeSetting === 'embedding-setting') {
+        const updated = await configApi.updateEmbedConfig(embedConfig.api_key ?? '')
+        setEmbedConfig({...updated, api_key: ''})
+        toast.success('向量模型配置保存成功')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '保存失败'
@@ -831,7 +895,7 @@ export function ManusSettings({
 
           {/* 右侧内容 */}
           <div className="flex-1 h-[500px] scrollbar-hide overflow-y-auto">
-            {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting') ? (
+            {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting') ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="size-6 animate-spin text-muted-foreground"/>
               </div>
@@ -842,6 +906,9 @@ export function ManusSettings({
                 )}
                 {activeSetting === 'llm-setting' && (
                   <LLMSetting config={llmConfig} onChange={setLlmConfig}/>
+                )}
+                {activeSetting === 'embedding-setting' && (
+                  <EmbedSetting config={embedConfig} onChange={setEmbedConfig}/>
                 )}
               </>
             )}
@@ -872,7 +939,7 @@ export function ManusSettings({
           <DialogClose asChild>
             <Button variant="outline" className="cursor-pointer">取消</Button>
           </DialogClose>
-          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting') && (
+          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting') && (
             <Button
               className="cursor-pointer"
               disabled={saving}

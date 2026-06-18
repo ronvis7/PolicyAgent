@@ -1,6 +1,7 @@
 import { get, post } from "./fetch";
 import type {
   LLMConfig,
+  EmbedConfig,
   AgentConfig,
   MCPConfig,
   MCPServersData,
@@ -31,6 +32,20 @@ export const configApi = {
       max_tokens: config.max_tokens,
     };
     return post<LLMConfig>("/app-config/llm", payload);
+  },
+
+  /**
+   * 获取 Embedding 配置（双轨私有侧；base_url/model/dimension 为平台锁定值）
+   */
+  getEmbedConfig: (): Promise<EmbedConfig> => {
+    return get<EmbedConfig>("/app-config/embedding");
+  },
+
+  /**
+   * 更新组织 Embedding 密钥（租户只能配 api_key，留空表示不修改）
+   */
+  updateEmbedConfig: (apiKey: string): Promise<EmbedConfig> => {
+    return post<EmbedConfig>("/app-config/embedding", { api_key: apiKey ?? "" });
   },
 
   /**

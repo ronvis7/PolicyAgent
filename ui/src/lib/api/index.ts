@@ -23,6 +23,7 @@ export type {
   ToolEventStatus,
   MCPTransport,
   LLMConfig,
+  EmbedConfig,
   AgentConfig,
   ListMCPServerItem,
   MCPServerConfig,
