@@ -66,7 +66,8 @@ jobs:
       - name: Compile (syntax check)
         run: python -m compileall -q app core
 
-      # 仅跑无需 DB/Redis/COS 的领域单元测试；
-      # 依赖基础设施的接口集成测试待接入 service 容器后再纳入门禁。
+      # 跑全部离线测试：领域单元 + 应用服务（用 fake UoW）+ 跨租户隔离 endpoint
+      # 测试（TestClient + 依赖覆盖 + 内存仓储，不触发 lifespan）。
+      # 唯一忽略 test_get_status：它经 lifespan 连真实 DB/Redis，待接入 service 容器再纳入。
       - name: Unit tests
-        run: pytest tests/app/domain
+        run: pytest tests --ignore=tests/app/interfaces/endpoints/test_status_routes.py
