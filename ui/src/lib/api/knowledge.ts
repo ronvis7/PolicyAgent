@@ -1,5 +1,13 @@
 import { del, get, post } from "./fetch";
 
+// ==================== 收藏结果类型 ====================
+
+/** 批量收藏结果：成功收藏与跳过(缺失/无正文)的数量 */
+export type CollectPoliciesResult = {
+  collected_count: number;
+  skipped_count: number;
+};
+
 // ==================== 知识库模块类型 ====================
 
 /**
@@ -100,6 +108,21 @@ export const knowledgeApi = {
     return post<KnowledgeFile>(`/knowledge-bases/${kbId}/policies`, {
       policy_id: policyId,
     });
+  },
+
+  /** 批量收藏多篇公开政策到私有政策库（逐篇 best-effort，向量化后台异步进行） */
+  collectPolicies: (
+    kbId: string,
+    policyIds: string[]
+  ): Promise<CollectPoliciesResult> => {
+    return post<CollectPoliciesResult>(`/knowledge-bases/${kbId}/policies/batch`, {
+      policy_ids: policyIds,
+    });
+  },
+
+  /** 各知识库的文件数 {kb_id: count}（单次分组查询，供列表卡片展示真实数量） */
+  fileCounts: (): Promise<Record<string, number>> => {
+    return get<Record<string, number>>("/knowledge-bases/file-counts");
   },
 };
 

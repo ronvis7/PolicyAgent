@@ -16,6 +16,8 @@ import {
  */
 export function useKnowledgeBases() {
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
+  // 各知识库真实文件数 {kb_id: count}，列表卡片展示用
+  const [fileCounts, setFileCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,8 +25,13 @@ export function useKnowledgeBases() {
     setLoading(true)
     setError(null)
     try {
-      const list = await knowledgeApi.listKnowledgeBases()
+      // 文件数为辅助展示，取不到不影响列表加载
+      const [list, counts] = await Promise.all([
+        knowledgeApi.listKnowledgeBases(),
+        knowledgeApi.fileCounts().catch(() => ({} as Record<string, number>)),
+      ])
       setKnowledgeBases(list)
+      setFileCounts(counts)
     } catch (e) {
       const message = e instanceof Error ? e.message : '加载知识库列表失败'
       setError(message)
@@ -54,6 +61,7 @@ export function useKnowledgeBases() {
 
   return {
     knowledgeBases,
+    fileCounts,
     loading,
     error,
     reload,
