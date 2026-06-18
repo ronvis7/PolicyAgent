@@ -17,13 +17,13 @@ DEFAULT_TOP_K = 5
 
 
 class KnowledgeBaseTool(BaseTool):
-    """知识库检索工具(agentic RAG，见 ADR-002)
+    """知识库检索工具(agentic RAG，见 ADR-002 / ADR-003)
 
     将查询向量化后做相似检索，返回带引用元数据(文件名/页码/相似度)的切片，供 Agent
-    生成「带引用的回答」。默认检索范围 = 当前会话租户的全部私有知识库 + 全局公开库
-    (is_public，如主线②爬取入库的公开政策库)；私有库按会话懒加载的租户隔离，公开库
-    跨租户共享。可用 knowledge_base_id 收窄到单库；会话若绑定了某库则硬限定到该库
-    (覆盖默认范围，不再附加公开库)。
+    生成「带引用的回答」。默认检索范围 = 当前会话租户的全部知识库(含私有政策库 type)，
+    按会话懒加载的租户隔离。**不再附加全局公开库**：双轨 Embedding 下私有库用租户 key
+    向量化，与平台 key 的公开库向量空间不一致，混检索无意义(见 ADR-003)。可用
+    knowledge_base_id 收窄到单库；会话若绑定了某库则硬限定到该库。
     """
     name: str = "knowledge"
 
@@ -60,11 +60,11 @@ class KnowledgeBaseTool(BaseTool):
     @tool(
         name="knowledge_base_search",
         description=(
-            "政策知识库语义检索工具，覆盖本企业(租户)私有知识库 + 全局公开政策库"
-            "(主线②爬取入库的公开政策文件)。当用户咨询政策、法规、办事流程、申报条件、"
-            "补贴/资质要求等知识库可能涵盖的问题时，应优先调用本工具检索，并基于返回的"
-            "切片作答，回答中需注明来源(文件名与页码)。返回的每条结果包含命中文本及其来源"
-            "文件名、页码与相似度。若本工具无相关结果，再考虑使用 search_web。"
+            "政策知识库语义检索工具，覆盖本企业(租户)的全部知识库(含从公开库收藏入私有"
+            "政策库的政策原文)。当用户咨询政策、法规、办事流程、申报条件、补贴/资质要求等"
+            "知识库可能涵盖的问题时，应优先调用本工具检索，并基于返回的切片作答，回答中需"
+            "注明来源(文件名与页码)。返回的每条结果包含命中文本及其来源文件名、页码与相似度。"
+            "若本工具无相关结果，再考虑使用 search_web。"
         ),
         parameters={
             "query": {
@@ -111,7 +111,7 @@ class KnowledgeBaseTool(BaseTool):
         if not query_embedding:
             return ToolResult(success=False, message="查询向量化失败，无法检索")
 
-        # 4. 解析检索范围(私有库挂会话租户 + 公开库挂各自系统租户)，逐库检索并合并
+        # 4. 解析检索范围(当前租户全部知识库)，逐库检索并合并
         async with self._uow_factory() as uow:
             scopes = await self._resolve_kb_scopes(uow, tenant_id, knowledge_base_id)
             if not scopes:
@@ -157,27 +157,21 @@ class KnowledgeBaseTool(BaseTool):
     ) -> List[Tuple[str, str]]:
         """确定检索范围，返回 (知识库id, 该库所属租户id) 列表。
 
-        - 指定 knowledge_base_id：先按会话租户校验私有归属，未命中再尝试公开库；
-          (会话绑定库已在调用前赋给 knowledge_base_id，故绑定时只命中单库、不附加公开库。)
-        - 未指定(默认)：会话租户全部私有库(挂会话租户) + 全部公开库(挂各自系统租户)。
+        双轨 Embedding(ADR-003)：Agent 问答只在当前租户私有空间检索，不附加全局公开库
+        (公开库用平台 key 向量化、私有库用租户 key，跨空间混检索无意义)。
+
+        - 指定 knowledge_base_id：仅按会话租户校验归属，未命中返回空(不再回退公开库)。
+        - 未指定(默认)：当前租户的全部知识库(含私有政策库 type)。
         """
         if knowledge_base_id:
             kb = await uow.knowledge_base.get_by_id(knowledge_base_id, tenant_id=tenant_id)
             if kb:
                 return [(kb.id, tenant_id)]
-            public = await uow.knowledge_base.get_by_id(knowledge_base_id)
-            if public and public.is_public:
-                return [(public.id, public.tenant_id)]
             return []
 
-        scopes: List[Tuple[str, str]] = [
+        return [
             (kb.id, tenant_id) for kb in await uow.knowledge_base.list_by_tenant(tenant_id)
         ]
-        seen = {kb_id for kb_id, _ in scopes}
-        for kb in await uow.knowledge_base.list_public():
-            if kb.id not in seen:  # 避免会话租户恰为系统公开租户时重复
-                scopes.append((kb.id, kb.tenant_id))
-        return scopes
 
     @staticmethod
     async def _build_citations(

@@ -63,12 +63,16 @@
 
 ## 当前最高优先级
 
-**进行中：私有政策库 + 双轨 Embedding（ADR 003）** —— 阶段 A 租户级 Embedding BYO key 已交付
-（后端+前端，PR #42 待合并；迁移 `b9c0d1e2f3a4` 已落 .222、端点真机冒烟通过）。**阶段 B 待续**：
-Agent `knowledge_base_search` 去全局公开库 + 私有政策库（知识库加 `type` + 从公开库收藏政策入私有库
-向量化 + UI 对齐真实能力）。双轨 = 平台 key 管公开库向量化/③匹配查询、租户 key 管私有库向量化/Agent
-问答；两轨不交叉检索、pgvector 单库锁 1024 维，**③语义匹配完整保留**。详见 ADR `003` + handoff
-`2026-06-18-tenant-embedding-stage-a`。
+**私有政策库 + 双轨 Embedding（ADR 003）** —— 阶段 A 租户级 Embedding BYO key **已合并 main
+（PR #42，迁移 `b9c0d1e2f3a4` 已落 .222）**。**阶段 B 已实现（分支 `feat/private-policy-kb-stage-b`，
+PR 待开、真机走查待做）**：① Agent `knowledge_base_search` 去全局公开库（`_resolve_kb_scopes` 删
+`list_public`，默认只查当前租户全部库）；② 私有政策库 = 知识库 `type=policy`（`CreateKnowledgeBaseRequest`
+加 type，**零迁移**——type 列早已存在）；③ 收藏流水线 `collect_policy`+`ingest_collected_policy`（从公开
+`policies` 收藏一篇政策→分块→**租户 key 向量化**→落库）+ 端点 `POST /knowledge-bases/{id}/policies`；
+④ 前端 create-kb-dialog/知识库列表/政策详情对齐真实能力（类型卡 general/policy、去掉误导的向量库后端/
+写死模型/无效隐私开关、加「收藏到我的政策库」入口）。后端 193 passed、前端三绿。双轨 = 平台 key 管
+公开库向量化/③匹配查询、租户 key 管私有库向量化/Agent 问答；两轨不交叉检索、pgvector 单库锁 1024 维，
+**③语义匹配完整保留**。详见 ADR `003` + handoff `2026-06-18-tenant-embedding-stage-a` / `-private-policy-kb-stage-b`。
 
 1. **多区域申报源**：⑤临期提醒 + 定时重爬已就绪（`wnd-apply` 每天 04:00 CST 应用内调度重爬，见下）；
    要扩覆盖需各门户单独逆向申报检索，并在 `POLICY_RECRAWL_SOURCES` 追加其 key。当前样本截止多为过去

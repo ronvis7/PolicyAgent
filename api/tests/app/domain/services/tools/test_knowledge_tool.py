@@ -240,8 +240,8 @@ def test_session_binding_hard_limits_scope_to_bound_kb():
 PUBLIC = "public"
 
 
-def test_default_scope_includes_public_kb():
-    """默认范围 = 会话租户私有库 + 全局公开库；公开库以其系统租户检索，引用正确归属。"""
+def test_default_scope_excludes_public_kb():
+    """双轨 Embedding(ADR-003)：默认范围仅当前租户库，不再附加全局公开库。"""
     kbs = [
         KnowledgeBase(id="kb-priv", tenant_id=TENANT),
         KnowledgeBase(id="public-policy-kb", tenant_id=PUBLIC, is_public=True),
@@ -259,17 +259,13 @@ def test_default_scope_includes_public_kb():
     result = asyncio.run(tool.knowledge_base_search(query="政策", top_k=5))
 
     assert result.success is True
-    # 两库都检索：私有库用会话租户、公开库用系统公开租户
-    searched = {(kb, tenant) for kb, tenant, _ in chunk_repo.calls}
-    assert searched == {("kb-priv", TENANT), ("public-policy-kb", PUBLIC)}
-    # 公开切片相似度更高排首位，来源文件名按各自租户回查正确
-    cites = result.data.citations
-    assert [c.filename for c in cites] == ["公开政策.pdf", "私有.pdf"]
-    assert cites[0].knowledge_base_id == "public-policy-kb"
+    # 只检索租户私有库，公开库不在范围内
+    assert {kb for kb, _, _ in chunk_repo.calls} == {"kb-priv"}
+    assert [c.filename for c in result.data.citations] == ["私有.pdf"]
 
 
-def test_explicit_public_kb_id_is_resolved():
-    """LLM 显式指定公开库 id 时，按公开库归属(系统租户)检索，无需属当前租户。"""
+def test_explicit_public_kb_id_is_not_resolved():
+    """显式指定不属当前租户的公开库 id 时不再回退命中，返回空(不跨 embedding 空间)。"""
     kbs = [KnowledgeBase(id="public-policy-kb", tenant_id=PUBLIC, is_public=True)]
     chunk_repo = FakeDocumentChunkRepo({
         "public-policy-kb": [(_chunk("fp", 1, "公开切片", "public-policy-kb", tenant_id=PUBLIC), 0.8)],
@@ -282,8 +278,8 @@ def test_explicit_public_kb_id_is_resolved():
     result = asyncio.run(tool.knowledge_base_search(query="政策", knowledge_base_id="public-policy-kb"))
 
     assert result.success is True
-    assert [c.knowledge_base_id for c in result.data.citations] == ["public-policy-kb"]
-    assert {(kb, tenant) for kb, tenant, _ in chunk_repo.calls} == {("public-policy-kb", PUBLIC)}
+    assert result.data.citations == []
+    assert chunk_repo.calls == []  # 未命中归属，未做任何检索
 
 
 def test_session_binding_excludes_public_kb():

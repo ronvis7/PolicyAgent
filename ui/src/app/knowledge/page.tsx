@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Database,
   FileText,
-  GitBranch,
+  Landmark,
   type LucideIcon,
   Loader2,
   Plus,
@@ -24,30 +24,28 @@ import type { KnowledgeBase } from '@/lib/api/knowledge'
 import { cn } from '@/lib/utils'
 
 type KbStyle = {
-  kind: 'chroma' | 'lightrag' | 'milvus'
+  kind: 'general' | 'policy'
   label: string
   icon: LucideIcon
   tint: string
+  badge: string
 }
 
+// 卡片样式由真实知识库类型(general / policy)驱动，反映实际能力而非向量库后端选型。
 const KB_STYLES: Record<KbStyle['kind'], KbStyle> = {
-  chroma: {
-    kind: 'chroma',
-    label: 'Chroma',
+  general: {
+    kind: 'general',
+    label: '通用文档库',
     icon: FileText,
     tint: 'bg-[#eef5ff] text-[#3867d6]',
+    badge: 'bg-[#f7f7f6] text-[#525252]',
   },
-  lightrag: {
-    kind: 'lightrag',
-    label: 'LightRAG',
-    icon: GitBranch,
+  policy: {
+    kind: 'policy',
+    label: '私有政策库',
+    icon: Landmark,
     tint: 'bg-[#eef8f8] text-[#287174]',
-  },
-  milvus: {
-    kind: 'milvus',
-    label: 'Milvus',
-    icon: Database,
-    tint: 'bg-[#fbf6ff] text-[#7c3aed]',
+    badge: 'bg-[#eef8f8] text-[#287174]',
   },
 }
 
@@ -64,10 +62,7 @@ function formatRelativeDate(iso: string): string {
 }
 
 function getKbStyle(kb: KnowledgeBase): KbStyle {
-  const text = `${kb.name} ${kb.description} ${kb.type}`.toLowerCase()
-  if (/(图|graph|light|lightrag|案例|关系)/i.test(text)) return KB_STYLES.lightrag
-  if (/(milvus|生产|规模|企业材料|资质)/i.test(text)) return KB_STYLES.milvus
-  return KB_STYLES.chroma
+  return kb.type === 'policy' ? KB_STYLES.policy : KB_STYLES.general
 }
 
 function getKbFileCount(kb: KnowledgeBase): number {
@@ -209,10 +204,10 @@ export default function KnowledgePage() {
                     </button>
 
                     <div className="mt-5 flex flex-wrap gap-2">
-                      <Badge variant="outline" className="rounded-lg bg-[#eef5ff] text-[#3867d6]">BAAI/bge-m3</Badge>
-                      <Badge variant="outline" className={cn('rounded-lg', style.kind === 'lightrag' ? 'bg-[#eef8f8] text-[#287174]' : 'bg-[#f7f7f6] text-[#525252]')}>
+                      <Badge variant="outline" className={cn('rounded-lg', style.badge)}>
                         {style.label}
                       </Badge>
+                      <Badge variant="outline" className="rounded-lg bg-[#f7f7f6] text-[#525252]">1024 维</Badge>
                     </div>
                   </article>
                 )

@@ -8,7 +8,7 @@ from app.domain.models.knowledge_base import KnowledgeBase
 from app.domain.models.knowledge_file import KnowledgeFile
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas import Response
-from app.interfaces.schemas.knowledge import CreateKnowledgeBaseRequest
+from app.interfaces.schemas.knowledge import CollectPolicyRequest, CreateKnowledgeBaseRequest
 from app.interfaces.service_dependencies import get_knowledge_service
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ async def create_knowledge_base(
     """在当前租户下新建知识库"""
     kb = await service.create_knowledge_base(
         tenant_id=current_user.tenant_id, owner_id=current_user.user_id,
-        name=body.name, description=body.description,
+        name=body.name, description=body.description, type=body.type,
     )
     return Response.success(msg="新建知识库成功", data=kb)
 
@@ -82,6 +82,25 @@ async def upload_knowledge_file(
     # 后台执行入库流水线(再下载/解析/分块/向量化/落库)
     background_tasks.add_task(service.ingest_file, kf.id, current_user.tenant_id)
     return Response.success(msg="上传成功，正在后台解析入库", data=kf)
+
+
+@router.post(path="/{kb_id}/policies", response_model=Response[KnowledgeFile], summary="收藏公开政策到私有政策库")
+async def collect_policy(
+        kb_id: str,
+        body: CollectPolicyRequest,
+        background_tasks: BackgroundTasks,
+        current_user: CurrentUser = Depends(get_current_user),
+        service: KnowledgeService = Depends(get_knowledge_service),
+) -> Response[KnowledgeFile]:
+    """把一篇公开政策正文收藏进 type=policy 的私有政策库，向量化在后台异步进行"""
+    kf = await service.collect_policy(
+        kb_id=kb_id, tenant_id=current_user.tenant_id,
+        owner_id=current_user.user_id, policy_id=body.policy_id,
+    )
+    background_tasks.add_task(
+        service.ingest_collected_policy, kf.id, current_user.tenant_id, body.policy_id,
+    )
+    return Response.success(msg="收藏成功，正在后台向量化入库", data=kf)
 
 
 @router.get(path="/{kb_id}/files", response_model=Response[List[KnowledgeFile]], summary="知识库文件列表")

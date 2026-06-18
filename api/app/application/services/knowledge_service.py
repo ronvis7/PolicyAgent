@@ -1,5 +1,6 @@
 import logging
 import os
+import uuid
 from typing import Callable, List
 
 from fastapi import UploadFile
@@ -10,12 +11,16 @@ from app.domain.external.document_parser import DocumentParser
 from app.domain.external.embedding import EmbeddingProvider
 from app.domain.external.file_storage import FileStorage
 from app.domain.models.document_chunk import DocumentChunk
-from app.domain.models.knowledge_base import KnowledgeBase
+from app.domain.models.knowledge_base import KnowledgeBase, KnowledgeBaseType
 from app.domain.models.knowledge_file import KnowledgeFile, FileStatus
+from app.domain.models.parsed_document import ParsedPage
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.chunker import chunk_pages
 
 logger = logging.getLogger(__name__)
+
+# 收藏政策派生确定性 file id 的命名空间：同租户/同库内按 source_url 幂等(重复收藏走替换)
+_COLLECTED_POLICY_NAMESPACE = uuid.UUID("6f1c0e2a-0000-4000-8000-000000000002")
 
 
 class KnowledgeService:
@@ -37,11 +42,13 @@ class KnowledgeService:
 
     async def create_knowledge_base(
         self, tenant_id: str, owner_id: str, name: str, description: str = "",
+        type: KnowledgeBaseType = KnowledgeBaseType.GENERAL,
     ) -> KnowledgeBase:
         """新建知识库(归属当前租户与创建者)，绑定当前 embedding 模型"""
         kb = KnowledgeBase(
             tenant_id=tenant_id, owner_id=owner_id, name=name,
-            description=description, embedding_model=self.embedding.model_name,
+            description=description, type=type,
+            embedding_model=self.embedding.model_name,
         )
         async with self._uow_factory() as uow:
             await uow.knowledge_base.save(kb)
@@ -99,6 +106,95 @@ class KnowledgeService:
         await self.get_knowledge_base(kb_id, tenant_id)
         async with self._uow_factory() as uow:
             return await uow.knowledge_file.list_by_knowledge_base(kb_id, tenant_id)
+
+    # ---------- 从公开政策库收藏入私有政策库(ADR-003) ----------
+
+    async def collect_policy(
+        self, kb_id: str, tenant_id: str, owner_id: str, policy_id: str,
+    ) -> KnowledgeFile:
+        """把一篇公开政策的正文作为文档登记到私有政策库(向量化交后台流水线)。
+
+        只允许收藏到 type=policy 的知识库；按 (租户, 库, source_url) 派生确定性 file id，
+        重复收藏走幂等替换。仅建占位 KnowledgeFile(uploaded)，分块/向量化由后台执行
+        (用当前租户 embedding key，见双轨 Embedding)。
+        """
+        kb = await self.get_knowledge_base(kb_id, tenant_id)  # 隔离守卫
+        if kb.type != KnowledgeBaseType.POLICY:
+            raise ServerRequestsError("只能收藏政策到「私有政策库」类型的知识库")
+
+        async with self._uow_factory() as uow:
+            policy = await uow.policy.get_by_id(policy_id)
+        if not policy:
+            raise NotFoundError(f"政策[{policy_id}]不存在")
+        if not policy.body_text.strip():
+            raise ServerRequestsError("该政策无正文，无法收藏")
+
+        file_id = str(uuid.uuid5(
+            _COLLECTED_POLICY_NAMESPACE, f"{tenant_id}:{kb_id}:{policy.source_url}",
+        ))
+        kf = KnowledgeFile(
+            id=file_id, tenant_id=tenant_id, knowledge_base_id=kb_id, owner_id=owner_id,
+            file_id=None, filename=policy.title or policy.source_url,
+            status=FileStatus.UPLOADED,
+        )
+        async with self._uow_factory() as uow:
+            await uow.knowledge_file.save(kf)
+        return kf
+
+    async def ingest_collected_policy(
+        self, knowledge_file_id: str, tenant_id: str, policy_id: str,
+    ) -> None:
+        """后台：取政策正文→分块→向量化(租户 key)→落库，幂等替换旧切片。"""
+        async with self._uow_factory() as uow:
+            kf = await uow.knowledge_file.get_by_id(knowledge_file_id, tenant_id=tenant_id)
+            policy = await uow.policy.get_by_id(policy_id)
+        if not kf or not policy:
+            logger.warning(f"收藏入库找不到文件[{knowledge_file_id}]或政策[{policy_id}]，跳过")
+            return
+
+        try:
+            await self._update_status(kf, FileStatus.INDEXING)
+            pieces = chunk_pages([ParsedPage(page_number=1, text=policy.body_text)])
+            if not pieces:
+                kf.chunk_count = 0
+                await self._update_status(kf, FileStatus.INDEXED)
+                return
+
+            vectors = await self.embedding.embed_documents([p.content for p in pieces])
+            chunks_with_vectors = [
+                (
+                    DocumentChunk(
+                        tenant_id=tenant_id, knowledge_base_id=kf.knowledge_base_id,
+                        knowledge_file_id=kf.id, chunk_index=piece.chunk_index,
+                        content=piece.content, token_count=piece.token_count,
+                        chunk_metadata={
+                            "page": piece.metadata.get("page", 1),
+                            "source_url": policy.source_url,
+                            "title": policy.title,
+                        },
+                    ),
+                    vector,
+                )
+                for piece, vector in zip(pieces, vectors)
+            ]
+            async with self._uow_factory() as uow:
+                await uow.document_chunk.delete_by_knowledge_file(kf.id, tenant_id)
+                await uow.document_chunk.add_many(chunks_with_vectors)
+                kf.status = FileStatus.INDEXED
+                kf.chunk_count = len(chunks_with_vectors)
+                kf.error_message = ""
+                await uow.knowledge_file.save(kf)
+            logger.info(f"政策收藏入库完成[{kf.id}]，共 {len(chunks_with_vectors)} 个切片")
+        except Exception as e:
+            error_detail = f"{type(e).__name__}: {str(e) or '未知错误'}"
+            logger.exception(f"政策收藏入库失败[{kf.id}]: {error_detail}")
+            kf.status = FileStatus.ERROR_INDEXING
+            kf.error_message = error_detail[:1024]
+            try:
+                async with self._uow_factory() as uow:
+                    await uow.knowledge_file.save(kf)
+            except Exception:
+                logger.exception(f"回写收藏文件[{kf.id}]失败状态时出错")
 
     # ---------- 入库流水线(后台执行) ----------
 

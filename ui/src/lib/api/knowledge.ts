@@ -44,10 +44,14 @@ export type KnowledgeFile = {
   created_at: string;
 };
 
+/** 知识库类型：general=通用文档库 / policy=私有政策库(收藏公开政策) */
+export type KnowledgeBaseType = "general" | "policy";
+
 /** 新建知识库请求参数 */
 export type CreateKnowledgeBaseParams = {
   name: string;
   description?: string;
+  type?: KnowledgeBaseType;
 };
 
 // ==================== 知识库模块 API ====================
@@ -65,6 +69,7 @@ export const knowledgeApi = {
     return post<KnowledgeBase>("/knowledge-bases", {
       name: params.name,
       description: params.description ?? "",
+      type: params.type ?? "general",
     });
   },
 
@@ -88,6 +93,13 @@ export const knowledgeApi = {
     const formData = new FormData();
     formData.append("file", file);
     return post<KnowledgeFile>(`/knowledge-bases/${kbId}/files`, formData);
+  },
+
+  /** 收藏一篇公开政策到私有政策库（向量化在后台异步进行） */
+  collectPolicy: (kbId: string, policyId: string): Promise<KnowledgeFile> => {
+    return post<KnowledgeFile>(`/knowledge-bases/${kbId}/policies`, {
+      policy_id: policyId,
+    });
   },
 };
 

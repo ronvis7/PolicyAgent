@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { ComponentType } from 'react'
-import { Building2, Database, GitBranch, Network } from 'lucide-react'
+import { FileText, Landmark, Lock, Network } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -15,11 +15,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import type {
   CreateKnowledgeBaseParams,
   KnowledgeBase,
+  KnowledgeBaseType,
 } from '@/lib/api/knowledge'
 import { cn } from '@/lib/utils'
 
@@ -29,35 +29,27 @@ type CreateKbDialogProps = {
   onCreate: (params: CreateKnowledgeBaseParams) => Promise<KnowledgeBase>
 }
 
-type KbKind = 'chroma' | 'milvus' | 'lightrag'
-
+// 知识库类型与后端 KnowledgeBaseType 对齐(general / policy)，反映真实能力而非向量库后端选型。
 const KNOWLEDGE_TYPES: {
-  key: KbKind
+  key: KnowledgeBaseType
   title: string
   description: string
   tag: string
   icon: ComponentType<{ className?: string }>
 }[] = [
   {
-    key: 'chroma',
-    title: 'Chroma',
-    description: '基于 ChromaDB 的轻量向量库',
-    tag: '轻量向量',
-    icon: Database,
+    key: 'general',
+    title: '通用文档库',
+    description: '上传政策文件、企业材料或案例文档，供智能体检索问答',
+    tag: '文档上传',
+    icon: FileText,
   },
   {
-    key: 'milvus',
-    title: 'Milvus',
-    description: '面向生产环境的向量库',
-    tag: '生产部署',
-    icon: Building2,
-  },
-  {
-    key: 'lightrag',
-    title: 'LightRAG',
-    description: '面向图结构线索的检索组织',
-    tag: '图结构索引',
-    icon: GitBranch,
+    key: 'policy',
+    title: '私有政策库',
+    description: '从公开政策库收藏政策入库，沉淀本企业关注的政策原文',
+    tag: '政策收藏',
+    icon: Landmark,
   },
 ]
 
@@ -68,15 +60,13 @@ export function CreateKbDialog({
 }: CreateKbDialogProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [selectedType, setSelectedType] = useState<KbKind>('chroma')
-  const [isPrivate, setIsPrivate] = useState(true)
+  const [selectedType, setSelectedType] = useState<KnowledgeBaseType>('general')
   const [submitting, setSubmitting] = useState(false)
 
   const reset = () => {
     setName('')
     setDescription('')
-    setSelectedType('chroma')
-    setIsPrivate(true)
+    setSelectedType('general')
   }
 
   const handleOpenChange = (next: boolean) => {
@@ -92,7 +82,7 @@ export function CreateKbDialog({
     }
     setSubmitting(true)
     try {
-      await onCreate({ name: trimmed, description: description.trim() })
+      await onCreate({ name: trimmed, description: description.trim(), type: selectedType })
       toast.success('知识库创建成功')
       reset()
       onOpenChange(false)
@@ -118,7 +108,7 @@ export function CreateKbDialog({
         <div className="space-y-6 px-7 py-5">
           <section className="space-y-3">
             <Label className="text-sm font-semibold text-[#202939]">知识库类型</Label>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               {KNOWLEDGE_TYPES.map((item) => {
                 const Icon = item.icon
                 const active = selectedType === item.key
@@ -169,11 +159,14 @@ export function CreateKbDialog({
             <Label htmlFor="kb-model" className="text-sm font-semibold text-[#202939]">嵌入模型</Label>
             <div
               id="kb-model"
-              className="flex h-12 items-center justify-between rounded-xl border border-[#e5e7eb] bg-white px-4 text-sm text-[#202939]"
+              className="flex h-12 items-center justify-between rounded-xl border border-[#e5e7eb] bg-[#fafafa] px-4 text-sm text-[#202939]"
             >
-              <span>siliconflow/Pro/BAAI/bge-m3 (1024)</span>
+              <span>组织 Embedding 模型 · 1024 维（统一锁定）</span>
               <Network className="size-4 text-[#9ca3af]" />
             </div>
+            <p className="text-xs leading-5 text-[#9ca3af]">
+              向量维度统一锁定为 1024 以保证检索一致；模型由平台设定，可在「设置 · 向量模型」中配置组织自有密钥。
+            </p>
           </section>
 
           <section className="space-y-3">
@@ -194,12 +187,11 @@ export function CreateKbDialog({
             />
           </section>
 
-          <section className="space-y-3">
-            <Label className="text-sm font-semibold text-[#202939]">隐私设置</Label>
-            <div className="flex items-center gap-3">
-              <Switch checked={isPrivate} onCheckedChange={setIsPrivate} disabled={submitting} />
-              <span className="text-sm text-[#525252]">设置为私有知识库</span>
-            </div>
+          <section className="flex items-start gap-3 rounded-xl border border-[#ececec] bg-[#fafafa] px-4 py-3">
+            <Lock className="mt-0.5 size-4 shrink-0 text-[#9ca3af]" />
+            <span className="text-sm leading-6 text-[#525252]">
+              知识库仅本组织可见，文档与切片按组织隔离存储，其他组织无法访问。
+            </span>
           </section>
         </div>
 
