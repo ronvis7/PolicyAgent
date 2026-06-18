@@ -47,14 +47,18 @@ class FakePolicyRepo:
 
 
 class FakeKnowledgeFileRepo:
-    def __init__(self) -> None:
+    def __init__(self, counts: Optional[dict] = None) -> None:
         self.saved: dict = {}
+        self._counts = counts or {}
 
     async def save(self, kf: KnowledgeFile) -> None:
         self.saved[kf.id] = kf
 
     async def get_by_id(self, file_id: str, tenant_id: Optional[str] = None) -> Optional[KnowledgeFile]:
         return self.saved.get(file_id)
+
+    async def count_by_tenant(self, tenant_id: str) -> dict:
+        return dict(self._counts)
 
 
 class FakeChunkRepo:
@@ -136,6 +140,45 @@ def test_collect_policy_creates_placeholder_idempotently():
     assert kf1.filename == "政策一"
     assert kf1.id == kf2.id  # 确定性 id，幂等
     assert len(file_repo.saved) == 1
+
+
+def test_collect_policies_best_effort_skips_missing_and_empty():
+    """批量收藏：有效政策收藏、缺失/空正文跳过，互不阻断"""
+    kbs = [KnowledgeBase(id="kb-pol", tenant_id=TENANT, type=KnowledgeBaseType.POLICY)]
+    policies = {
+        "p1": Policy(id="p1", source_url="http://x/1", title="政策一", body_text="正文一"),
+        "p2": Policy(id="p2", source_url="http://x/2", title="政策二", body_text="正文二"),
+        "p3": Policy(id="p3", source_url="http://x/3", title="空", body_text="  "),
+    }
+    file_repo = FakeKnowledgeFileRepo()
+    service = _build_service(kbs, policies, file_repo, FakeChunkRepo())
+
+    collected, skipped = asyncio.run(
+        service.collect_policies("kb-pol", TENANT, OWNER, ["p1", "p2", "p3", "missing"])
+    )
+
+    assert {pid for _, pid in collected} == {"p1", "p2"}
+    assert set(skipped) == {"p3", "missing"}
+    assert len(file_repo.saved) == 2
+
+
+def test_collect_policies_rejects_non_policy_kb():
+    """批量收藏到 general 库被拒绝"""
+    kbs = [KnowledgeBase(id="kb-gen", tenant_id=TENANT, type=KnowledgeBaseType.GENERAL)]
+    service = _build_service(kbs, {}, FakeKnowledgeFileRepo(), FakeChunkRepo())
+
+    with pytest.raises(ServerRequestsError):
+        asyncio.run(service.collect_policies("kb-gen", TENANT, OWNER, ["p1"]))
+
+
+def test_file_counts_returns_grouped_counts():
+    """file_counts 透传仓储分组统计结果"""
+    file_repo = FakeKnowledgeFileRepo(counts={"kb-a": 3, "kb-b": 1})
+    service = _build_service([], {}, file_repo, FakeChunkRepo())
+
+    counts = asyncio.run(service.file_counts(TENANT))
+
+    assert counts == {"kb-a": 3, "kb-b": 1}
 
 
 def test_ingest_collected_policy_writes_chunks_with_tenant():

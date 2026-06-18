@@ -220,6 +220,21 @@ export default function PoliciesPage() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
   }
 
+  const handleCollectBatch = async (kbId: string, kbName: string) => {
+    if (selectedIds.length === 0 || collecting) return
+    setCollecting(true)
+    try {
+      const res = await knowledgeApi.collectPolicies(kbId, selectedIds)
+      const skippedHint = res.skipped_count > 0 ? `，跳过 ${res.skipped_count} 篇（无正文）` : ''
+      toast.success(`已收藏 ${res.collected_count} 篇到「${kbName}」${skippedHint}，正在后台向量化`)
+      setSelectedIds([])
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '批量收藏失败')
+    } finally {
+      setCollecting(false)
+    }
+  }
+
   const allCurrentSelected = items.length > 0 && items.every((item) => selectedIds.includes(item.id))
 
   return (
@@ -352,9 +367,34 @@ export default function PoliciesPage() {
                 />
                 选择本页
               </label>
-              <div className="flex items-center gap-2 text-sm text-[#778090]">
-                <CheckSquare2 className="size-4" />
-                {selectedCount > 0 ? `已选择 ${selectedCount} 条，可用于后续报告草稿整理` : '选择政策后可批量整理材料'}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-[#778090]">
+                  <CheckSquare2 className="size-4" />
+                  {selectedCount > 0 ? `已选择 ${selectedCount} 条` : '勾选政策后可批量收藏到私有政策库'}
+                </div>
+                {selectedCount > 0 && (
+                  policyKbs.length > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild disabled={collecting}>
+                        <Button size="sm" className="cursor-pointer rounded-xl" title="把所选政策批量收藏进私有政策库并向量化">
+                          {collecting ? <Loader2 className="size-4 animate-spin" /> : <BookmarkPlus className="size-4" />}
+                          批量收藏（{selectedCount}）
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-56">
+                        <DropdownMenuLabel className="text-xs text-muted-foreground">收藏到私有政策库</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {policyKbs.map((kb) => (
+                          <DropdownMenuItem key={kb.id} className="cursor-pointer" onSelect={() => handleCollectBatch(kb.id, kb.name)}>
+                            <span className="truncate">{kb.name}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <span className="text-xs text-[#98a2b3]">先在「知识库」新建私有政策库</span>
+                  )
+                )}
               </div>
             </div>
 

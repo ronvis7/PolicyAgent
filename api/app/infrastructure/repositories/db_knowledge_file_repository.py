@@ -1,6 +1,6 @@
-from typing import Optional, List
+from typing import Optional, List, Dict
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.knowledge_file import KnowledgeFile
@@ -46,6 +46,16 @@ class DBKnowledgeFileRepository(KnowledgeFileRepository):
         )
         result = await self.db_session.execute(stmt)
         return [record.to_domain() for record in result.scalars().all()]
+
+    async def count_by_tenant(self, tenant_id: str) -> Dict[str, int]:
+        """按知识库分组统计该租户的文件数，返回 {knowledge_base_id: count}(单次 GROUP BY，免 N+1)"""
+        stmt = (
+            select(KnowledgeFileModel.knowledge_base_id, func.count())
+            .where(KnowledgeFileModel.tenant_id == tenant_id)
+            .group_by(KnowledgeFileModel.knowledge_base_id)
+        )
+        result = await self.db_session.execute(stmt)
+        return {kb_id: count for kb_id, count in result.all()}
 
     async def delete(self, file_id: str, tenant_id: str) -> None:
         """删除知识库文件(级联删除其切片，要求归属该租户)"""

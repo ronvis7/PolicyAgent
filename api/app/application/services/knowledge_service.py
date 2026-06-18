@@ -1,7 +1,7 @@
 import logging
 import os
 import uuid
-from typing import Callable, List
+from typing import Callable, Dict, List, Tuple
 
 from fastapi import UploadFile
 from starlette.concurrency import run_in_threadpool
@@ -107,6 +107,11 @@ class KnowledgeService:
         async with self._uow_factory() as uow:
             return await uow.knowledge_file.list_by_knowledge_base(kb_id, tenant_id)
 
+    async def file_counts(self, tenant_id: str) -> Dict[str, int]:
+        """统计当前租户各知识库的文件数 {kb_id: count}(单次分组查询，供列表卡片展示真实数量)"""
+        async with self._uow_factory() as uow:
+            return await uow.knowledge_file.count_by_tenant(tenant_id)
+
     # ---------- 从公开政策库收藏入私有政策库(ADR-003) ----------
 
     async def collect_policy(
@@ -140,6 +145,39 @@ class KnowledgeService:
         async with self._uow_factory() as uow:
             await uow.knowledge_file.save(kf)
         return kf
+
+    async def collect_policies(
+        self, kb_id: str, tenant_id: str, owner_id: str, policy_ids: List[str],
+    ) -> Tuple[List[Tuple[KnowledgeFile, str]], List[str]]:
+        """批量收藏多篇公开政策到私有政策库。
+
+        库类型校验只做一次；逐篇 best-effort：政策缺失或正文为空则跳过（计入 skipped），
+        不阻断其余收藏。返回 (collected=[(占位文件, policy_id)], skipped=[policy_id])，
+        向量化由调用方按 collected 逐篇排后台任务。
+        """
+        kb = await self.get_knowledge_base(kb_id, tenant_id)  # 隔离守卫
+        if kb.type != KnowledgeBaseType.POLICY:
+            raise ServerRequestsError("只能收藏政策到「私有政策库」类型的知识库")
+
+        collected: List[Tuple[KnowledgeFile, str]] = []
+        skipped: List[str] = []
+        async with self._uow_factory() as uow:
+            for policy_id in policy_ids:
+                policy = await uow.policy.get_by_id(policy_id)
+                if not policy or not policy.body_text.strip():
+                    skipped.append(policy_id)
+                    continue
+                file_id = str(uuid.uuid5(
+                    _COLLECTED_POLICY_NAMESPACE, f"{tenant_id}:{kb_id}:{policy.source_url}",
+                ))
+                kf = KnowledgeFile(
+                    id=file_id, tenant_id=tenant_id, knowledge_base_id=kb_id, owner_id=owner_id,
+                    file_id=None, filename=policy.title or policy.source_url,
+                    status=FileStatus.UPLOADED,
+                )
+                await uow.knowledge_file.save(kf)
+                collected.append((kf, policy_id))
+        return collected, skipped
 
     async def ingest_collected_policy(
         self, knowledge_file_id: str, tenant_id: str, policy_id: str,

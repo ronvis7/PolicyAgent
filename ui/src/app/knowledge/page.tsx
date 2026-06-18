@@ -65,17 +65,10 @@ function getKbStyle(kb: KnowledgeBase): KbStyle {
   return kb.type === 'policy' ? KB_STYLES.policy : KB_STYLES.general
 }
 
-function getKbFileCount(kb: KnowledgeBase): number {
-  const text = `${kb.description} ${kb.name}`
-  const match = text.match(/(\d+)\s*(个|份|条)?\s*(文件|材料|文档)/)
-  if (match) return Number(match[1])
-  const seed = Array.from(kb.id).reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  return 3 + (seed % 7)
-}
 
 export default function KnowledgePage() {
   const router = useRouter()
-  const { knowledgeBases, loading, createKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
+  const { knowledgeBases, fileCounts, loading, createKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<KnowledgeBase | null>(null)
@@ -164,7 +157,7 @@ export default function KnowledgePage() {
               {filteredKnowledgeBases.map((kb) => {
                 const style = getKbStyle(kb)
                 const Icon = style.icon
-                const fileCount = getKbFileCount(kb)
+                const fileCount = fileCounts[kb.id] ?? 0
                 return (
                   <article
                     key={kb.id}

@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import Dict, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
 
@@ -8,7 +8,12 @@ from app.domain.models.knowledge_base import KnowledgeBase
 from app.domain.models.knowledge_file import KnowledgeFile
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas import Response
-from app.interfaces.schemas.knowledge import CollectPolicyRequest, CreateKnowledgeBaseRequest
+from app.interfaces.schemas.knowledge import (
+    CollectPoliciesRequest,
+    CollectPoliciesResult,
+    CollectPolicyRequest,
+    CreateKnowledgeBaseRequest,
+)
 from app.interfaces.service_dependencies import get_knowledge_service
 
 logger = logging.getLogger(__name__)
@@ -37,6 +42,19 @@ async def list_knowledge_bases(
     """列出当前租户的全部知识库"""
     kbs = await service.list_knowledge_bases(current_user.tenant_id)
     return Response.success(msg="获取知识库列表成功", data=kbs)
+
+
+@router.get(path="/file-counts", response_model=Response[Dict[str, int]], summary="各知识库文件数")
+async def knowledge_file_counts(
+        current_user: CurrentUser = Depends(get_current_user),
+        service: KnowledgeService = Depends(get_knowledge_service),
+) -> Response[Dict[str, int]]:
+    """返回当前租户各知识库的文件数 {kb_id: count}(单次分组查询，供列表卡片展示真实数量)。
+
+    注册在 /{kb_id} 之前，避免 'file-counts' 被路径参数 kb_id 捕获。
+    """
+    counts = await service.file_counts(current_user.tenant_id)
+    return Response.success(msg="获取文件数成功", data=counts)
 
 
 @router.get(path="/{kb_id}", response_model=Response[KnowledgeBase], summary="知识库详情")
@@ -101,6 +119,27 @@ async def collect_policy(
         service.ingest_collected_policy, kf.id, current_user.tenant_id, body.policy_id,
     )
     return Response.success(msg="收藏成功，正在后台向量化入库", data=kf)
+
+
+@router.post(path="/{kb_id}/policies/batch", response_model=Response[CollectPoliciesResult], summary="批量收藏公开政策到私有政策库")
+async def collect_policies(
+        kb_id: str,
+        body: CollectPoliciesRequest,
+        background_tasks: BackgroundTasks,
+        current_user: CurrentUser = Depends(get_current_user),
+        service: KnowledgeService = Depends(get_knowledge_service),
+) -> Response[CollectPoliciesResult]:
+    """批量收藏多篇公开政策，逐篇 best-effort(缺失/无正文跳过)，向量化后台异步进行"""
+    collected, skipped = await service.collect_policies(
+        kb_id=kb_id, tenant_id=current_user.tenant_id,
+        owner_id=current_user.user_id, policy_ids=body.policy_ids,
+    )
+    for kf, policy_id in collected:
+        background_tasks.add_task(
+            service.ingest_collected_policy, kf.id, current_user.tenant_id, policy_id,
+        )
+    result = CollectPoliciesResult(collected_count=len(collected), skipped_count=len(skipped))
+    return Response.success(msg=f"已收藏 {len(collected)} 篇，跳过 {len(skipped)} 篇", data=result)
 
 
 @router.get(path="/{kb_id}/files", response_model=Response[List[KnowledgeFile]], summary="知识库文件列表")
