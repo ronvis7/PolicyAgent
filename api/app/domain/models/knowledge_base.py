@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class KnowledgeBaseType(str, Enum):
     """知识库类型枚举(用于可插拔KnowledgeBase工厂选择具体实现)"""
     GENERAL = "general"  # 通用向量检索知识库(R1默认实现)
+    POLICY = "policy"  # 私有政策库(从公开库收藏政策入库，ADR-003)
 
 
 class KnowledgeBase(BaseModel):

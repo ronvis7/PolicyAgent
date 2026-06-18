@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
+  BookmarkPlus,
   Bot,
   CheckSquare2,
   ChevronLeft,
@@ -28,8 +29,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { policyApi, profileApi } from '@/lib/api'
-import type { PolicyDetail, PolicyListItem, PolicySourceItem } from '@/lib/api'
+import { knowledgeApi, policyApi, profileApi } from '@/lib/api'
+import type { KnowledgeBase, PolicyDetail, PolicyListItem, PolicySourceItem } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 import { cn } from '@/lib/utils'
 
@@ -95,6 +96,9 @@ export default function PoliciesPage() {
 
   const [detail, setDetail] = useState<PolicyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  // 当前租户的私有政策库(type=policy)，作为「收藏」目标
+  const [policyKbs, setPolicyKbs] = useState<KnowledgeBase[]>([])
+  const [collecting, setCollecting] = useState(false)
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const selectedItem = detail ?? items[0] ?? null
@@ -148,9 +152,30 @@ export default function PoliciesPage() {
       .catch(() => setSources([]))
   }, [])
 
+  // 加载租户的私有政策库列表(收藏目标)，取不到不阻塞页面
+  useEffect(() => {
+    knowledgeApi
+      .listKnowledgeBases()
+      .then((kbs) => setPolicyKbs(kbs.filter((kb) => kb.type === 'policy')))
+      .catch(() => setPolicyKbs([]))
+  }, [])
+
   const submitSearch = () => {
     setPage(1)
     setSearch(keyword.trim())
+  }
+
+  const handleCollect = async (kbId: string, kbName: string) => {
+    if (!detail || collecting) return
+    setCollecting(true)
+    try {
+      await knowledgeApi.collectPolicy(kbId, detail.id)
+      toast.success(`已收藏「${detail.title}」到「${kbName}」，正在后台向量化入库`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '收藏政策失败')
+    } finally {
+      setCollecting(false)
+    }
   }
 
   // 组件卸载时清掉抓取窗口定时器，避免卸载后 setState
@@ -467,17 +492,42 @@ export default function PoliciesPage() {
                         {detail.body_text || '暂无正文，请查看原文链接。'}
                       </div>
                     </div>
-                    {detail.source_url && (
-                      <a
-                        href={detail.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm font-medium text-[#287174] hover:underline"
-                      >
-                        <ExternalLink className="size-4" />
-                        查看原文
-                      </a>
-                    )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {policyKbs.length > 0 ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild disabled={collecting}>
+                            <Button variant="outline" size="sm" className="cursor-pointer rounded-xl bg-white" title="把这篇政策收藏进私有政策库并向量化">
+                              {collecting ? <Loader2 className="size-4 animate-spin" /> : <BookmarkPlus className="size-4" />}
+                              收藏到我的政策库
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="min-w-56">
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">选择私有政策库</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {policyKbs.map((kb) => (
+                              <DropdownMenuItem key={kb.id} className="cursor-pointer" onSelect={() => handleCollect(kb.id, kb.name)}>
+                                <span className="truncate">{kb.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <span className="text-xs text-[#98a2b3]">
+                          先在「知识库」新建「私有政策库」即可收藏政策
+                        </span>
+                      )}
+                      {detail.source_url && (
+                        <a
+                          href={detail.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm font-medium text-[#287174] hover:underline"
+                        >
+                          <ExternalLink className="size-4" />
+                          查看原文
+                        </a>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
