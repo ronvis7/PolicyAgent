@@ -71,3 +71,53 @@ jobs:
       # 唯一忽略 test_get_status：它经 lifespan 连真实 DB/Redis，待接入 service 容器再纳入。
       - name: Unit tests
         run: pytest tests --ignore=tests/app/interfaces/endpoints/test_status_routes.py
+
+  integration:
+    name: integration (db + repositories)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    # 真 Postgres + pgvector service 容器：覆盖仓储 SQL 层的跨租户隔离回归
+    # (内存仓储测不到的那层)。镜像内置 vector 扩展，迁移 CREATE EXTENSION 可用。
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: policy_manus_itest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "pytest>=9.0.2"
+
+      # RUN_DB_TESTS=1 启用集成用例；POSTGRES_* 指向 service 容器。
+      # 套件内 conftest 会建扩展 + alembic upgrade head + 跑真仓储隔离断言。
+      - name: Integration tests (real Postgres + alembic + repositories)
+        env:
+          RUN_DB_TESTS: "1"
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: "5432"
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: policy_manus_itest
+        run: pytest tests/integration
