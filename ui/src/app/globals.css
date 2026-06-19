@@ -58,6 +58,26 @@
     --radius-2xl: calc(var(--radius) + 8px);
     --radius-3xl: calc(var(--radius) + 12px);
     --radius-4xl: calc(var(--radius) + 16px);
+
+    /* 衬线 display 字体栈（政务信任感，优先系统已装中文衬线，零网络） */
+    --font-serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", "SimSun", ui-serif, Georgia, serif;
+
+    /* 品牌主色阶（青绿，由强调链接扩为可用色阶） */
+    --color-brand-50: #eaf3f2;
+    --color-brand-100: #cfe3e2;
+    --color-brand-200: #a9cecf;
+    --color-brand-300: #7fb4b4;
+    --color-brand-400: #4a9d92;
+    --color-brand-500: #287174;
+    --color-brand-600: #1f5c5e;
+    --color-brand-700: #16484a;
+
+    /* 分层阴影（建立 elevation 层次，是高级感的核心） */
+    --shadow-card: 0 2px 8px rgba(28, 33, 39, 0.05);
+    --shadow-hover: 0 8px 24px rgba(28, 33, 39, 0.07);
+    --shadow-pop: 0 16px 40px rgba(28, 33, 39, 0.1);
+    --shadow-modal: 0 24px 60px rgba(28, 33, 39, 0.14);
+
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -92,72 +112,92 @@
 }
 
 :root {
-    --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
-    --chart-4: oklch(0.828 0.189 84.429);
-    --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    /* 圆角略放大，柔化整体观感 */
+    --radius: 0.75rem;
+
+    /* 暖中性底色（替换纯白/冷灰，建立政务暖调基底） */
+    --background: #fafaf9;
+    --foreground: #1c2127;
+    --card: #ffffff;
+    --card-foreground: #1c2127;
+    --popover: #ffffff;
+    --popover-foreground: #1c2127;
+
+    /* 青绿主色（品牌色，按钮/链接/焦点环统一走它） */
+    --primary: #287174;
+    --primary-foreground: #ffffff;
+
+    --secondary: #f4f3f1;
+    --secondary-foreground: #3d4350;
+    --muted: #f4f3f1;
+    --muted-foreground: #8a8f99;
+
+    /* 强调态带极淡品牌色，hover 更有质感、更统一 */
+    --accent: #eaf3f2;
+    --accent-foreground: #16484a;
+
+    --destructive: #c0392b;
+    --border: #e7e4df;
+    --input: #e7e4df;
+    --ring: #287174;
+
+    /* 图表/数据色阶（围绕主色铺开，暖调和谐） */
+    --chart-1: #287174;
+    --chart-2: #4a9d92;
+    --chart-3: #d9a441;
+    --chart-4: #6b7280;
+    --chart-5: #b45c4b;
+
+    /* 侧栏（暖灰、主色点缀） */
+    --sidebar: #ecebea;
+    --sidebar-foreground: #3d4350;
+    --sidebar-primary: #287174;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #ffffff;
+    --sidebar-accent-foreground: #16484a;
+    --sidebar-border: #e7e4df;
+    --sidebar-ring: #287174;
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    /* 暖深底（墨黑略带暖意，非纯黑，配青绿高光） */
+    --background: #16181c;
+    --foreground: #f3f2ef;
+    --card: #1e2125;
+    --card-foreground: #f3f2ef;
+    --popover: #1e2125;
+    --popover-foreground: #f3f2ef;
+
+    /* 暗色下主色提亮一档，保证对比度 */
+    --primary: #4a9d92;
+    --primary-foreground: #0d1f1e;
+
+    --secondary: #2a2e33;
+    --secondary-foreground: #f3f2ef;
+    --muted: #2a2e33;
+    --muted-foreground: #9aa0aa;
+    --accent: #243433;
+    --accent-foreground: #8fd3c8;
+
+    --destructive: #e5705f;
+    --border: rgba(255, 255, 255, 0.1);
+    --input: rgba(255, 255, 255, 0.14);
+    --ring: #4a9d92;
+
+    --chart-1: #4a9d92;
+    --chart-2: #7fb4b4;
+    --chart-3: #e0b24f;
+    --chart-4: #9aa0aa;
+    --chart-5: #d2806f;
+
+    --sidebar: #1a1d21;
+    --sidebar-foreground: #e8e7e3;
+    --sidebar-primary: #4a9d92;
+    --sidebar-primary-foreground: #0d1f1e;
+    --sidebar-accent: #243433;
+    --sidebar-accent-foreground: #8fd3c8;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+    --sidebar-ring: #4a9d92;
 }
 
 @layer base {
