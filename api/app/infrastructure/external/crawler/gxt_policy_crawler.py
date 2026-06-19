@@ -44,6 +44,11 @@ _DASH_CHARS = set("—-－ \xa0")  # 占位短横，视为空值
 # dataproxy 返回的每条记录是包在 <record><![CDATA[...]]></record> 里的 HTML 片段
 _RECORD_RE = re.compile(r"<record>\s*<!\[CDATA\[(.*?)\]\]>\s*</record>", re.S)
 _TOTAL_RE = re.compile(r"<totalrecord>\s*(\d+)\s*</totalrecord>", re.I)
+# 真文号形态(如 苏工信〔2026〕123号)。仅匹配这种结构，避免把政策文件三公开表里的索引码
+# (形如 696785044/2026-00017)误当文号；正文中对他文的文号引用风险较低，best-effort。
+_DOC_NUMBER_RE = re.compile(r"[一-龥A-Za-z]{2,20}[〔\[（]\d{4}[〕\]）]\s*第?\s*\d+\s*号")
+# 详情链接路径自带发布日期，如 /art/2026/4/17/art_80179_x.html
+_URL_DATE_RE = re.compile(r"/art/(\d{4})/(\d{1,2})/(\d{1,2})/")
 
 
 def _parse_publish_date(raw: Optional[str]) -> Optional[date]:
@@ -60,6 +65,17 @@ def _clean_dash(value: str) -> str:
     """将纯占位短横(如 '—  —')规整为空字符串。"""
     cleaned = (value or "").replace("\xa0", " ").strip()
     return "" if all(ch in _DASH_CHARS for ch in cleaned) else cleaned
+
+
+def _date_from_url(url: str) -> Optional[date]:
+    """从详情链接路径 /art/YYYY/M/D/ 派生发布日期(两套列表模板统一可靠的兜底)。"""
+    m = _URL_DATE_RE.search(url or "")
+    if not m:
+        return None
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
 
 
 def _absolute_url(href: str) -> str:
@@ -82,12 +98,14 @@ class GxtPolicyCrawler(PolicyCrawler):
         page_size: int = _DEFAULT_PAGE_SIZE,
         request_delay: float = _REQUEST_DELAY,
         column_id: int = _COLUMN_ID,
+        unit_id: str = _UNIT_ID,
         title_keyword: Optional[str] = None,
         source: str = _SOURCE,
     ) -> None:
         self._page_size = page_size
         self._request_delay = request_delay
         self._column_id = column_id
+        self._unit_id = unit_id  # 每个栏目的 jpage 实例 id 不同(col6278=403981 / col80179=403740)
         self._title_keyword = title_keyword
         self._source = source
 
@@ -112,8 +130,12 @@ class GxtPolicyCrawler(PolicyCrawler):
             title = (anchor.get("title") or anchor.get_text(strip=True)).strip()
             if title_keyword and title_keyword not in title:
                 continue
-            span = soup.find("span")
-            publish_date = _parse_publish_date(span.get_text(strip=True) if span else "")
+            # 日期元素两套模板不一(col6278=<span> / col80179=<b readlabel>)，文本取不到则从 URL 路径派生
+            date_el = soup.find("span") or soup.find("b")
+            publish_date = (
+                _parse_publish_date(date_el.get_text(strip=True) if date_el else "")
+                or _date_from_url(url)
+            )
             policies.append(
                 Policy(
                     source=source,
@@ -134,23 +156,25 @@ class GxtPolicyCrawler(PolicyCrawler):
 
     @staticmethod
     def _parse_detail(html: str) -> Tuple[str, str]:
-        """从详情页 HTML 解析(正文, 文号)。正文取 div.article_zoom(回退 .nscont / #con1)。
+        """从详情页 HTML 解析(正文, 文号)，兼容两套模板：
 
-        文件通知多无结构化文号表，文号尽力而为(取不到留空，不影响入库与⑤抽取)。
+        - 文件通知(col6278)：正文在 div.article_zoom，多无文号表；
+        - 政策文件(col80179)：正文在 div#Zoom，带三公开元数据表(但其'发文字号'常为索引码)。
+        文号仅按真文号形态(〔YYYY〕N号)best-effort 提取，避免误收索引码；取不到留空。
         """
         soup = BeautifulSoup(html or "", "html.parser")
 
         body_el = (
             soup.select_one(".article_zoom")
+            or soup.select_one("#Zoom")
+            or soup.select_one(".view")
             or soup.select_one(".nscont")
             or soup.select_one("#con1")
         )
         body_text = body_el.get_text("\n", strip=True) if body_el else ""
 
-        doc_number = ""
-        match = re.search(r"(?:发文字号|文号)[：:]\s*([^\s<，。]{4,40})", soup.get_text(" ", strip=True))
-        if match:
-            doc_number = _clean_dash(match.group(1))
+        match = _DOC_NUMBER_RE.search(soup.get_text(" ", strip=True))
+        doc_number = _clean_dash(match.group(0)) if match else ""
         return body_text, doc_number
 
     async def crawl(self, max_pages: int = 1) -> List[Policy]:
@@ -186,7 +210,7 @@ class GxtPolicyCrawler(PolicyCrawler):
             "webid": _WEB_ID,
             "path": "/",
             "columnid": self._column_id,
-            "unitid": _UNIT_ID,
+            "unitid": self._unit_id,
             "col": "1",
             "sourceContentType": "1",
             "permissiontype": "0",
