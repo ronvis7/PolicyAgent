@@ -11,6 +11,7 @@ from app.application.services.app_config_service import AppConfigService
 from app.application.services.auth_service import AuthService
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
 from app.application.services.feed_service import FeedService
+from app.application.services.report_service import ReportService
 from app.application.services.file_service import FileService
 from app.application.services.knowledge_service import KnowledgeService
 from app.application.services.membership_service import MembershipService
@@ -299,5 +300,14 @@ def get_feed_service() -> FeedService:
     return FeedService(
         uow_factory=get_uow,
         match_service=get_policy_match_service(),
+        qualification_service=get_qualification_service(),
+    )
+
+
+def get_report_service() -> ReportService:
+    """获取政策匹配简报组装服务（主线尾巴：复用档案/Feed/资质服务组装 PDF 简报）。"""
+    return ReportService(
+        profile_service=get_enterprise_profile_service(),
+        feed_service=get_feed_service(),
         qualification_service=get_qualification_service(),
     )

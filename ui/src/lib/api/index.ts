@@ -133,4 +133,5 @@ export { profileApi } from "./profile";
 export { policyApi } from "./policy";
 export { feedApi } from "./feed";
 export { qualificationApi } from "./qualification";
+export { reportApi } from "./report";
 

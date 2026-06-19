@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { AlarmClock, CheckCircle2, ExternalLink, Loader2, XCircle } from 'lucide-react'
+import { AlarmClock, CheckCircle2, ExternalLink, FileDown, Loader2, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { feedApi, policyApi, qualificationApi } from '@/lib/api'
+import { feedApi, policyApi, qualificationApi, reportApi } from '@/lib/api'
 import type {
   FeedItem,
   FeedStatus,
@@ -99,6 +99,7 @@ export default function FeedPage() {
   const [items, setItems] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [recomputing, setRecomputing] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const [detail, setDetail] = useState<PolicyDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -152,6 +153,27 @@ export default function FeedPage() {
       toast.error(err instanceof Error ? err.message : '重新匹配失败')
     } finally {
       setRecomputing(false)
+    }
+  }
+
+  /** 导出政策匹配简报 PDF（组装当前租户匹配/差距/临期，复用 PR #44 带鉴权下载） */
+  const onExport = async () => {
+    setExporting(true)
+    try {
+      const { blob, filename } = await reportApi.downloadBrief()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('简报已导出')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '导出简报失败')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -214,15 +236,27 @@ export default function FeedPage() {
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          className="cursor-pointer rounded-xl bg-white"
-          onClick={onRecompute}
-          disabled={recomputing}
-        >
-          {recomputing ? <Loader2 className="size-4 animate-spin" /> : null}
-          重新匹配
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="cursor-pointer rounded-xl bg-white"
+            onClick={onExport}
+            disabled={exporting}
+            title="把当前匹配政策、资质差距与临期提醒导出为 PDF 简报"
+          >
+            {exporting ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
+            导出简报
+          </Button>
+          <Button
+            variant="outline"
+            className="cursor-pointer rounded-xl bg-white"
+            onClick={onRecompute}
+            disabled={recomputing}
+          >
+            {recomputing ? <Loader2 className="size-4 animate-spin" /> : null}
+            重新匹配
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
