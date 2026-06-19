@@ -243,7 +243,7 @@ export default function PoliciesPage() {
         <div className="flex min-w-0 items-center gap-3">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-[#202939]">公开政策库</h1>
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">公开政策库</h1>
             <p className="hidden text-xs text-[#778090] sm:block">搜索、筛选和审阅已入库的公开政策，结果来自现有政策库接口。</p>
           </div>
         </div>
@@ -414,8 +414,8 @@ export default function PoliciesPage() {
                   <li
                     key={policy.id}
                     className={cn(
-                      'rounded-2xl border border-[#e5e2de] bg-[#fafafa] p-4 transition hover:border-[#cdd5df] hover:bg-white',
-                      detail?.id === policy.id && 'border-[#2f3747] bg-white shadow-sm',
+                      'rounded-2xl border border-[#e7e4df] bg-[#fafafa] p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-white hover:shadow-[var(--shadow-card)]',
+                      detail?.id === policy.id && 'border-primary bg-white shadow-[var(--shadow-card)]',
                     )}
                   >
                     <div className="flex gap-3">
@@ -474,10 +474,10 @@ export default function PoliciesPage() {
           </section>
         </main>
 
-        <aside className="hidden min-h-0 flex-col overflow-hidden rounded-[20px] border border-[#e5e2de] bg-white shadow-[0_10px_30px_rgba(16,24,40,.05)] xl:flex">
-          <div className="border-b border-[#e5e2de] bg-[#9bd6d8] px-4 py-3">
-            <div className="flex items-center gap-2 text-base font-semibold text-[#202939]">
-              <Sparkles className="size-5" />
+        <aside className="hidden min-h-0 flex-col overflow-hidden rounded-[20px] border border-[#e7e4df] bg-white shadow-[var(--shadow-card)] xl:flex">
+          <div className="border-b border-[#e7e4df] bg-gradient-to-r from-brand-50 to-[#eef8f8] px-4 py-3">
+            <div className="flex items-center gap-2 text-base font-serif font-semibold tracking-tight text-[#16484a]">
+              <Sparkles className="size-5 text-primary" />
               政策助手
             </div>
           </div>

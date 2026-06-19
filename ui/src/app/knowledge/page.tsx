@@ -97,9 +97,9 @@ export default function KnowledgePage() {
       <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e7e5e2] bg-[#fbfbfa] px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
-          <h1 className="truncate text-base font-semibold text-[#202124]">文档知识库</h1>
+          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">文档知识库</h1>
         </div>
-        <Button className="cursor-pointer rounded-xl bg-[#287174] hover:bg-[#1f5f62]" onClick={() => setCreateOpen(true)}>
+        <Button className="cursor-pointer rounded-xl" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" />
           新建知识库
         </Button>

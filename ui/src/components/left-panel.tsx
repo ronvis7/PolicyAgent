@@ -63,7 +63,8 @@ export function LeftPanel() {
       <SidebarHeader className="px-3 py-3">
         <div className="flex items-center justify-between">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white"/>
-          <div className="rounded-full border border-[#e5e2de] bg-white px-3 py-1 text-xs font-semibold text-[#667085] shadow-sm">
+          <div className="flex items-center gap-1.5 rounded-full border border-[#e5e2de] bg-white px-3 py-1 text-xs font-semibold text-[#2f3747] shadow-sm">
+            <span className="size-2 rounded-full bg-primary"/>
             PolicyManus
           </div>
         </div>
@@ -92,12 +93,15 @@ export function LeftPanel() {
               key={item.href}
               variant="ghost"
               className={cn(
-                'mb-1 h-10 w-full cursor-pointer justify-start rounded-xl px-3 text-[#344054] hover:bg-white',
-                active && 'bg-white font-semibold shadow-sm',
+                'group relative mb-1 h-10 w-full cursor-pointer justify-start rounded-xl px-3 text-[#344054] transition-colors hover:bg-white',
+                active && 'bg-white font-semibold text-[#16484a] shadow-[var(--shadow-card)]',
               )}
               onClick={() => router.push(item.href)}
             >
-              <Icon className="size-4"/>
+              {active && (
+                <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-primary"/>
+              )}
+              <Icon className={cn('size-4', active && 'text-primary')}/>
               {item.label}
               {item.href === '/feed' && unread > 0 && (
                 <Badge className="ml-auto h-5 min-w-5 justify-center px-1.5">

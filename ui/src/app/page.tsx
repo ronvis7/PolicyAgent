@@ -55,8 +55,10 @@ export default function Page() {
       <div className="flex-1 flex items-center justify-center px-4 py-6 sm:py-8 -mt-12 sm:-mt-16">
         <div className="w-full max-w-full sm:max-w-[768px] sm:min-w-[390px] mx-auto">
           {/* 对话提示内容 */}
-          <div className="text-[24px] sm:text-[32px] font-bold mb-4 sm:mb-6 text-center sm:text-left">
-            <div className="text-[#202939]">您好，{user?.display_name ?? '欢迎回来'}</div>
+          <div className="font-serif text-[26px] sm:text-[36px] font-semibold tracking-tight leading-tight mb-4 sm:mb-6 text-center sm:text-left">
+            <div className="text-[#1c2127]">
+              您好，<span className="text-primary">{user?.display_name ?? '欢迎回来'}</span>
+            </div>
             <div className="text-[#8b92a0]">需要我帮您做什么？</div>
           </div>
           {/* 对话框 */}

@@ -230,7 +230,7 @@ export default function FeedPage() {
         <div className="flex min-w-0 items-center gap-3">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-[#202939]">工作台</h1>
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">工作台</h1>
             <p className="hidden text-xs text-[#778090] sm:block">
               系统依据企业档案持续盯紧可申报机会，有新增会顶到这里。
             </p>
@@ -270,7 +270,7 @@ export default function FeedPage() {
                 className={cn(
                   'cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                   typeFilter === t.value
-                    ? 'bg-[#2f3747] text-white shadow-sm'
+                    ? 'bg-primary text-white shadow-[var(--shadow-card)]'
                     : 'text-[#667085] hover:bg-[#f2f1ef]',
                 )}
                 onClick={() => setTypeFilter(t.value)}
@@ -323,8 +323,15 @@ export default function FeedPage() {
               {visibleItems.map((m) => (
                 <li
                   key={m.id}
-                  className="rounded-2xl border border-[#e5e2de] bg-white p-4 shadow-[0_10px_30px_rgba(16,24,40,.04)] transition hover:border-[#cdd5df]"
+                  className="group relative overflow-hidden rounded-2xl border border-[#e7e4df] bg-white p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                 >
+                  {/* 机会类型左侧彩条：资质=翠绿、政策=品牌青绿 */}
+                  <span
+                    className={cn(
+                      'absolute left-0 top-0 h-full w-1',
+                      m.type === 'qualification' ? 'bg-emerald-400' : 'bg-primary',
+                    )}
+                  />
                   <div className="flex items-start gap-2 mb-1">
                     {m.status === 'unread' && (
                       <Badge className="mt-0.5 shrink-0">{STATUS_LABEL.unread}</Badge>
@@ -377,8 +384,15 @@ export default function FeedPage() {
                       {m.publish_date && <span>{m.publish_date}</span>}
                       {m.issuer && <Badge variant="outline">{m.issuer}</Badge>}
                       {m.structured_score > 0 && (
-                        <span title="结构化命中归一化分">
-                          命中度 {(m.structured_score * 100).toFixed(0)}%
+                        <span className="inline-flex items-center gap-1.5" title="结构化命中归一化分">
+                          命中度
+                          <span className="h-1.5 w-12 overflow-hidden rounded-full bg-[#eceae6]">
+                            <span
+                              className="block h-full rounded-full bg-primary"
+                              style={{ width: `${Math.min(100, m.structured_score * 100)}%` }}
+                            />
+                          </span>
+                          {(m.structured_score * 100).toFixed(0)}%
                         </span>
                       )}
                       {m.semantic_score > 0 && (

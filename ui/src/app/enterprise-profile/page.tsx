@@ -33,7 +33,7 @@ import { useAuth } from '@/providers/auth-provider'
 
 /** 分区卡片样式（与政策库/工作台等页面视觉一致） */
 const CARD_CLASS =
-  'rounded-[18px] border border-[#e5e2de] bg-white p-6 shadow-[0_10px_30px_rgba(16,24,40,.04)]'
+  'rounded-[18px] border border-[#e7e4df] bg-white p-6 shadow-[var(--shadow-card)]'
 
 /** 企业规模选项 */
 const SCALE_OPTIONS: { value: EnterpriseScale; label: string }[] = [
@@ -362,7 +362,7 @@ export default function EnterpriseProfilePage() {
         <div className="flex min-w-0 items-center gap-3">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-[#202939]">企业档案</h1>
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">企业档案</h1>
             <p className="hidden text-xs text-[#778090] sm:block">
               {canEdit
                 ? '完善企业档案，作为后续政策匹配与主动推送的依据。'
@@ -456,7 +456,7 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
               <Building2 className="size-7" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-2xl font-bold leading-tight text-[#202939]">
+              <h2 className="font-serif text-2xl font-semibold leading-tight tracking-tight text-[#1c2127]">
                 {profile.company_name}
               </h2>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#667085]">
@@ -492,7 +492,7 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8e6e2]">
             <div
-              className="h-full rounded-full bg-[#287174] transition-all"
+              className="h-full rounded-full bg-primary transition-all"
               style={{ width: `${score}%` }}
             />
           </div>
