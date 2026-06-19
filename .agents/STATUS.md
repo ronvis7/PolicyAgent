@@ -1,6 +1,6 @@
 # 当前状态
 
-最后更新：2026-06-19（晚，PR #52 数据来源透明中心）
+最后更新：2026-06-19（晚，PR #52 数据来源透明中心 + PR #53 资质 banded 分档条件）
 
 ## 仓库状态
 
@@ -12,6 +12,7 @@
 
 > 细节以 `git log` 为准，本节只记里程碑。
 
+- **资质 banded 分档条件模型（PR #53，2026-06-19 合并）**：⑥ 能力② 扩展——支持门槛随另一指标落档而变的分档硬条件。`ConditionBand`（单档 max_value 上限 + threshold，None=开口顶档）+ `BandedCondition`（被核验指标 metric + 落档指标 band_metric + 升序 bands），`Qualification` 加 `banded_conditions`。gap 内核 `_resolve_band` 选档 + `_evaluate_banded` 先定档再比指标，**band_metric 或被核验指标任一缺失→待确认**（不误报不达标），banded label 一并从 manual_review 去重。高企「研发费用占销售收入比例」接入为首个真实 banded 条件（按营收三档 ≤5000万→5%/5000万~2亿→4%/>2亿→3%，数值=现行办法概要待业务方核对）。**前端零改动**（banded 产出标准 ConditionCheck，detail 携带落档上下文，沿用 `qualification-detail.tsx` 渲染）。零迁移、零新增依赖，新增 7 单测、离线 242 passed、CI 三项全绿。**扩更多资质**：逐条配条件 + 业务方核对数值；行业分档需先扩"行业档"落档指标。
 - **数据来源透明中心（政策源溯源 + 资质目录来源，PR #52，2026-06-19 合并，真机走查通过）**：建立数据来源透明度——让用户看到政策/资质信息来自哪些权威源头（"数据来自政府官网、不是瞎编"的信任感）。**零迁移、只读聚合**：`CrawlerSource` 加 `home_url`（wnd/wnd-apply/shyp 官网）；仓储 `stats_by_source()` 单条 `GROUP BY source` 聚合各源条数 + 最近抓取时间（无 N+1，DB/内存 fake 双实现）；`PolicyService.list_sources_with_stats()` 合并注册表与统计（无政策源回落 0/None）；`GET /policies/sources` 增量返回 `home_url`/`policy_count`/`last_crawled_at`（向后兼容）；`GET /qualifications/catalog`（注册在 `/{key}` 前）返回**全量**资质目录来源（发证机关/政策依据/末次核对/免责），**不依赖租户档案、不做匹配过滤**，复用既有 `service.list_catalog()`。前端新页 `/sources`「数据来源」（政策源卡片=官网外链+收录条数+最近更新；资质来源按级别分组+全局免责）+ 左栏入口。**刻意不做**「用户粘贴任意网址实时爬取」——撞 ①b 教训（无可靠通用数据源），留作"来源建议众包"另议。新增单测 service 合并/catalog 非租户过滤 + 集成 `stats_by_source` 真库 GROUP BY；CI 三项（含 integration 真库）全绿；离线 235 passed。
 - **政策匹配简报 PDF 一键导出（主线尾巴，PR #47，2026-06-19 合并）**：产品主线"企业档案→公开政策库→匹配→Feed→接问 AI/报告"的最后一步。不做重报告流水线（价值存疑），改轻量交付物：把企业画像 + ③匹配政策 + ⑥资质差距 + ⑤临期申报组装为 PDF。`ReportService.build_brief`(复用档案/Feed/资质服务，Top15 政策按分降序剔除已忽略 / Top8 资质差距 / 30 天临期) + `infrastructure/report/pdf_renderer.py`(reportlab 纯函数，内置 `STSong-Light` 中文字体、无系统原生依赖；差距/截止带免责声明；XML 特殊字符转义) + `GET /reports/policy-brief`(application/pdf，限当前租户)；前端 `/feed` 顶部「导出简报」按钮(复用 PR #44 带 Bearer 鉴权下载)。**收尾**：政策表「匹配分」列误用原始 RRF 分(受 k=60 压制天然 0.02 上下、几乎同值)，改为展示命中度%/语义相似度，与网页卡片口径一致、RRF 仅用于排序。新增依赖 `reportlab`。13 单测、零迁移。
 - **结构化匹配质量提升（jieba 分词 + 饱和归一 + 地区加成，PR #48，2026-06-19 合并）**：导出简报后发现命中度普遍偏低/为 0，定位 `policy_matcher.py::score_terms` 三根因并一并修：①纯子串匹配脆 → 引入 **jieba** 标题按 token 重合判命中(保留原样子串)，正文仍走子串控成本；②归一化稀释(旧按全部档案词数归一、填得越全分越低) → 改饱和归一 `weight/(weight+2)`，不被未命中词稀释；③地区未进分 → 内容已命中时叠加 +0.15 地区加成(无内容命中不单独刷分)。加停用词降噪。纯函数内核，新增依赖 `jieba`，零迁移。
@@ -62,7 +63,7 @@
 - 前端认证闭环真机联调；多租户自动化测试。
 - 成员管理已实现基础闭环（加/改角色/移除/审批加入申请 + **已登录用户自助申请加入其他组织**，见 handoff `2026-06-15-self-join-org`），尚缺：所有权转移、最后一名 owner 保护的更细规则、"我发起的加入申请"列表。
 - **存量重复同名组织清理**（历史 register 产生的同名租户，如两个「重庆理工大学」）待 DB 连通后人工去重；组织名 DB 唯一索引待去重后补。
-- **⑥ 资质后续**：目录结构化条件已逐条 triage（PR #26）：仅 `high-tech-enterprise` + `tech-sme`（职工≤500/营收≤2亿 LTE）可结构化，其余 23 条因软/文本、分档/分行业、无对应档案字段而留 `manual_review`（分类原因见目录注释）。要再扩需先建 **banded（分营收/分行业档）条件模型**（如高企研发费用占比），且数值须业务方按当年官方办法核对。
+- **⑥ 资质后续**：目录结构化条件已逐条 triage（PR #26）：`high-tech-enterprise` + `tech-sme`（职工≤500/营收≤2亿 LTE）可结构化。**banded（分档）条件模型已就绪（PR #53）**——支持门槛随营收/行业等落档而变，高企「研发费用占比」已接入为首个 banded 条件（按营收三档）。要再扩：为其余资质逐条配 `banded_conditions`/`structured_conditions`，**数值须业务方按当年官方办法核对**；行业分档需新增"行业档"落档指标（当前 band_metric 仅营收/规模类数值字段）。
 - 报告生成流水线；GitHub Actions 与分支保护。
 - ①b AI 联网补全暂停中，待搜索/企业数据 API 接入后复活。
 - **公开政策库多区域**：通用框架已就绪（来源注册表 + 按 source 抓取 + 地区筛选 + 来源选择器，见 handoff `2026-06-15-multi-region-policies`）。现有来源：无锡新吴区（`wnd`/`wnd-apply`）+ **上海杨浦区（`shyp`，PR #37 已合并、真机入库验证通过，见 `2026-06-17-profile-view-and-yangpu-source`）**。再扩地区仍需为其门户单独逆向做爬虫（先确认可逆向抓取，①b 教训）。
@@ -83,7 +84,7 @@
 3. **续加隔离自动化**：membership 横向越权 / 租户 LLM·embed key 读取 / 会话子资源 / document_chunk，
    按 `tests/app/isolation/`(内存) 或 `tests/integration/`(真库) 模式补。
 4. 报告**已交付为轻量 PDF**(PR #47，非重流水线)；比赛因走公众号（微信封闭）暂缓。
-5. （可选）banded 条件模型 + 业务方核对数值，让更多资质可结构化差距分析；当前仅高企+科技型中小企业已结构化。
+5. **让更多资质可结构化差距分析**：banded 条件模型已就绪（PR #53，高企研发费用占比已接入）；扩更多资质=逐条配 `banded_conditions`/`structured_conditions` + **业务方核对当年数值**；行业分档需先扩"行业档"落档指标。
 
 > ⑥ 能力①②③（A0/A1/A2）均已交付并合并 main、真机走查通过；目录结构化条件已 triage（PR #26）。
 > 公开库语义检索已接入 Agent（PR #28，KnowledgeBaseTool 默认范围=私有库+全局公开库）、真机走查通过。
@@ -96,7 +97,7 @@
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)
   + 跨租户隔离 endpoint 测试进 CI(#46) + **报告 PDF 导出(#47)** + **匹配质量 jieba(#48)** +
   **DB-in-CI 隔离集成测试(#49)** + **档案关键词智能提取(#50)** + **结构化挖主营业务词(真机走查修, #51)**
-  + **数据来源透明中心(#52)**，均已合并；命中度修复(#51)、数据来源页(#52)真机已验证通过，#47 报告导出真机走查待做。
+  + **数据来源透明中心(#52)** + **资质 banded 分档条件(#53)**，均已合并；命中度修复(#51)、数据来源页(#52)真机已验证通过，#47 报告导出 + #53 banded 真机走查待做。
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏；落后 main 多个 PR、已冲突，待复活时一并 rebase 解）。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
 - 工作区未跟踪 `docker-compose.server.yml`：服务器本机部署 override（接 `/opt/policy-postgres`），按用户意图暂不提交、暂不碰服务器部署。
