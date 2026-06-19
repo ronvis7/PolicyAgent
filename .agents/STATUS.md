@@ -5,7 +5,7 @@
 ## 仓库状态
 
 - 主仓库：`policy_manus`，当前分支 `main`（干净，已同步 origin）。
-- `main` 已合入 ②公开政策库（PR #12）+ ③政策匹配（PR #13）+ ④工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19）+ ⑥资质 Phase 1（PR #21）+ 企业档案结构化字段 A0 + 资质能力②差距分析 A1（PR #22）+ ⑤申报截止跟踪+主动提醒+`wnd-apply` 爬虫源（**PR #32，已合并**）+ 公开政策定时重爬（**PR #34，已合并**）+ 前端视觉统一+品牌收尾（PR #35，2026-06-17 合并）+ 企业档案查看态打磨 + 上海杨浦区政策来源 + 抓取反馈（PR #37，2026-06-17 合并）+ 注册引导/个人工作区提示 + 工作台政策资质分栏 + 政策库默认地区（PR #39，2026-06-17 合并）+ ADR 003 私有政策库双轨 Embedding **阶段 A 租户级 Embedding BYO key（PR #42）+ 阶段 B Agent 去公开库 + 私有政策库收藏（PR #43）** + **文件下载/预览 401 鉴权修复（PR #44）+ 私有政策库收尾·批量收藏 + 知识库真实文件数（PR #45）**（均 2026-06-18 合并）+ 跨租户隔离 endpoint 测试进 CI（PR #46）+ **政策匹配简报 PDF 一键导出（主线尾巴，PR #47）+ 结构化匹配质量提升（jieba 分词+饱和归一+地区加成，PR #48）+ DB-in-CI 仓储 SQL 层隔离集成测试（PR #49）+ 企业档案关键词智能提取（PR #50）**（均 2026-06-19 合并）。
+- `main` 已合入 ②公开政策库（PR #12）+ ③政策匹配（PR #13）+ ④工作台 Feed（PR #16）+ 自助加入其他组织（PR #18）+ 公开政策库通用多区域框架（PR #19）+ ⑥资质 Phase 1（PR #21）+ 企业档案结构化字段 A0 + 资质能力②差距分析 A1（PR #22）+ ⑤申报截止跟踪+主动提醒+`wnd-apply` 爬虫源（**PR #32，已合并**）+ 公开政策定时重爬（**PR #34，已合并**）+ 前端视觉统一+品牌收尾（PR #35，2026-06-17 合并）+ 企业档案查看态打磨 + 上海杨浦区政策来源 + 抓取反馈（PR #37，2026-06-17 合并）+ 注册引导/个人工作区提示 + 工作台政策资质分栏 + 政策库默认地区（PR #39，2026-06-17 合并）+ ADR 003 私有政策库双轨 Embedding **阶段 A 租户级 Embedding BYO key（PR #42）+ 阶段 B Agent 去公开库 + 私有政策库收藏（PR #43）** + **文件下载/预览 401 鉴权修复（PR #44）+ 私有政策库收尾·批量收藏 + 知识库真实文件数（PR #45）**（均 2026-06-18 合并）+ 跨租户隔离 endpoint 测试进 CI（PR #46）+ **政策匹配简报 PDF 一键导出（主线尾巴，PR #47）+ 结构化匹配质量提升（jieba 分词+饱和归一+地区加成，PR #48）+ DB-in-CI 仓储 SQL 层隔离集成测试（PR #49）+ 企业档案关键词智能提取（PR #50）+ 结构化匹配自动从主营业务挖词（真机走查修，PR #51）**（均 2026-06-19 合并）。
 - **基建：共享 PostgreSQL 已从 `118.196.142.223`（停机）迁到 `118.196.142.222`**（部署/数据/备份逐项校验 + 全栈 Remote 真机走查通过，详见 handoff `2026-06-16-postgres-server-migration`）。
 
 ## 已完成
@@ -14,6 +14,7 @@
 
 - **政策匹配简报 PDF 一键导出（主线尾巴，PR #47，2026-06-19 合并）**：产品主线"企业档案→公开政策库→匹配→Feed→接问 AI/报告"的最后一步。不做重报告流水线（价值存疑），改轻量交付物：把企业画像 + ③匹配政策 + ⑥资质差距 + ⑤临期申报组装为 PDF。`ReportService.build_brief`(复用档案/Feed/资质服务，Top15 政策按分降序剔除已忽略 / Top8 资质差距 / 30 天临期) + `infrastructure/report/pdf_renderer.py`(reportlab 纯函数，内置 `STSong-Light` 中文字体、无系统原生依赖；差距/截止带免责声明；XML 特殊字符转义) + `GET /reports/policy-brief`(application/pdf，限当前租户)；前端 `/feed` 顶部「导出简报」按钮(复用 PR #44 带 Bearer 鉴权下载)。**收尾**：政策表「匹配分」列误用原始 RRF 分(受 k=60 压制天然 0.02 上下、几乎同值)，改为展示命中度%/语义相似度，与网页卡片口径一致、RRF 仅用于排序。新增依赖 `reportlab`。13 单测、零迁移。
 - **结构化匹配质量提升（jieba 分词 + 饱和归一 + 地区加成，PR #48，2026-06-19 合并）**：导出简报后发现命中度普遍偏低/为 0，定位 `policy_matcher.py::score_terms` 三根因并一并修：①纯子串匹配脆 → 引入 **jieba** 标题按 token 重合判命中(保留原样子串)，正文仍走子串控成本；②归一化稀释(旧按全部档案词数归一、填得越全分越低) → 改饱和归一 `weight/(weight+2)`，不被未命中词稀释；③地区未进分 → 内容已命中时叠加 +0.15 地区加成(无内容命中不单独刷分)。加停用词降噪。纯函数内核，新增依赖 `jieba`，零迁移。
+- **结构化匹配自动从主营业务挖词（PR #51，2026-06-19 合并，真机走查发现并修）**：#48/#50 上线后真机走查命中度仍**全 0**、语义正常(0.5-0.6)——根因是两路输入不一致：语义路 `build_profile_query` 吃主营业务，结构化路 `extract_profile_terms` 只认 关键词/技术域/资质/行业 标签；用户实际只填了主营业务、标签全空，故结构化无词可命中。修：`extract_profile_terms` 在显式标签外，再用 jieba(复用 `keyword_extractor`)从 `main_business` 自动挖至多 8 词并入(显式标签优先、去重)，两路对齐同一输入；配合 #48 饱和归一不稀释。纯函数、零迁移、零新增依赖。
 - **DB-in-CI 仓储 SQL 层隔离集成测试（PR #49，2026-06-19 合并）**：补上内存隔离套件测不到的那层——仓储 SQL 的 tenant WHERE 真实生效。`tests/integration/` 连真 Postgres+pgvector，跑 `alembic upgrade head`(连带验证迁移链) + 真 `DBUnitOfWork`/真仓储，断言 session/knowledge_base/enterprise_profile/feed 的 get/list/delete 均"跨租户取不到·不生效 + 本租户成功"。仅 `RUN_DB_TESTS=1` 运行、否则按路径精确 skip；CI 新增 `integration` job（`pgvector/pgvector:pg16` service 容器）。**仍可续加**：membership 横向越权、tenant_settings(LLM/embed key) 读取、document_chunk。
 - **企业档案关键词智能提取（PR #50，2026-06-19 合并）**：匹配命中度低的"数据侧"那一半——帮用户从自己的主营业务/行业自述一键提取候选关键词补全(建议词取自企业描述，最可能也出现在相关政策里)。纯函数 `keyword_extractor.suggest_keywords`(jieba TF-IDF + 停用词/已填项过滤，复用 jieba) + `POST /enterprise-profile/keyword-suggestions`(无状态)；前端档案编辑「✨ 智能提取关键词」按钮，结果作关键词字段 presets 一键入列。9 单测、零迁移。
 - 多租户后端闭环：tenants/users/memberships + JWT + 租户切换；sessions/files/平台配置隔离。
@@ -74,7 +75,7 @@
 (连 .222 重建栈：导出简报看中文渲染/命中度、编辑档案点智能提取关键词、保存后看 /feed 命中度回升)。
 
 > 待办候选（无强先后）：
-1. **真机走查本轮四条**(#47/#48/#50 见上；#49 纯 CI 无需真机)：尤其匹配命中度改善需真数据验证。
+1. **真机走查收尾**：#47 报告导出真机走查待做；匹配命中度——首轮走查发现仍全 0（根因=只填主营业务、标签空），已修(#51)，**待重建栈再验**：`/feed` 重新匹配后只填主营业务的档案应有非零命中度。
 2. **多区域申报源**：⑤临期提醒 + 定时重爬已就绪（`wnd-apply` 每天 04:00 CST 应用内调度重爬，见下）；
    要扩覆盖需各门户单独逆向申报检索，并在 `POLICY_RECRAWL_SOURCES` 追加其 key。
 3. **续加隔离自动化**：membership 横向越权 / 租户 LLM·embed key 读取 / 会话子资源 / document_chunk，
@@ -92,7 +93,7 @@
 ## 分支/PR 状态（2026-06-19 收尾）
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)
   + 跨租户隔离 endpoint 测试进 CI(#46) + **报告 PDF 导出(#47)** + **匹配质量 jieba(#48)** +
-  **DB-in-CI 隔离集成测试(#49)** + **档案关键词智能提取(#50)**，均已合并；本轮 #47/#48/#50 真机走查**待做**。
+  **DB-in-CI 隔离集成测试(#49)** + **档案关键词智能提取(#50)** + **结构化挖主营业务词(真机走查修, #51)**，均已合并；#47 报告导出真机走查待做，命中度修复(#51)待重建栈再验。
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏；落后 main 多个 PR、已冲突，待复活时一并 rebase 解）。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
 - 工作区未跟踪 `docker-compose.server.yml`：服务器本机部署 override（接 `/opt/policy-postgres`），按用户意图暂不提交、暂不碰服务器部署。
@@ -100,7 +101,7 @@
 
 ## 已知风险
 
-- 跨租户隔离：① 手动对撞探针 `scripts/cross-tenant-probe.ps1`（18 项，连真实栈）；② **自动化 endpoint 隔离测试已进 CI**（PR #46，`api/tests/app/isolation/`，9 项：会话/知识库读删、企业档案不串、**Feed 改状态**、**文件下载**、无/坏令牌→401，均"跨租户→404 + 本租户→成功"双向断言；TestClient + 依赖覆盖 + 内存仓储，不连库）。CI backend job 已从只跑 `tests/app/domain` 扩为跑全部离线测试（忽略需真库的 `test_get_status`），**231 passed + 4 skipped**（含集成套件，未启用真库时 skip）。③ **仓储 SQL 层 WHERE 隔离回归已进 CI**（**PR #49**，`tests/integration/`，连真 Postgres+pgvector + alembic + 真仓储，覆盖 session/knowledge_base/enterprise_profile/feed 的 get/list/delete 跨租户双向断言；`RUN_DB_TESTS=1` 触发、CI `integration` job 起 service 容器）。**仍未自动化**：成员 `membership_id` 横向越权、租户 LLM/embed key 读取、会话 chat/stop/bind-kb、document_chunk（可按隔离套件/集成套件模式续加）。详见 handoff `2026-06-18-cross-tenant-isolation-probe` / `-cross-tenant-isolation-ci`。
+- 跨租户隔离：① 手动对撞探针 `scripts/cross-tenant-probe.ps1`（18 项，连真实栈）；② **自动化 endpoint 隔离测试已进 CI**（PR #46，`api/tests/app/isolation/`，9 项：会话/知识库读删、企业档案不串、**Feed 改状态**、**文件下载**、无/坏令牌→401，均"跨租户→404 + 本租户→成功"双向断言；TestClient + 依赖覆盖 + 内存仓储，不连库）。CI backend job 已从只跑 `tests/app/domain` 扩为跑全部离线测试（忽略需真库的 `test_get_status`），**233 passed + 4 skipped**（含集成套件，未启用真库时 skip）。③ **仓储 SQL 层 WHERE 隔离回归已进 CI**（**PR #49**，`tests/integration/`，连真 Postgres+pgvector + alembic + 真仓储，覆盖 session/knowledge_base/enterprise_profile/feed 的 get/list/delete 跨租户双向断言；`RUN_DB_TESTS=1` 触发、CI `integration` job 起 service 容器）。**仍未自动化**：成员 `membership_id` 横向越权、租户 LLM/embed key 读取、会话 chat/stop/bind-kb、document_chunk（可按隔离套件/集成套件模式续加）。详见 handoff `2026-06-18-cross-tenant-isolation-probe` / `-cross-tenant-isolation-ci`。
 - `.env`（腾讯 COS、`EMBED_API_KEY`）与 `api/config.yaml` 是 Docker 启动前置；含真实机密，保持 gitignored。
 - 共享远程数据库依赖每台开发机的一次性 SSH 密钥和 `.env.remote` 配置；不同分支不得并发执行不兼容迁移。
 - 检索默认全库，租户库多时为顺序循环，规模大需批量/并发或会话级 scope 收窄。
