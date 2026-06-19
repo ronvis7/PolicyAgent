@@ -1,4 +1,4 @@
-import { get, put } from "./fetch";
+import { get, post, put } from "./fetch";
 
 // ==================== 企业档案类型 ====================
 
@@ -43,5 +43,13 @@ export const profileApi = {
   /** 整体更新当前组织的企业档案（仅 owner/admin） */
   update: (params: UpdateEnterpriseProfileParams): Promise<EnterpriseProfile> => {
     return put<EnterpriseProfile>("/enterprise-profile", params);
+  },
+
+  /** 从自述文本智能提取候选关键词（排除已填项），供档案编辑一键补全 */
+  suggestKeywords: (text: string, exclude: string[]): Promise<{ suggestions: string[] }> => {
+    return post<{ suggestions: string[] }>("/enterprise-profile/keyword-suggestions", {
+      text,
+      exclude,
+    });
   },
 };

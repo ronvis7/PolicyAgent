@@ -10,10 +10,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
 from app.application.services.feed_service import FeedService
 from app.domain.models.membership import MembershipRole
+from app.domain.services.keyword_extractor import suggest_keywords
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user, require_role
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.enterprise_profile import (
     EnterpriseProfileResponse,
+    KeywordSuggestRequest,
+    KeywordSuggestResponse,
     UpdateEnterpriseProfileRequest,
 )
 from app.interfaces.service_dependencies import (
@@ -61,9 +64,27 @@ async def update_enterprise_profile(
     profile = await service.update_profile(
         current_user.tenant_id, request.to_domain(current_user.tenant_id)
     )
-    # 档案变了，可申报政策也会变：后台重算当前租户 Feed(不阻塞响应)
+    # 档案变了，可申报政策也会变：后台重算当前租户 Feed(④ 触发 b，不阻塞响应)
     background_tasks.add_task(feed_service.recompute_for_tenant, current_user.tenant_id)
     return Response.success(
         msg="更新企业档案成功",
         data=EnterpriseProfileResponse.from_domain(profile),
     )
+
+
+@router.post(
+    path="/keyword-suggestions",
+    response_model=Response[KeywordSuggestResponse],
+    summary="从自述文本智能提取候选关键词",
+    description=(
+        "对主营业务/行业等自述文本做中文关键词抽取，返回候选关键词(已过滤停用词与已填项)，"
+        "供档案编辑时一键补全。建议词取自企业自身描述，对 ③ 结构化匹配命中最有帮助。"
+    ),
+)
+async def suggest_profile_keywords(
+        request: KeywordSuggestRequest,
+        current_user: CurrentUser = Depends(get_current_user),
+) -> Response[KeywordSuggestResponse]:
+    """关键词智能提取(无状态纯计算，所有登录用户可用)"""
+    suggestions = suggest_keywords(request.text, exclude=request.exclude)
+    return Response.success(data=KeywordSuggestResponse(suggestions=suggestions))
