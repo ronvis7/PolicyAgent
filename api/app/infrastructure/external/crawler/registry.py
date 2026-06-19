@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List
 
 from app.domain.external.policy_crawler import PolicyCrawler
+from app.infrastructure.external.crawler.gxt_policy_crawler import GxtPolicyCrawler
 from app.infrastructure.external.crawler.shyp_policy_crawler import ShypPolicyCrawler
 from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCrawler
 
@@ -45,6 +46,13 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
         region="上海市杨浦区",
         factory=ShypPolicyCrawler,
         home_url="https://www.shyp.gov.cn",
+    ),
+    CrawlerSource(
+        key="gxt",
+        name="江苏省工信厅门户·文件通知(含项目申报)",
+        region="江苏省",
+        factory=GxtPolicyCrawler,
+        home_url="https://gxt.jiangsu.gov.cn",
     ),
 ]
 

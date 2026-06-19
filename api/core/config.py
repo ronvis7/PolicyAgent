@@ -56,9 +56,10 @@ class Settings(BaseSettings):
 
     # 公开政策定时重爬配置（主线⑤：保鲜申报通知的申报截止日期）
     # 应用内调度器在 api 进程内按 cron 触发 ingest，复用进程内 DB/Embedding/LLM 连接。
-    # 默认每天 04:00（错开备份 cron 03:30）重爬项目申报通知源 wnd-apply、上海杨浦区政府文件 shyp。
+    # 默认每天 04:00（错开备份 cron 03:30）重爬：项目申报通知源 wnd-apply、上海杨浦区政府文件 shyp、
+    # 江苏省工信厅文件通知 gxt(含省级项目申报)。
     policy_recrawl_enabled: bool = Field(default=True, alias="POLICY_RECRAWL_ENABLED")
-    policy_recrawl_sources: str = Field(default="wnd-apply,shyp", alias="POLICY_RECRAWL_SOURCES")  # 逗号分隔
+    policy_recrawl_sources: str = Field(default="wnd-apply,shyp,gxt", alias="POLICY_RECRAWL_SOURCES")  # 逗号分隔
     policy_recrawl_hour: int = Field(default=4, alias="POLICY_RECRAWL_HOUR")
     policy_recrawl_minute: int = Field(default=0, alias="POLICY_RECRAWL_MINUTE")
     policy_recrawl_max_pages: int = Field(default=3, alias="POLICY_RECRAWL_MAX_PAGES")
