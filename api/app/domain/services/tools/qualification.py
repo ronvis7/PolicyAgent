@@ -90,8 +90,9 @@ class QualificationTool(BaseTool):
         description=(
             "列出当前企业(租户)按其档案匹配到的可申报/接近可申报资质清单(资质=政策定义的、"
             "相对稳定的申报机会，如高新技术企业、专精特新等)。当用户问'我能申报哪些资质/"
-            "我适合什么资质/有哪些扶持认定'时调用。返回每条资质的 key、名称与是否可申报，"
-            "key 可用于后续 qualification_gap / qualification_detail 进一步分析。"
+            "我适合什么资质/有哪些扶持认定'时**直接调用本工具**。"
+            "本工具会自动读取当前登录企业的档案，**无需用户提供任何企业信息，切勿反问用户企业名称/行业/规模等**。"
+            "返回每条资质的 key、名称与是否可申报，key 可用于后续 qualification_gap / qualification_detail 进一步分析。"
         ),
         parameters={},
         required=[],
@@ -106,10 +107,13 @@ class QualificationTool(BaseTool):
         if profile is None:
             return ToolResult(
                 success=True,
-                message="当前企业尚未填写档案，无法匹配资质",
+                message="当前企业尚未填写档案",
                 data=QualificationToolData(
                     kind="list", title="可申报资质",
-                    summary="未找到企业档案，请先在'企业档案'中完善信息后再匹配资质。",
+                    summary=(
+                        "系统未读到当前企业的档案。请引导用户前往左侧「企业档案」页面一键完善"
+                        "（一次填写、后续自动使用），不要在对话中逐项追问企业信息。"
+                    ),
                 ),
             )
 
