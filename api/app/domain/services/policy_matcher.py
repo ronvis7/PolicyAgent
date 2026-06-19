@@ -14,6 +14,7 @@ import jieba
 
 from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.policy import Policy
+from app.domain.services.keyword_extractor import suggest_keywords
 
 # RRF 阻尼常数(标准取值 60)：弱化头部名次的极端影响，名次靠后仍有非零贡献
 RRF_K = 60
@@ -27,6 +28,8 @@ _SATURATION = 2.0
 _REGION_BONUS = 0.15
 # 分词最小词长：过滤单字/标点，单字 token 噪声大、易误命中
 _MIN_TOKEN_LEN = 2
+# 从主营业务自动挖取并入结构化词表的关键词上限(避免噪声过多稀释命中信号)
+_MAIN_BUSINESS_TERM_LIMIT = 8
 # 通用高频词停用：避免"企业管理"靠"企业"误命中任意惠企政策
 _STOPWORDS = frozenset({
     "企业", "公司", "政策", "通知", "管理", "发展", "工作", "实施",
@@ -61,7 +64,12 @@ def _term_hits(term: str, text: str, text_tokens: Set[str]) -> bool:
 
 
 def extract_profile_terms(profile: EnterpriseProfile) -> List[str]:
-    """从档案抽取用于结构化命中的词表(关键词+技术域+资质+行业)，去空白并去重保序。"""
+    """从档案抽取用于结构化命中的词表，去空白并去重保序。
+
+    显式标签(关键词/技术域/资质/行业)优先；用户常只写一段「主营业务」而不填标签，
+    若结构化只认标签会全 0(命中度为空)，故再用 jieba 从主营业务自动挖关键词并入——
+    不填标签也有命中度。语义路本就吃主营业务，此举让结构化路对齐同一输入。
+    """
     raw: List[str] = []
     raw.extend(profile.keywords)
     raw.extend(profile.tech_domains)
@@ -76,6 +84,15 @@ def extract_profile_terms(profile: EnterpriseProfile) -> List[str]:
         if cleaned and cleaned not in seen:
             seen.add(cleaned)
             terms.append(cleaned)
+
+    # 自动从主营业务挖关键词并入(已去掉与显式标签重复的)，上限避免噪声过多
+    if profile.main_business:
+        for term in suggest_keywords(
+            profile.main_business, exclude=terms, top_k=_MAIN_BUSINESS_TERM_LIMIT,
+        ):
+            if term not in seen:
+                seen.add(term)
+                terms.append(term)
     return terms
 
 

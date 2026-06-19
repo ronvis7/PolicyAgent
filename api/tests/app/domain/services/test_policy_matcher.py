@@ -41,6 +41,22 @@ def test_extract_terms_empty_profile_returns_empty() -> None:
     assert extract_profile_terms(_profile()) == []
 
 
+def test_extract_terms_mines_main_business_when_tags_empty() -> None:
+    # 用户只填主营业务、不填标签：仍应从主营业务挖出领域词供结构化命中
+    profile = _profile(main_business="公司专注集成电路设计与半导体封装测试。")
+    terms = extract_profile_terms(profile)
+    assert any(t in terms for t in ("集成电路", "半导体", "封装")), terms
+
+
+def test_extract_terms_explicit_tags_take_priority_and_no_dup() -> None:
+    profile = _profile(
+        keywords=["集成电路"], main_business="集成电路设计与半导体封装",
+    )
+    terms = extract_profile_terms(profile)
+    assert terms[0] == "集成电路"  # 显式标签在前
+    assert terms.count("集成电路") == 1  # 主营业务挖词不重复并入
+
+
 # ---------- build_profile_query ----------
 
 def test_build_query_joins_nonempty_fields() -> None:
