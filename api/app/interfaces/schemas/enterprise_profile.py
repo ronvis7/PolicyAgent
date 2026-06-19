@@ -89,6 +89,22 @@ class UpdateEnterpriseProfileRequest(BaseModel):
         )
 
 
+class KeywordSuggestRequest(BaseModel):
+    """关键词智能提取请求：从主营业务/行业自述文本抽候选关键词。"""
+    text: str = Field(default="", max_length=_MAX_MAIN_BUSINESS)
+    exclude: List[str] = Field(default_factory=list)  # 已填项(关键词/领域/资质)，不再重复建议
+
+    @field_validator("exclude")
+    @classmethod
+    def _clean_exclude(cls, values: List[str]) -> List[str]:
+        return _clean_tags(values)
+
+
+class KeywordSuggestResponse(BaseModel):
+    """关键词智能提取响应。"""
+    suggestions: List[str] = Field(default_factory=list)
+
+
 class EnterpriseProfileResponse(BaseModel):
     """企业档案响应结构"""
     company_name: str = ""

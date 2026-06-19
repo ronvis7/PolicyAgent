@@ -580,6 +580,31 @@ function EditForm({
   draft: EnterpriseProfile
   patch: <K extends keyof EnterpriseProfile>(key: K, value: EnterpriseProfile[K]) => void
 }) {
+  const [keywordSuggestions, setKeywordSuggestions] = useState<string[]>([])
+  const [suggesting, setSuggesting] = useState(false)
+
+  /** 从主营业务/行业自述提取候选关键词，排除已填项，作为关键词字段的快捷添加 */
+  const onSuggestKeywords = async () => {
+    const text = `${draft.main_business} ${draft.industry}`.trim()
+    if (!text) {
+      toast.error('请先填写主营业务或所属行业')
+      return
+    }
+    setSuggesting(true)
+    try {
+      const exclude = [...draft.keywords, ...draft.tech_domains, ...draft.qualifications]
+      const { suggestions } = await profileApi.suggestKeywords(text, exclude)
+      setKeywordSuggestions(suggestions)
+      toast[suggestions.length ? 'success' : 'info'](
+        suggestions.length ? `提取到 ${suggestions.length} 个候选关键词` : '未提取到新候选词',
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '关键词提取失败')
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-[760px]">
       <FieldGroup className="gap-4">
@@ -681,10 +706,29 @@ function EditForm({
               onChange={(next) => patch('tech_domains', next)}
             />
 
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">
+                关键词越贴合业务，匹配到的政策越准。可从主营业务智能提取。
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="cursor-pointer rounded-lg"
+                onClick={onSuggestKeywords}
+                disabled={suggesting}
+              >
+                {suggesting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                智能提取关键词
+              </Button>
+            </div>
+
             <TagInput
               label="关键词标签"
+              description={keywordSuggestions.length ? '点击下方候选词快捷添加。' : undefined}
               placeholder="输入关键词后回车，如：自动化"
               values={draft.keywords}
+              presets={keywordSuggestions}
               onChange={(next) => patch('keywords', next)}
             />
           </FieldSet>
