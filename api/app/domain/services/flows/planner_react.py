@@ -17,6 +17,7 @@ from app.domain.models.qualification import Qualification
 from app.domain.models.session import SessionStatus
 from app.domain.services.agents.planner import PlannerAgent
 from app.domain.services.agents.react import ReActAgent
+from app.domain.services.enterprise_context import render_enterprise_context
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.browser import BrowserTool
 from app.domain.services.tools.file import FileTool
@@ -108,6 +109,15 @@ class PlannerReActFlow(BaseFlow):
             session = await self._uow.session.get_by_id(self._session_id)
         if not session:
             raise ValueError(f"会话[{self._session_id}]不存在, 请核实后尝试")
+
+        # 1.5 注入企业档案作为实体记忆上下文(让两个Agent都知道服务于哪家企业、其档案是什么)。
+        #     在首条 system 消息生效；问资质/政策时直接用档案分析，不再反问用户企业信息。
+        if session.tenant_id:
+            async with self._uow:
+                profile = await self._uow.enterprise_profile.get_by_tenant(session.tenant_id)
+            enterprise_context = render_enterprise_context(profile)
+            self.planner.set_enterprise_context(enterprise_context)
+            self.react.set_enterprise_context(enterprise_context)
 
         # 2.判断会话的状态是不是空闲
         #   如果不是则有可能有两种状态
