@@ -121,17 +121,23 @@ def _policies_section(policies: List[FeedItem], st: dict) -> list:
     """匹配政策区块。"""
     if not policies:
         return [Paragraph("匹配政策", st["h2"]), Paragraph("暂无匹配到的政策。", st["body"])]
-    header = [Paragraph(h, st["cell"]) for h in ("#", "政策标题", "发文机构", "匹配分", "申报截止")]
+    # 展示用「命中度/语义」与网页卡片口径一致；RRF 总分(score)仅用于排序、不展示
+    # （RRF 分受 k=60 压制天然在 0.02 上下且名次相邻几乎同值，对用户无意义）
+    header = [Paragraph(h, st["cell"]) for h in ("#", "政策标题", "发文机构", "命中度", "语义", "申报截止")]
     data = [header]
     for idx, p in enumerate(policies, 1):
+        semantic = f"{p.semantic_score:.2f}" if p.semantic_score > 0 else "—"
         data.append([
             _para(idx, st["cell"]),
             _para(p.title or "—", st["cell"]),
             _para(p.issuer or "—", st["cell"]),
-            _para(f"{p.score:.2f}", st["cell"]),
+            _para(f"{p.structured_score * 100:.0f}%", st["cell"]),
+            _para(semantic, st["cell"]),
             _para(_deadline_text(p), st["cell"]),
         ])
-    table = Table(data, colWidths=[8 * mm, 92 * mm, 38 * mm, 16 * mm, 16 * mm], repeatRows=1)
+    table = Table(
+        data, colWidths=[8 * mm, 80 * mm, 34 * mm, 16 * mm, 14 * mm, 18 * mm], repeatRows=1,
+    )
     table.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d0d7de")),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f4e79")),

@@ -25,7 +25,8 @@ def _sample_report() -> ReportData:
     )
     policy = FeedItem(
         tenant_id="t1", type=FeedItemType.POLICY, policy_id="p1",
-        title="新吴区集成电路产业扶持政策", issuer="新吴区科技局", score=0.87,
+        title="新吴区集成电路产业扶持政策", issuer="新吴区科技局",
+        score=0.02, structured_score=0.75, semantic_score=0.83,
         apply_deadline=date(2026, 7, 31), deadline_status="extracted",
         reasons=["命中关键词：集成电路"],
     )
