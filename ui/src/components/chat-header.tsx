@@ -19,8 +19,9 @@ export function ChatHeader() {
         {/* 品牌字标 */}
         <Link
           href="/"
-          className="block rounded-full border border-[#e5e2de] bg-white px-3 py-1 text-xs font-semibold text-[#667085] shadow-sm"
+          className="flex items-center gap-1.5 rounded-full border border-[#e7e4df] bg-white px-3 py-1 text-xs font-semibold text-[#2f3747] shadow-sm transition-colors hover:border-brand-200"
         >
+          <span className="size-2 rounded-full bg-primary"/>
           PolicyManus
         </Link>
       </div>

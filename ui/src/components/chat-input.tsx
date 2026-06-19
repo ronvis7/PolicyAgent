@@ -143,7 +143,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     return (
-    <div className={cn('flex flex-col bg-white w-full rounded-2xl py-3 border', className)}>
+    <div className={cn('flex flex-col bg-white w-full rounded-2xl py-3 border border-[#e7e4df] shadow-[var(--shadow-card)] transition-all focus-within:border-brand-200 focus-within:shadow-[var(--shadow-hover)]', className)}>
       {/* 顶部的文件列表 */}
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">
@@ -241,7 +241,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           ) : (
             // 任务未运行时显示发送按钮
             <Button
-              variant="outline"
               className="rounded-full w-8 h-8 cursor-pointer"
               onClick={handleSend}
               disabled={sending || disabled || !inputValue.trim()}
