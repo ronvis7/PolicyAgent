@@ -59,6 +59,31 @@ class QualificationCondition(BaseModel):
     label: str = ""  # 概要描述(对应 key_conditions 中的人读文案)
 
 
+class ConditionBand(BaseModel):
+    """banded 条件的单档：`band_metric` 值落入本档时适用 `threshold`。
+
+    多档按 `max_value` 升序排列，逐档比较(实际值 ≤ max_value 即落入)；最高档用
+    `max_value=None` 作开口顶档(高于前一档上限的都归它)。
+    """
+    max_value: Optional[float] = None  # 本档上限(含)，None=最高开口档
+    threshold: float  # 本档门槛
+    label: str = ""  # 本档人读描述(如"营收≤5000万 → ≥5%")
+
+
+class BandedCondition(BaseModel):
+    """分档硬条件：门槛随另一指标(band_metric)落档而变。
+
+    典型例：高企"研发费用占销售收入比例"按上年度营收分三档(≤5000万→5%、5000万~2亿→4%、
+    >2亿→3%)。`band_metric` 缺失则无法定档 → 待确认；定档后再比被核验指标 `metric`。
+    数值仍为结构性概要，须随 disclaimer/last_reviewed 呈现、由业务方按当年办法核对。
+    """
+    metric: ConditionMetric  # 被核验指标(如研发投入占比)
+    op: ConditionOperator = ConditionOperator.GTE  # 比较方向
+    band_metric: ConditionMetric  # 决定落档的指标(如上年度营收)
+    bands: List[ConditionBand]  # 各档(升序，最后一档可 max_value=None)
+    label: str = ""  # 概要描述(对应 key_conditions 文案，用于从 manual_review 去重)
+
+
 class Qualification(BaseModel):
     """单条资质申报机会(目录条目，人工维护、不爬)。"""
     key: str  # 自然主键(slug，作为 Feed 条目关联键)
@@ -77,6 +102,8 @@ class Qualification(BaseModel):
     prerequisites: List[str] = Field(default_factory=list)  # 前置资质(梯度，如小巨人需省专精特新)
     # ---- 能力② 可结构化核验的硬条件(子集，能算的才进；其余 key_conditions 走人工/材料确认)----
     structured_conditions: List[QualificationCondition] = Field(default_factory=list)
+    # ---- 能力② 分档硬条件(门槛随营收/行业等落档而变，如高企研发费用占比)----
+    banded_conditions: List[BandedCondition] = Field(default_factory=list)
     # ---- 风险纪律 ----
     last_reviewed: str = ""  # 末次核对日期(YYYY-MM-DD)
     disclaimer: str = DEFAULT_DISCLAIMER  # 免责声明(详情强制展示)

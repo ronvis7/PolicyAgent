@@ -13,6 +13,8 @@
 from typing import List
 
 from app.domain.models.qualification import (
+    BandedCondition,
+    ConditionBand,
     ConditionMetric,
     ConditionOperator,
     Qualification,
@@ -54,7 +56,7 @@ _NATIONAL: List[Qualification] = [
         benefit="企业所得税减按 15%；各级配套奖励；多数后续资质的前置条件",
         match_signals=["高新技术", "知识产权", "研发", "研发投入"],
         # 仅把口径明确、标准稳定的硬条件结构化(label 与上面 key_conditions 逐字一致，避免重复展示)；
-        # 研发费用占比因分营收档、高新收入占比/创新评分无档案对应字段，留作人工/材料确认。
+        # 高新收入占比/创新评分无档案对应字段，留作人工/材料确认。
         structured_conditions=[
             QualificationCondition(
                 metric=ConditionMetric.COMPANY_AGE_YEARS, threshold=1,
@@ -63,6 +65,20 @@ _NATIONAL: List[Qualification] = [
             QualificationCondition(
                 metric=ConditionMetric.RD_STAFF_RATIO, threshold=10,
                 label="科技人员占职工总数比例达标（概要：≥10%）",
+            ),
+        ],
+        # 研发费用占销售收入比例按上年度营收分三档(概要数值以当年办法为准，业务方核对)。
+        # label 与 key_conditions 对应文案逐字一致，从 manual_review 去重。
+        banded_conditions=[
+            BandedCondition(
+                metric=ConditionMetric.RD_INVESTMENT_RATIO,
+                band_metric=ConditionMetric.ANNUAL_REVENUE_WAN,
+                label="研发费用占销售收入比例达标（分营收档，概要：≤5000万→≥5%、5000万~2亿→≥4%、>2亿→≥3%）",
+                bands=[
+                    ConditionBand(max_value=5000, threshold=5, label="营收≤5000万 → ≥5%"),
+                    ConditionBand(max_value=20000, threshold=4, label="营收5000万~2亿 → ≥4%"),
+                    ConditionBand(max_value=None, threshold=3, label="营收>2亿 → ≥3%"),
+                ],
             ),
         ],
     ),
