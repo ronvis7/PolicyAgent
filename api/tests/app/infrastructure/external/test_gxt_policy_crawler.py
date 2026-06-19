@@ -7,6 +7,7 @@ from app.infrastructure.external.crawler.gxt_policy_crawler import (
     GxtPolicyCrawler,
     _absolute_url,
     _clean_dash,
+    _date_from_url,
     _parse_publish_date,
 )
 
@@ -23,6 +24,11 @@ _LIST_XML = """<datastore><totalrecord>940</totalrecord><totalpage>63</totalpage
 </recordset></datastore>"""
 
 # 详情页真实结构(节选)：正文在 div.article_zoom；文件通知多无结构化文号表，文号尽力而为
+# 政策文件(col80179)列表片段模板：日期在 <b readlabel>(非 <span>)
+_LIST_XML_POLICY = """<datastore><totalrecord>762</totalrecord><totalpage>381</totalpage><recordset>
+<record><![CDATA[<li><a target="_blank" href="/art/2026/4/17/art_80179_11759099.html" title="省工业和信息化厅关于印发《江苏省制造强省建设专项资金项目验收管理办法》的通知">省工业和信息化厅关于印发……的通知</a><b readlabel="2026-04-17">2026-04-17</b></li>]]></record>
+</recordset></datastore>"""
+
 _DETAIL_HTML = """
 <div id="con1" class="con912">
   <div class="article_zoom">
@@ -36,6 +42,21 @@ _DETAIL_WITH_DOCNUM = """
 <div class="article_zoom">
   <p>发文字号：苏工信中小企业〔2026〕123号</p>
   <p>正文内容。</p>
+</div>
+"""
+
+# 政策文件(col80179)详情页模板不同：正文在 div#Zoom，且三公开表的「发文字号」常为索引码
+# (形如 696785044/2026-00017，非真文号)，不应被当成 doc_number。
+_DETAIL_POLICY_HTML = """
+<div class="zwxxgk_box">
+  <table>
+    <tr><td>索引号：696785044/2026-00017</td><td>主题分类：</td></tr>
+    <tr><td>发文字号：696785044/2026-00017</td><td>发布日期：2026-04-17</td></tr>
+  </table>
+  <div class="view TRS_UEDITOR" id="Zoom">
+    <p>第一条 为规范专项资金项目验收，制定本办法。</p>
+    <p>第二条 本办法自印发之日起施行。</p>
+  </div>
 </div>
 """
 
@@ -67,6 +88,21 @@ def test_parse_list_payload_filters_by_title_keyword() -> None:
     assert "申报" in policies[0].title
 
 
+def test_parse_list_policy_template_date_from_b_or_url() -> None:
+    """政策文件栏目日期在 <b readlabel>，也能解析；URL 路径日期作统一兜底。"""
+    policies = GxtPolicyCrawler._parse_list_payload(_LIST_XML_POLICY, source="gxt-policy")
+
+    assert len(policies) == 1
+    assert policies[0].publish_date == date(2026, 4, 17)
+    assert policies[0].source_url.endswith("art_80179_11759099.html")
+
+
+def test_date_from_url_path() -> None:
+    assert _date_from_url("https://gxt.jiangsu.gov.cn/art/2026/4/17/art_80179_1.html") == date(2026, 4, 17)
+    assert _date_from_url("/art/2025/12/3/art_6278_9.html") == date(2025, 12, 3)
+    assert _date_from_url("/notice/x.html") is None
+
+
 def test_total_pages_computed_from_totalrecord() -> None:
     """页数按 <totalrecord> 与当前 page_size 自算(不信任接口 totalpage)。"""
     crawler = GxtPolicyCrawler(page_size=15)
@@ -75,8 +111,9 @@ def test_total_pages_computed_from_totalrecord() -> None:
     assert crawler._total_pages("<datastore></datastore>") == 0
 
 
-def test_fetch_list_sends_pagination_params() -> None:
-    crawler = GxtPolicyCrawler(page_size=15, column_id=6278)
+def test_fetch_list_sends_pagination_and_column_params() -> None:
+    # 政策文件栏目：columnid/unitid 随构造而变(col80179 实例 unitid=403740)
+    crawler = GxtPolicyCrawler(page_size=15, column_id=80179, unit_id="403740")
     sent = {}
 
     class _Resp:
@@ -91,7 +128,8 @@ def test_fetch_list_sends_pagination_params() -> None:
 
     xml = asyncio.run(crawler._fetch_list(_Client(), 2))
     assert xml == _LIST_XML
-    assert sent["params"]["columnid"] == 6278
+    assert sent["params"]["columnid"] == 80179
+    assert sent["params"]["unitid"] == "403740"  # 每栏目 jpage 实例不同
     assert sent["params"]["startrecord"] == 16  # 第2页(每页15) → 16..30
     assert sent["params"]["endrecord"] == 30
 
@@ -106,6 +144,18 @@ def test_parse_detail_extracts_body_from_article_zoom() -> None:
 def test_parse_detail_best_effort_doc_number() -> None:
     body, doc_number = GxtPolicyCrawler._parse_detail(_DETAIL_WITH_DOCNUM)
     assert doc_number == "苏工信中小企业〔2026〕123号"
+
+
+def test_parse_detail_policy_template_body_from_zoom() -> None:
+    """政策文件(col80179)正文在 div#Zoom，能正确提取。"""
+    body, doc_number = GxtPolicyCrawler._parse_detail(_DETAIL_POLICY_HTML)
+    assert "第一条" in body and "第二条" in body
+
+
+def test_parse_detail_does_not_mistake_index_code_for_doc_number() -> None:
+    """三公开表里『发文字号:696785044/2026-00017』是索引码，不应被当成文号。"""
+    body, doc_number = GxtPolicyCrawler._parse_detail(_DETAIL_POLICY_HTML)
+    assert doc_number == ""
 
 
 def test_parse_detail_handles_missing_body() -> None:

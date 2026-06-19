@@ -54,6 +54,16 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
         factory=GxtPolicyCrawler,
         home_url="https://gxt.jiangsu.gov.cn",
     ),
+    CrawlerSource(
+        key="gxt-policy",
+        name="江苏省工信厅门户·政策文件",
+        region="江苏省",
+        # 同门户「政策文件」栏目(col80179，jpage 实例 unitid=403740)：规范性文件，正文在 #Zoom。
+        factory=lambda: GxtPolicyCrawler(
+            column_id=80179, unit_id="403740", source="gxt-policy",
+        ),
+        home_url="https://gxt.jiangsu.gov.cn",
+    ),
 ]
 
 
