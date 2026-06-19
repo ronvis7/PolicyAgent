@@ -61,14 +61,14 @@ class PolicyMatchService:
         if not terms and not query:
             return []
 
-        structured = await self._structured_candidates(terms)
+        structured = await self._structured_candidates(profile, terms)
         semantic = await self._semantic_candidates(query)
         return self._fuse(profile, structured, semantic, top_k)
 
     async def _structured_candidates(
-        self, terms: List[str],
+        self, profile: EnterpriseProfile, terms: List[str],
     ) -> List[Tuple[Policy, float, List[str]]]:
-        """对最近候选政策做结构化命中打分，保留有命中的，按归一化分倒序。
+        """对最近候选政策做结构化命中打分(含地区加成)，保留有命中的，按分倒序。
 
         terms 由调用方抽取一次后传入，避免对每篇候选重复构建档案词表。
         """
@@ -79,7 +79,7 @@ class PolicyMatchService:
 
         scored: List[Tuple[Policy, float, List[str]]] = []
         for policy in candidates:
-            score, matched = score_terms(terms, policy)
+            score, matched = score_terms(terms, policy, region_matches(profile, policy))
             if score > 0:
                 scored.append((policy, score, matched))
         scored.sort(key=lambda item: item[1], reverse=True)

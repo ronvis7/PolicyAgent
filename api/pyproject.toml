@@ -17,6 +17,8 @@ dependencies = [
     "filelock>=3.25.2",
     "greenlet>=3.3.2",
     "httpx>=0.28.1",
+    # 中文分词：结构化匹配按 token 重合判命中，替代脆弱的原样子串
+    "jieba>=0.42.1",
     "json-repair>=0.59.1",
     "markdownify>=1.2.2",
     "mcp>=1.27.0",
