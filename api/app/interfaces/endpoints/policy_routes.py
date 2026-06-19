@@ -83,11 +83,16 @@ async def ingest_policies(
 )
 async def list_policy_sources(
         _current_user: CurrentUser = Depends(get_current_user),
+        service: PolicyService = Depends(get_policy_service),
 ) -> Response[PolicySourceListResponse]:
-    """列出可抓取的政策来源"""
+    """列出可抓取的政策来源(含官网链接 + 收录条数 + 最近抓取时间)"""
+    sources = await service.list_sources_with_stats()
     items = [
-        PolicySourceItem(key=s.key, name=s.name, region=s.region)
-        for s in list_sources()
+        PolicySourceItem(
+            key=s.key, name=s.name, region=s.region, home_url=s.home_url,
+            policy_count=s.policy_count, last_crawled_at=s.last_crawled_at,
+        )
+        for s in sources
     ]
     return Response.success(data=PolicySourceListResponse(items=items))
 

@@ -1,4 +1,5 @@
-from typing import List, Optional, Protocol, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional, Protocol, Tuple
 
 from app.domain.models.policy import Policy
 
@@ -35,4 +36,8 @@ class PolicyRepository(Protocol):
 
     async def list_candidates(self, limit: int) -> List[Policy]:
         """取最近 limit 篇政策(含正文)作为③匹配的结构化候选集，按发文日期倒序"""
+        ...
+
+    async def stats_by_source(self) -> Dict[str, Tuple[int, Optional[datetime]]]:
+        """按来源聚合统计：{source: (收录条数, 最近抓取时间)}，单条 GROUP BY，供「数据来源」页"""
         ...

@@ -14,11 +14,12 @@ from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCraw
 
 @dataclass(frozen=True)
 class CrawlerSource:
-    """一个政策来源：稳定的 key、展示名、适用地区、构造爬虫的工厂。"""
+    """一个政策来源：稳定的 key、展示名、适用地区、官网链接、构造爬虫的工厂。"""
     key: str
     name: str
     region: str
     factory: Callable[[], PolicyCrawler]
+    home_url: str = ""  # 来源门户官网/栏目地址(供「数据来源」页溯源展示)
 
 
 # 已登记的政策来源。新增地区/栏目在此追加一条即可。
@@ -29,18 +30,21 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
         name="无锡高新区(新吴区)门户·政策文件",
         region="江苏省无锡市新吴区",
         factory=WndPolicyCrawler,
+        home_url="https://www.wnd.gov.cn",
     ),
     CrawlerSource(
         key="wnd-apply",
         name="无锡高新区(新吴区)门户·项目申报通知",
         region="江苏省无锡市新吴区",
         factory=lambda: WndPolicyCrawler(title_keyword="申报", source="wnd-apply"),
+        home_url="https://www.wnd.gov.cn",
     ),
     CrawlerSource(
         key="shyp",
         name="上海杨浦区门户·政府文件",
         region="上海市杨浦区",
         factory=ShypPolicyCrawler,
+        home_url="https://www.shyp.gov.cn",
     ),
 ]
 

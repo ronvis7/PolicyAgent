@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
-import {Award, Building2, Database, KeyRound, LayoutDashboard, MessageSquareText, Plus, ScrollText} from 'lucide-react'
+import {Award, Building2, Database, KeyRound, LayoutDashboard, MessageSquareText, Plus, ScrollText, ShieldCheck} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
@@ -32,6 +32,7 @@ const primaryNav = [
   {href: '/feed', label: '工作台', icon: LayoutDashboard},
   {href: '/qualifications', label: '资质机会', icon: Award},
   {href: '/knowledge', label: '知识库', icon: Database},
+  {href: '/sources', label: '数据来源', icon: ShieldCheck},
 ]
 
 export function LeftPanel() {

@@ -1,4 +1,5 @@
-from typing import List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import func, select
 
@@ -85,3 +86,13 @@ class DBPolicyRepository(PolicyRepository):
         )
         records = (await self.db_session.execute(stmt)).scalars().all()
         return [r.to_domain() for r in records]
+
+    async def stats_by_source(self) -> Dict[str, Tuple[int, Optional[datetime]]]:
+        """按来源聚合：{source: (条数, 最近抓取时间)}，单条 GROUP BY 查询(无 N+1)"""
+        stmt = select(
+            PolicyModel.source,
+            func.count().label("cnt"),
+            func.max(PolicyModel.crawled_at).label("last_crawled_at"),
+        ).group_by(PolicyModel.source)
+        rows = (await self.db_session.execute(stmt)).all()
+        return {row.source: (row.cnt, row.last_crawled_at) for row in rows}

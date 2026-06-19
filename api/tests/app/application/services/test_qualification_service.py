@@ -121,3 +121,14 @@ def test_analyze_gap_returns_none_for_unknown_key() -> None:
     service = _service({})
 
     assert asyncio.run(service.analyze_gap_for_tenant("t1", "does-not-exist")) is None
+
+
+def test_list_catalog_returns_full_catalog_regardless_of_tenant() -> None:
+    """数据来源页用：返回全量目录，不依赖租户档案、不做地区过滤。"""
+    service = _service({})  # 无任何档案
+
+    catalog = service.list_catalog()
+
+    keys = {q.key for q in catalog}
+    # 全量三条都在(含对江苏不适用的广东省资质)，不被匹配过滤剔除
+    assert keys == {"hi-tech", "js-sxt", "gd-only"}
