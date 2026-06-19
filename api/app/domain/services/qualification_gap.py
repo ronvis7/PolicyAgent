@@ -13,6 +13,8 @@ from typing import List, Optional
 
 from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.qualification import (
+    BandedCondition,
+    ConditionBand,
     ConditionCheck,
     ConditionMetric,
     ConditionOperator,
@@ -120,6 +122,57 @@ def _fmt(value: float) -> str:
     return str(int(value)) if float(value).is_integer() else str(value)
 
 
+def _resolve_band(bands: List[ConditionBand], band_value: float) -> Optional[ConditionBand]:
+    """按落档值选中适用档：升序逐档，首个 band_value ≤ max_value 命中；max_value=None 为开口顶档。"""
+    for band in bands:
+        if band.max_value is None or band_value <= band.max_value:
+            return band
+    return None
+
+
+def _evaluate_banded(
+    profile: EnterpriseProfile, banded: BandedCondition, today: Optional[date],
+) -> ConditionCheck:
+    """分档硬条件核验：先按 band_metric 定档，再比被核验指标；任一所需字段缺失→待确认。"""
+    label = banded.label or banded.metric.value
+    band_value = _actual_value(profile, banded.band_metric, today)
+    if band_value is None:
+        return _banded_unknown(banded, f"{label}：需先确定分档依据，待确认")
+
+    band = _resolve_band(banded.bands, band_value)
+    if band is None:  # 目录档位未覆盖该取值(异常配置)，保守判待确认而非误报
+        return _banded_unknown(banded, f"{label}：分档未覆盖当前取值，待确认")
+
+    actual = _actual_value(profile, banded.metric, today)
+    band_hint = band.label or f"门槛 {_fmt(band.threshold)}"
+    if actual is None:
+        return _banded_unknown(banded, f"{label}：已落入「{band_hint}」档，但档案未填该指标，待确认",
+                               threshold=band.threshold)
+
+    if banded.op is ConditionOperator.GTE:
+        met = actual >= band.threshold
+    else:
+        met = actual <= band.threshold
+    sign = "≥" if banded.op is ConditionOperator.GTE else "≤"
+    verdict = "达标" if met else "不达标"
+    detail = (f"{label}：落入「{band_hint}」档，实际 {_fmt(actual)}，"
+              f"要求 {sign} {_fmt(band.threshold)}（{verdict}）")
+    return ConditionCheck(
+        metric=banded.metric, op=banded.op, threshold=band.threshold, label=banded.label,
+        actual=actual, status=ConditionStatus.MET if met else ConditionStatus.UNMET, detail=detail,
+    )
+
+
+def _banded_unknown(
+    banded: BandedCondition, detail: str, threshold: float = 0.0,
+) -> ConditionCheck:
+    """分档条件无法核验时的"待确认"结果(threshold 仅占位，未真正参与比较)。"""
+    return ConditionCheck(
+        metric=banded.metric, op=banded.op, threshold=threshold, label=banded.label,
+        actual=None, status=ConditionStatus.UNKNOWN, detail=detail,
+    )
+
+
 def _missing_prerequisites(profile: EnterpriseProfile, qual: Qualification) -> List[str]:
     """前置资质缺口(与能力① 同口径：子串双向包含视为已持有)。"""
     return [
@@ -133,10 +186,16 @@ def analyze_gap(
     qual: Qualification,
     today: Optional[date] = None,
 ) -> QualificationGapReport:
-    """对单条资质做结构化差距分析，产出逐条核验 + 待人工确认条件 + 前置缺口。"""
+    """对单条资质做结构化差距分析，产出逐条核验 + 待人工确认条件 + 前置缺口。
+
+    核验项 = 平铺硬条件(structured_conditions) + 分档硬条件(banded_conditions)；两类的
+    label 均从 manual_review 去重(避免与 key_conditions 文案重复展示)。
+    """
     checks = [_evaluate(profile, c, today) for c in qual.structured_conditions]
+    checks += [_evaluate_banded(profile, b, today) for b in qual.banded_conditions]
 
     structured_labels = {c.label for c in qual.structured_conditions if c.label}
+    structured_labels |= {b.label for b in qual.banded_conditions if b.label}
     manual_review = [c for c in qual.key_conditions if c not in structured_labels]
 
     met = sum(1 for c in checks if c.status is ConditionStatus.MET)

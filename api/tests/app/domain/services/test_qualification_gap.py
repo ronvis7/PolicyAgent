@@ -8,6 +8,8 @@ from datetime import date
 
 from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.qualification import (
+    BandedCondition,
+    ConditionBand,
     ConditionMetric,
     ConditionStatus,
     Qualification,
@@ -134,6 +136,101 @@ def test_tech_sme_upper_bound_caps_via_catalog() -> None:
     small_checks = {c.metric: c for c in analyze_gap(small, qual).checks}
     assert small_checks[ConditionMetric.TOTAL_STAFF].status is ConditionStatus.MET
     assert small_checks[ConditionMetric.ANNUAL_REVENUE_WAN].status is ConditionStatus.UNKNOWN
+
+
+# ---------- 分档硬条件(banded) ----------
+
+def _rd_invest_banded() -> BandedCondition:
+    """高企口径：研发投入占比按营收三档(≤5000万→5%、5000万~2亿→4%、>2亿→3%)。"""
+    return BandedCondition(
+        metric=ConditionMetric.RD_INVESTMENT_RATIO,
+        band_metric=ConditionMetric.ANNUAL_REVENUE_WAN,
+        label="研发费用占比(分营收档)",
+        bands=[
+            ConditionBand(max_value=5000, threshold=5, label="≤5000万→≥5%"),
+            ConditionBand(max_value=20000, threshold=4, label="5000万~2亿→≥4%"),
+            ConditionBand(max_value=None, threshold=3, label=">2亿→≥3%"),
+        ],
+    )
+
+
+def test_banded_selects_threshold_by_band_and_passes() -> None:
+    """营收落中档(8000万→门槛4%)，研发投入占比 4.5% ≥ 4% → 达标。"""
+    profile = EnterpriseProfile(annual_revenue_wan=8000.0, rd_investment_wan=360.0)  # 4.5%
+    report = analyze_gap(profile, _qual(banded_conditions=[_rd_invest_banded()]))
+
+    check = report.checks[0]
+    assert check.threshold == 4  # 选中中档门槛
+    assert check.actual == 4.5
+    assert check.status is ConditionStatus.MET
+    assert report.met_count == 1
+
+
+def test_banded_low_band_higher_threshold_fails() -> None:
+    """营收低档(3000万→门槛5%)，研发投入占比 4% < 5% → 不达标(同样占比换档结论相反)。"""
+    profile = EnterpriseProfile(annual_revenue_wan=3000.0, rd_investment_wan=120.0)  # 4%
+    report = analyze_gap(profile, _qual(banded_conditions=[_rd_invest_banded()]))
+
+    check = report.checks[0]
+    assert check.threshold == 5  # 低档门槛更高
+    assert check.status is ConditionStatus.UNMET
+
+
+def test_banded_open_top_band() -> None:
+    """营收 >2亿 落开口顶档(门槛3%)，3.5% ≥ 3% → 达标。"""
+    profile = EnterpriseProfile(annual_revenue_wan=50000.0, rd_investment_wan=1750.0)  # 3.5%
+    report = analyze_gap(profile, _qual(banded_conditions=[_rd_invest_banded()]))
+
+    assert report.checks[0].threshold == 3
+    assert report.checks[0].status is ConditionStatus.MET
+
+
+def test_banded_unknown_when_band_metric_missing() -> None:
+    """没填营收 → 无法定档 → 待确认(绝不误报不达标)，即便研发投入占比已可算。"""
+    profile = EnterpriseProfile(rd_investment_wan=100.0)  # 无营收，占比也算不出
+    report = analyze_gap(profile, _qual(banded_conditions=[_rd_invest_banded()]))
+
+    assert report.checks[0].status is ConditionStatus.UNKNOWN
+    assert report.unmet_count == 0
+    assert report.unknown_count == 1
+
+
+def test_banded_unknown_when_metric_missing_but_band_known() -> None:
+    """营收已填可定档，但研发投入未填→占比算不出 → 待确认。"""
+    profile = EnterpriseProfile(annual_revenue_wan=8000.0)  # 能定档，但缺研发投入
+    report = analyze_gap(profile, _qual(banded_conditions=[_rd_invest_banded()]))
+
+    assert report.checks[0].status is ConditionStatus.UNKNOWN
+
+
+def test_banded_label_excluded_from_manual_review() -> None:
+    """分档条件 label 与 key_conditions 文案一致时，从 manual_review 去重。"""
+    label = "研发费用占比(分营收档)"
+    qual = _qual(
+        key_conditions=[label, "其他人工条件"],
+        banded_conditions=[_rd_invest_banded()],
+    )
+
+    report = analyze_gap(EnterpriseProfile(), qual)
+
+    assert label not in report.manual_review
+    assert "其他人工条件" in report.manual_review
+
+
+def test_high_tech_enterprise_banded_from_catalog() -> None:
+    """真实目录条目：高企研发费用占比分档已接入，营收分档影响结论。"""
+    from app.infrastructure.data.qualification_catalog import load_qualification_catalog
+
+    qual = {q.key: q for q in load_qualification_catalog()}["high-tech-enterprise"]
+    # 营收 8000万(中档→≥4%)，研发投入 240万 = 3% < 4% → 不达标
+    profile = EnterpriseProfile(annual_revenue_wan=8000.0, rd_investment_wan=240.0)
+
+    checks = {c.metric: c for c in analyze_gap(profile, qual).checks}
+    rd_invest = checks[ConditionMetric.RD_INVESTMENT_RATIO]
+    assert rd_invest.threshold == 4
+    assert rd_invest.status is ConditionStatus.UNMET
+    # 分档条件文案已从 manual_review 去重(不与 key_conditions 重复)
+    assert not any("研发费用占销售收入比例" in m for m in analyze_gap(profile, qual).manual_review)
 
 
 def test_missing_prerequisites_reported() -> None:
