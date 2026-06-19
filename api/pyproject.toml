@@ -29,6 +29,8 @@ dependencies = [
     "pyjwt>=2.10.0",
     "pymupdf>=1.24.0",
     "redis>=7.4.0",
+    # 政策匹配简报 PDF 导出：纯 pip、无系统原生依赖，自带 STSong-Light CID 中文字体
+    "reportlab>=4.2.0",
     "sqlalchemy[asyncio]>=2.0.48",
     # APScheduler 的传递依赖 tzlocal：钉在 <5.4 避免拉到刚发布(2026-06-17)的 5.4.3，
     # 该版本镜像/索引尚未普遍传播，会导致容器内 uv 解析失败。
