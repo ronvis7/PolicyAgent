@@ -404,6 +404,9 @@ idna==3.11 \
     #   anyio
     #   httpx
     #   requests
+jieba==0.42.1 \
+    --hash=sha256:055ca12f62674fafed09427f176506079bc135638a14e23e25be909131928db2
+    # via policy-manus-api
 jiter==0.13.0 \
     --hash=sha256:04670992b576fa65bd056dbac0c39fe8bd67681c380cb2b48efa885711d9d726 \
     --hash=sha256:07b75fe09a4ee8e0c606200622e571e44943f47254f95e2436c8bdcaceb36d7d \

@@ -92,12 +92,46 @@ def test_structured_score_no_terms_or_no_hit_is_zero() -> None:
     assert structured_score(profile, _policy(title="农业补贴")) == (0.0, [])
 
 
-def test_structured_score_normalized_within_unit_interval() -> None:
+def test_structured_score_bounded_and_grows_with_hits() -> None:
+    # 命中越多分越高，且恒在 (0,1]；不再要求"全命中=1.0"(那套旧归一会被未命中词稀释)
     profile = _profile(keywords=["高新", "研发", "孵化"])
-    policy = _policy(title="高新 研发 孵化 全部命中")
+    three = structured_score(profile, _policy(title="高新 研发 孵化 全部命中"))[0]
+    one = structured_score(profile, _policy(title="仅 高新 命中"))[0]
+    assert 0 < one < three <= 1.0
+
+
+def test_structured_score_not_diluted_by_rich_profile() -> None:
+    """根因2：档案词多但只命中1个标题词，分值不应被未命中词稀释到很低。"""
+    rich = _profile(keywords=[f"无关词{i}" for i in range(8)] + ["集成电路"])
+    # 用非匹配地区排除地区加成干扰，只看内容命中分
+    policy = _policy(title="集成电路产业扶持", region="苏州市")
+    score, matched = structured_score(rich, policy)
+    assert matched == ["集成电路"]
+    assert score >= 0.5  # 一处标题命中即达饱和基线，不因 8 个未命中词跌到 ~0.1
+
+
+def test_term_hits_via_tokenization_not_substring() -> None:
+    """根因1：长组合词不是文本子串，靠分词 token 重合仍能命中。"""
+    profile = _profile(tech_domains=["集成电路设计"])
+    policy = _policy(title="集成电路产业政策", region="苏州市")
     score, matched = structured_score(profile, policy)
-    assert matched == ["高新", "研发", "孵化"]
-    assert score == 1.0  # 全部词标题命中 = 满分
+    assert matched == ["集成电路设计"]  # "集成电路设计" 非标题子串，但分词重合命中
+    assert score > 0
+
+
+def test_region_match_boosts_score() -> None:
+    """根因3：内容命中相同，地区命中的政策分更高。"""
+    profile = _profile(keywords=["高新"])  # 默认地区 新吴区
+    local = _policy(title="高新技术扶持", region="江苏省无锡市新吴区")
+    other = _policy(title="高新技术扶持", region="苏州市")
+    assert structured_score(profile, local)[0] > structured_score(profile, other)[0]
+
+
+def test_region_alone_without_content_hit_scores_zero() -> None:
+    """地区命中但无任何内容命中 → 仍 0，避免本地无关政策刷分。"""
+    profile = _profile(keywords=["半导体"])  # 默认地区 新吴区
+    policy = _policy(title="农业补贴申报", region="江苏省无锡市新吴区")
+    assert structured_score(profile, policy) == (0.0, [])
 
 
 # ---------- reciprocal_rank_fusion ----------
