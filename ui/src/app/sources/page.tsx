@@ -61,7 +61,7 @@ export default function SourcesPage() {
       <header className="flex min-h-16 items-center gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
         <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
         <div className="min-w-0">
-          <h1 className="truncate text-base font-semibold text-[#202939]">数据来源</h1>
+          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">数据来源</h1>
           <p className="hidden text-xs text-[#778090] sm:block">
             我们的政策与资质信息均来自政府官网与公开权威办法，以下为可溯源的来源清单。
           </p>
@@ -93,7 +93,7 @@ export default function SourcesPage() {
                 {policySources.map((source) => (
                   <div
                     key={source.key}
-                    className="rounded-2xl border border-[#e5e2de] bg-[#fafafa] p-4 transition hover:border-[#cdd5df] hover:bg-white"
+                    className="rounded-2xl border border-[#e7e4df] bg-[#fafafa] p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-white hover:shadow-[var(--shadow-card)]"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">

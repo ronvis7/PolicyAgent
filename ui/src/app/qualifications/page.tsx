@@ -64,7 +64,7 @@ export default function QualificationsPage() {
         <div className="flex min-w-0 items-center gap-3">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-[#202939]">资质机会</h1>
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">资质机会</h1>
             <p className="hidden text-xs text-[#778090] sm:block">
               依据企业档案匹配可申报资质，按「可申报优先」排序；条件为概要，具体以官方最新办法为准。
             </p>
@@ -81,7 +81,7 @@ export default function QualificationsPage() {
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
+            <div className="rounded-[18px] border border-[#e7e4df] bg-white py-20 text-center text-sm text-[#778090] shadow-[var(--shadow-card)]">
               <p>暂无匹配的资质。</p>
               <p className="mt-2">
                 请先完善
@@ -106,8 +106,12 @@ export default function QualificationsPage() {
                 {items.map((q) => (
                   <li
                     key={q.key}
-                    className="rounded-2xl border border-[#e5e2de] bg-white p-4 shadow-[0_10px_30px_rgba(16,24,40,.04)] transition hover:border-[#cdd5df]"
+                    className="group relative overflow-hidden rounded-2xl border border-[#e7e4df] bg-white p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                   >
+                    {/* 资格状态左侧彩条：可申报=翠绿、接近=琥珀 */}
+                    <span
+                      className={`absolute left-0 top-0 h-full w-1 ${q.eligible ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                    />
                     <div className="flex items-start gap-2 mb-1">
                       {q.eligible ? (
                         <Badge className="mt-0.5 shrink-0 bg-emerald-600 hover:bg-emerald-600">

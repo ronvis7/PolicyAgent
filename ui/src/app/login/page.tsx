@@ -37,13 +37,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#f8f8f7] px-4">
-      <div className="w-full max-w-sm rounded-[18px] border border-[#e5e2de] bg-white p-8 shadow-[0_10px_30px_rgba(16,24,40,.06)]">
+    <div className="flex h-screen w-full items-center justify-center bg-gradient-to-b from-[#f4f3f1] via-[#f8f8f7] to-[#eaf3f2] px-4">
+      <div className="w-full max-w-sm rounded-[20px] border border-[#e7e4df] bg-white p-8 shadow-[var(--shadow-pop)]">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 inline-flex rounded-full border border-[#e5e2de] bg-[#f8f8f7] px-3 py-1 text-xs font-semibold text-[#667085]">
+          <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#e7e4df] bg-[#f8f8f7] px-3 py-1 text-xs font-semibold text-[#2f3747]">
+            <span className="size-2 rounded-full bg-primary"/>
             PolicyManus
           </div>
-          <h1 className="text-xl font-semibold text-[#202939]">登录 PolicyManus</h1>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#1c2127]">登录 PolicyManus</h1>
           <p className="mt-1 text-sm text-[#778090]">企业政策咨询智能体</p>
         </div>
 

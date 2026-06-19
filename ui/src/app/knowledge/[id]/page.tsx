@@ -122,7 +122,7 @@ export default function KnowledgeDetailPage({ params }: PageProps) {
             <ArrowLeft className="size-4" />
           </Button>
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-[#202124]">{knowledgeBase?.name ?? '知识库'}</h1>
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">{knowledgeBase?.name ?? '知识库'}</h1>
             <p className="hidden text-xs text-[#737373] sm:block">{knowledgeBase?.description || '暂无描述'}</p>
           </div>
         </div>
