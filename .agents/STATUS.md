@@ -1,6 +1,6 @@
 # 当前状态
 
-最后更新：2026-06-19（晚，PR #52 数据来源透明中心 + #53 资质 banded 分档 + #54 江苏省工信厅 gxt 申报源）
+最后更新：2026-06-19（晚，PR #52 数据来源 + #53 资质 banded + #54 工信厅 gxt 申报源 + #55 gxt 政策文件栏目）
 
 ## 仓库状态
 
@@ -12,7 +12,7 @@
 
 > 细节以 `git log` 为准，本节只记里程碑。
 
-- **多区域申报源·江苏省工信厅门户（gxt，PR #54，2026-06-19 合并，真机 1 页冒烟通过）**：#3 多区域申报源扩省级覆盖。**先做可逆向性甄别**（①b 教训）：科技厅 `kjt` 被 WAF 稳定挡死（TLS WinError 10053/HTTP 502，放弃）；工信厅 `gxt` 可访问，「文件通知」栏目正是省级项目申报通知主阵地（创新型中小企业评价/专精特新/制造业），与资质目录工信类契合。门户为**大汉版通(Hanweb)CMS**：列表走 `GET /module/web/jpage/dataproxy.jsp`（columnid/webid/unitid/appid/col 定位 + startrecord/endrecord/perpage 翻页），返回 XML `<totalrecord>` + 每条 `<record><![CDATA[<li><a href title>标题</a><span>日期</span></li>]]>`，最新优先；详情静态 HTML 正文在 `div.article_zoom`（回退 `.nscont`/`#con1`），文件通知多无文号表故文号尽力而为。`GxtPolicyCrawler`（纯解析+网络分离、限速容错、column_id/title_keyword 可配）+ registry 注册 `gxt`（江苏省，home_url）+ `POLICY_RECRAWL_SOURCES` 追加 gxt。**入库编排/端点/前端零改动自动出现**。11 单测、离线 253 passed、真机 1 页抓 19 条正文全非空。零迁移、零新增依赖。
+- **多区域申报源·江苏省工信厅门户（gxt，PR #54，2026-06-19 合并，真机 1 页冒烟通过）**：#3 多区域申报源扩省级覆盖。**先做可逆向性甄别**（①b 教训）：科技厅 `kjt` 被 WAF 稳定挡死（TLS WinError 10053/HTTP 502，放弃）；工信厅 `gxt` 可访问，「文件通知」栏目正是省级项目申报通知主阵地（创新型中小企业评价/专精特新/制造业），与资质目录工信类契合。门户为**大汉版通(Hanweb)CMS**：列表走 `GET /module/web/jpage/dataproxy.jsp`（columnid/webid/unitid/appid/col 定位 + startrecord/endrecord/perpage 翻页），返回 XML `<totalrecord>` + 每条 `<record><![CDATA[<li><a href title>标题</a><span>日期</span></li>]]>`，最新优先；详情静态 HTML 正文在 `div.article_zoom`（回退 `.nscont`/`#con1`），文件通知多无文号表故文号尽力而为。`GxtPolicyCrawler`（纯解析+网络分离、限速容错、column_id/title_keyword 可配）+ registry 注册 `gxt`（江苏省，home_url）+ `POLICY_RECRAWL_SOURCES` 追加 gxt。**入库编排/端点/前端零改动自动出现**。11 单测、离线 253 passed、真机 1 页抓 19 条正文全非空。零迁移、零新增依赖。**续：PR #55 加 `gxt-policy`（政策文件栏目 col80179）**——同站不同 jpage 实例(unitid 参数化)、详情正文在 `#Zoom`(兼容两套模板)、列表日期在 `<b readlabel>`(加 URL 路径派生日期兜底)、文号收紧只认真文号形态(杜绝索引码误收)；政策文件无截止故不入重爬。真机冒烟 16 条全有日期、真文号 13/16。
 - **资质 banded 分档条件模型（PR #53，2026-06-19 合并）**：⑥ 能力② 扩展——支持门槛随另一指标落档而变的分档硬条件。`ConditionBand`（单档 max_value 上限 + threshold，None=开口顶档）+ `BandedCondition`（被核验指标 metric + 落档指标 band_metric + 升序 bands），`Qualification` 加 `banded_conditions`。gap 内核 `_resolve_band` 选档 + `_evaluate_banded` 先定档再比指标，**band_metric 或被核验指标任一缺失→待确认**（不误报不达标），banded label 一并从 manual_review 去重。高企「研发费用占销售收入比例」接入为首个真实 banded 条件（按营收三档 ≤5000万→5%/5000万~2亿→4%/>2亿→3%，数值=现行办法概要待业务方核对）。**前端零改动**（banded 产出标准 ConditionCheck，detail 携带落档上下文，沿用 `qualification-detail.tsx` 渲染）。零迁移、零新增依赖，新增 7 单测、离线 242 passed、CI 三项全绿。**扩更多资质**：逐条配条件 + 业务方核对数值；行业分档需先扩"行业档"落档指标。
 - **数据来源透明中心（政策源溯源 + 资质目录来源，PR #52，2026-06-19 合并，真机走查通过）**：建立数据来源透明度——让用户看到政策/资质信息来自哪些权威源头（"数据来自政府官网、不是瞎编"的信任感）。**零迁移、只读聚合**：`CrawlerSource` 加 `home_url`（wnd/wnd-apply/shyp 官网）；仓储 `stats_by_source()` 单条 `GROUP BY source` 聚合各源条数 + 最近抓取时间（无 N+1，DB/内存 fake 双实现）；`PolicyService.list_sources_with_stats()` 合并注册表与统计（无政策源回落 0/None）；`GET /policies/sources` 增量返回 `home_url`/`policy_count`/`last_crawled_at`（向后兼容）；`GET /qualifications/catalog`（注册在 `/{key}` 前）返回**全量**资质目录来源（发证机关/政策依据/末次核对/免责），**不依赖租户档案、不做匹配过滤**，复用既有 `service.list_catalog()`。前端新页 `/sources`「数据来源」（政策源卡片=官网外链+收录条数+最近更新；资质来源按级别分组+全局免责）+ 左栏入口。**刻意不做**「用户粘贴任意网址实时爬取」——撞 ①b 教训（无可靠通用数据源），留作"来源建议众包"另议。新增单测 service 合并/catalog 非租户过滤 + 集成 `stats_by_source` 真库 GROUP BY；CI 三项（含 integration 真库）全绿；离线 235 passed。
 - **政策匹配简报 PDF 一键导出（主线尾巴，PR #47，2026-06-19 合并）**：产品主线"企业档案→公开政策库→匹配→Feed→接问 AI/报告"的最后一步。不做重报告流水线（价值存疑），改轻量交付物：把企业画像 + ③匹配政策 + ⑥资质差距 + ⑤临期申报组装为 PDF。`ReportService.build_brief`(复用档案/Feed/资质服务，Top15 政策按分降序剔除已忽略 / Top8 资质差距 / 30 天临期) + `infrastructure/report/pdf_renderer.py`(reportlab 纯函数，内置 `STSong-Light` 中文字体、无系统原生依赖；差距/截止带免责声明；XML 特殊字符转义) + `GET /reports/policy-brief`(application/pdf，限当前租户)；前端 `/feed` 顶部「导出简报」按钮(复用 PR #44 带 Bearer 鉴权下载)。**收尾**：政策表「匹配分」列误用原始 RRF 分(受 k=60 压制天然 0.02 上下、几乎同值)，改为展示命中度%/语义相似度，与网页卡片口径一致、RRF 仅用于排序。新增依赖 `reportlab`。13 单测、零迁移。
@@ -67,7 +67,7 @@
 - **⑥ 资质后续**：目录结构化条件已逐条 triage（PR #26）：`high-tech-enterprise` + `tech-sme`（职工≤500/营收≤2亿 LTE）可结构化。**banded（分档）条件模型已就绪（PR #53）**——支持门槛随营收/行业等落档而变，高企「研发费用占比」已接入为首个 banded 条件（按营收三档）。要再扩：为其余资质逐条配 `banded_conditions`/`structured_conditions`，**数值须业务方按当年官方办法核对**；行业分档需新增"行业档"落档指标（当前 band_metric 仅营收/规模类数值字段）。
 - 报告生成流水线；GitHub Actions 与分支保护。
 - ①b AI 联网补全暂停中，待搜索/企业数据 API 接入后复活。
-- **公开政策库多区域**：通用框架已就绪（来源注册表 + 按 source 抓取 + 地区筛选 + 来源选择器，见 handoff `2026-06-15-multi-region-policies`）。现有来源：无锡新吴区（`wnd`/`wnd-apply`）+ **上海杨浦区（`shyp`，PR #37）** + **江苏省工信厅·文件通知（`gxt`，省级项目申报通知，PR #54，大汉 CMS dataproxy 逆向，真机 1 页冒烟通过、真机走查待做）**。再扩地区仍需为其门户单独逆向做爬虫（先确认可逆向抓取，①b 教训：科技厅 `kjt` 已甄别被 WAF 挡死、放弃）。
+- **公开政策库多区域**：通用框架已就绪（来源注册表 + 按 source 抓取 + 地区筛选 + 来源选择器，见 handoff `2026-06-15-multi-region-policies`）。现有来源：无锡新吴区（`wnd`/`wnd-apply`）+ **上海杨浦区（`shyp`，PR #37）** + **江苏省工信厅（大汉 CMS dataproxy 逆向，真机 1 页冒烟通过、真机走查待做）：`gxt`=文件通知/含项目申报(PR #54)、`gxt-policy`=政策文件/规范性文件(PR #55)**。再扩地区仍需为其门户单独逆向做爬虫（先确认可逆向抓取，①b 教训：科技厅 `kjt` 已甄别被 WAF 挡死、放弃）。
 
 ## 当前最高优先级
 
@@ -79,10 +79,11 @@
 
 > 待办候选（无强先后）：
 1. **真机走查收尾**：#47 报告导出真机走查待做；匹配命中度——首轮走查发现仍全 0（根因=只填主营业务、标签空），#51 修复后**真机已验证通过**（2026-06-19 重建栈+重新匹配，只填主营业务的档案出现非零命中度，实测有 50% 命中项）。命中度高低进一步取决于档案完善度（标签/主营业务越全越准），属正常预期。
-2. **多区域申报源**：已扩 `gxt`（江苏省工信厅，PR #54）；⑤临期提醒 + 定时重爬（含 gxt）已就绪。
-   再扩覆盖需各门户单独逆向、`POLICY_RECRAWL_SOURCES` 追加 key、`registry.py` 一并填 `home_url`
-   （PR #52 起「数据来源」页自动展示）。**已甄别失败**：科技厅 `kjt` 被 WAF 挡死，勿再试。
-   gxt 可后续按 `title_keyword='申报'` 派生聚焦子源，或加「政策文件」栏目(col80179)。
+2. **多区域申报源**：已扩江苏省工信厅 `gxt`(文件通知, PR #54) + `gxt-policy`(政策文件, PR #55)；
+   ⑤临期提醒 + 定时重爬（含 gxt）已就绪。再扩覆盖需各门户单独逆向、`POLICY_RECRAWL_SOURCES`
+   追加 key、`registry.py` 一并填 `home_url`（PR #52 起「数据来源」页自动展示）。**已甄别失败**：
+   科技厅 `kjt` 被 WAF 挡死，勿再试。可后续按 `title_keyword='申报'` 派生更聚焦的申报子源，
+   或逆向其他已探活省厅(财政厅 `czt` 已确认可访问)。
 3. **续加隔离自动化**：membership 横向越权 / 租户 LLM·embed key 读取 / 会话子资源 / document_chunk，
    按 `tests/app/isolation/`(内存) 或 `tests/integration/`(真库) 模式补。
 4. 报告**已交付为轻量 PDF**(PR #47，非重流水线)；比赛因走公众号（微信封闭）暂缓。
@@ -99,7 +100,7 @@
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)
   + 跨租户隔离 endpoint 测试进 CI(#46) + **报告 PDF 导出(#47)** + **匹配质量 jieba(#48)** +
   **DB-in-CI 隔离集成测试(#49)** + **档案关键词智能提取(#50)** + **结构化挖主营业务词(真机走查修, #51)**
-  + **数据来源透明中心(#52)** + **资质 banded 分档条件(#53)** + **江苏省工信厅 gxt 申报源(#54)**，均已合并；命中度修复(#51)、数据来源页(#52)真机已验证通过，#47 报告导出 + #53 banded + #54 gxt 真机走查待做。
+  + **数据来源透明中心(#52)** + **资质 banded 分档条件(#53)** + **江苏省工信厅 gxt 申报源(#54)** + **gxt 政策文件栏目 gxt-policy(#55)**，均已合并；命中度修复(#51)、数据来源页(#52)真机已验证通过，#47 报告导出 + #53 banded + #54/#55 gxt 真机走查待做。
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏；落后 main 多个 PR、已冲突，待复活时一并 rebase 解）。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
 - 工作区未跟踪 `docker-compose.server.yml`：服务器本机部署 override（接 `/opt/policy-postgres`），按用户意图暂不提交、暂不碰服务器部署。
