@@ -89,12 +89,35 @@ export type QualificationGap = {
   disclaimer: string;
 };
 
+/** 资质目录来源条目（全量、非租户过滤，供「数据来源」页溯源） */
+export type QualificationSourceItem = {
+  key: string;
+  name: string;
+  level: string;
+  issuer: string; // 发证/认定机关
+  region: string;
+  policy_basis: string; // 政策依据（办法/文号）
+  last_reviewed: string;
+  disclaimer: string;
+};
+
+/** 全量资质目录来源响应 */
+export type QualificationCatalogResponse = {
+  items: QualificationSourceItem[];
+  total: number;
+};
+
 // ==================== 资质申报机会 API ====================
 
 export const qualificationApi = {
   /** 按当前租户企业档案匹配可申报资质（排除地区不适用项，可申报优先） */
   listMatches: (): Promise<QualificationMatchListResponse> => {
     return get<QualificationMatchListResponse>("/qualifications");
+  },
+
+  /** 全量资质目录来源（数据来源页用，不依赖租户档案、不做匹配过滤） */
+  listCatalog: (): Promise<QualificationCatalogResponse> => {
+    return get<QualificationCatalogResponse>("/qualifications/catalog");
   },
 
   /** 查看资质详情（核心条件/材料/时间/依据/价值，含免责声明与末次核对日期） */

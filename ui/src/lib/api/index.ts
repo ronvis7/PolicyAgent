@@ -119,6 +119,8 @@ export type {
   ConditionStatus,
   ConditionCheck,
   QualificationGap,
+  QualificationSourceItem,
+  QualificationCatalogResponse,
 } from "./qualification";
 export { QUALIFICATION_LEVEL_LABEL, CONDITION_STATUS_LABEL } from "./qualification";
 

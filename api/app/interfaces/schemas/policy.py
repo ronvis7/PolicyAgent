@@ -86,10 +86,13 @@ class PolicyMatchResponse(BaseModel):
 
 
 class PolicySourceItem(BaseModel):
-    """一个公开政策来源(地区/门户)"""
+    """一个公开政策来源(地区/门户)，含收录统计供「数据来源」页溯源"""
     key: str = ""  # 稳定标识(抓取时传入)
     name: str = ""  # 展示名
     region: str = ""  # 适用地区
+    home_url: str = ""  # 来源门户官网/栏目地址
+    policy_count: int = 0  # 已收录政策条数
+    last_crawled_at: Optional[datetime] = None  # 最近一次抓取时间
 
 
 class PolicySourceListResponse(BaseModel):

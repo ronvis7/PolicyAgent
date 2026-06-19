@@ -13,10 +13,12 @@ from app.application.services.qualification_service import QualificationService
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.qualification import (
+    QualificationCatalogResponse,
     QualificationDetailResponse,
     QualificationGapResponse,
     QualificationMatchListResponse,
     QualificationMatchResponse,
+    QualificationSourceItem,
 )
 from app.interfaces.service_dependencies import get_qualification_service
 
@@ -45,6 +47,26 @@ async def list_qualification_matches(
         items=items,
         total=len(items),
         eligible_count=sum(1 for m in matches if m.eligible),
+    ))
+
+
+@router.get(
+    path="/catalog",
+    response_model=Response[QualificationCatalogResponse],
+    summary="资质目录全量来源(数据来源页)",
+    description=(
+        "返回全量资质目录的来源信息(发证机关/适用地区/政策依据/末次核对/免责声明)，"
+        "用于「数据来源」透明页。**不依赖租户档案、不做匹配过滤**，所有登录用户可访问。"
+    ),
+)
+async def list_qualification_catalog(
+        _current_user: CurrentUser = Depends(get_current_user),
+        service: QualificationService = Depends(get_qualification_service),
+) -> Response[QualificationCatalogResponse]:
+    """全量资质目录来源(非租户过滤)"""
+    items = [QualificationSourceItem.from_domain(q) for q in service.list_catalog()]
+    return Response.success(data=QualificationCatalogResponse(
+        items=items, total=len(items),
     ))
 
 

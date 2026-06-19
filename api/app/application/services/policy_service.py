@@ -5,13 +5,27 @@
 """
 
 import logging
-from typing import Callable, List, Tuple
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Callable, List, Optional, Tuple
 
 from app.application.errors.exceptions import NotFoundError
 from app.domain.models.policy import Policy
 from app.domain.repositories.uow import IUnitOfWork
+from app.infrastructure.external.crawler.registry import list_sources
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class SourceWithStats:
+    """政策来源 + 收录统计(供「数据来源」透明页)"""
+    key: str
+    name: str
+    region: str
+    home_url: str
+    policy_count: int
+    last_crawled_at: Optional[datetime]
 
 # 分页边界，防止非法/超大 page_size 拖垮查询
 _MIN_PAGE = 1
@@ -45,6 +59,22 @@ class PolicyService:
                 issuer=issuer.strip(),
                 keyword=keyword.strip(),
             )
+
+    async def list_sources_with_stats(self) -> List[SourceWithStats]:
+        """列出已登记来源并附收录统计(条数/最近抓取时间)，供「数据来源」页溯源。
+
+        来源元信息取自注册表，统计经单条 GROUP BY 聚合；某来源尚无政策则回落 0 / None。
+        """
+        async with self._uow_factory() as uow:
+            stats = await uow.policy.stats_by_source()
+        result: List[SourceWithStats] = []
+        for s in list_sources():
+            count, last_crawled_at = stats.get(s.key, (0, None))
+            result.append(SourceWithStats(
+                key=s.key, name=s.name, region=s.region, home_url=s.home_url,
+                policy_count=count, last_crawled_at=last_crawled_at,
+            ))
+        return result
 
     async def get_policy(self, policy_id: str) -> Policy:
         """获取政策详情，不存在则抛 NotFound"""

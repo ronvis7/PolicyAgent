@@ -145,6 +145,17 @@ class FakePolicyRepository:
         )
         return items[:limit]
 
+    async def stats_by_source(self):
+        """按来源聚合：{source: (条数, 最近抓取时间)}"""
+        stats: Dict[str, tuple] = {}
+        for p in self._store.values():
+            cnt, last = stats.get(p.source, (0, None))
+            crawled = getattr(p, "crawled_at", None)
+            if crawled is not None and (last is None or crawled > last):
+                last = crawled
+            stats[p.source] = (cnt + 1, last)
+        return stats
+
 
 class FakeFeedRepository:
     """内存级工作台 Feed 仓库，按 (tenant_id, policy_id) upsert。"""

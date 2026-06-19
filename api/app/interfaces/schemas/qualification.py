@@ -41,6 +41,35 @@ class QualificationDetailResponse(BaseModel):
         )
 
 
+class QualificationSourceItem(BaseModel):
+    """资质目录来源条目(全量、非租户过滤)，供「数据来源」页溯源展示。
+
+    资质目录为结构化整理、非实时爬取，强制携带 last_reviewed + disclaimer(风险纪律)。
+    """
+    key: str = ""
+    name: str = ""
+    level: str = ""
+    issuer: str = ""  # 发证/认定机关
+    region: str = ""
+    policy_basis: str = ""  # 政策依据(办法/文号)
+    last_reviewed: str = ""
+    disclaimer: str = ""
+
+    @classmethod
+    def from_domain(cls, q: Qualification) -> "QualificationSourceItem":
+        return cls(
+            key=q.key, name=q.name, level=q.level.value, issuer=q.issuer,
+            region=q.region, policy_basis=q.policy_basis,
+            last_reviewed=q.last_reviewed, disclaimer=q.disclaimer,
+        )
+
+
+class QualificationCatalogResponse(BaseModel):
+    """全量资质目录来源列表(数据来源页用)"""
+    items: List[QualificationSourceItem] = Field(default_factory=list)
+    total: int = 0
+
+
 class QualificationMatchResponse(BaseModel):
     """单条资质匹配结果(可申报/接近 + 差距雏形)"""
     key: str = ""

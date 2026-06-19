@@ -4,7 +4,7 @@
 """
 
 import asyncio
-from datetime import date
+from datetime import date, datetime
 from typing import List
 
 import pytest
@@ -74,6 +74,35 @@ def test_get_policy_found_and_not_found() -> None:
 
     with pytest.raises(NotFoundError):
         asyncio.run(service.get_policy("missing-id"))
+
+
+# ---------- PolicyService 来源 + 统计 ----------
+
+def test_list_sources_with_stats_merges_registry_and_counts() -> None:
+    """已登记来源全部返回；有政策的源带条数，无政策的源回落 0/None。"""
+    store = {
+        "w1": Policy(source="wnd", source_url="w1", title="无锡政策1",
+                     crawled_at=datetime(2026, 6, 10, 8, 0)),
+        "w2": Policy(source="wnd", source_url="w2", title="无锡政策2",
+                     crawled_at=datetime(2026, 6, 18, 8, 0)),
+        "s1": Policy(source="shyp", source_url="s1", title="杨浦政策1",
+                     crawled_at=datetime(2026, 6, 15, 8, 0)),
+    }
+    service = PolicyService(uow_factory=make_uow_factory(policies=store))
+
+    sources = asyncio.run(service.list_sources_with_stats())
+    by_key = {s.key: s for s in sources}
+
+    # 注册表三条来源全部返回(wnd / wnd-apply / shyp)
+    assert {"wnd", "wnd-apply", "shyp"} <= set(by_key)
+    # 有政策的源：条数 + 最近抓取时间(取 max)
+    assert by_key["wnd"].policy_count == 2
+    assert by_key["wnd"].last_crawled_at == datetime(2026, 6, 18, 8, 0)
+    assert by_key["shyp"].policy_count == 1
+    # 无政策的源回落 0 / None，但元信息(官网链接)仍在
+    assert by_key["wnd-apply"].policy_count == 0
+    assert by_key["wnd-apply"].last_crawled_at is None
+    assert by_key["wnd"].home_url.startswith("http")
 
 
 # ---------- PolicyIngestService 写 ----------

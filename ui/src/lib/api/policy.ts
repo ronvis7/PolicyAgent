@@ -62,11 +62,14 @@ export type PolicyMatchResponse = {
   total: number;
 };
 
-/** 政策来源（地区/门户） */
+/** 政策来源（地区/门户），含收录统计供「数据来源」页溯源 */
 export type PolicySourceItem = {
   key: string;
   name: string;
   region: string;
+  home_url: string; // 来源门户官网/栏目地址
+  policy_count: number; // 已收录政策条数
+  last_crawled_at: string | null; // 最近一次抓取时间
 };
 
 /** 政策来源列表响应 */
