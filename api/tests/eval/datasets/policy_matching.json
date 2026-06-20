@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "capability": "③ 政策匹配（结构化命中 structured_score 排序）",
+    "description": "企业档案 × 公开政策的结构化匹配评测。为使相关性标注客观（避免 ③ 主观标注难题），采用受控小语料：每条政策主题与地区清晰单一，相关 = 主题契合企业技术域/关键词且地区覆盖。对每个档案用 structured_score 对政策池打分排序，按 golden 相关政策计算 precision@k/recall@k/MRR。",
+    "scope": "本评测只覆盖匹配的【结构化命中】这一路（纯函数、确定性）；线上 ③ 还融合语义召回(RRF)，语义召回质量另见 RAG 评测。",
+    "determinism": "structured_score 纯函数（jieba 分词确定），同输入恒定同输出，无网络。",
+    "metric": "recall@3 / hit@1 / MRR（跨档案平均）+ 干扰项零误命中（无关政策得分应为 0）",
+    "thresholds": {"recall_at_3": 0.8, "mrr": 0.7, "hit_at_1": 0.6}
+  },
+  "profiles": [
+    {
+      "id": "p-ic",
+      "profile": {"district": "新吴区", "city": "无锡市", "industry": "集成电路", "main_business": "集成电路设计与芯片研发", "tech_domains": ["集成电路", "芯片设计"], "keywords": ["集成电路", "芯片"]},
+      "relevant": ["pol01", "pol02", "pol10"]
+    },
+    {
+      "id": "p-software",
+      "profile": {"district": "新吴区", "city": "无锡市", "industry": "软件和信息技术服务", "main_business": "软件开发与信息技术服务", "tech_domains": ["软件", "信息技术"], "keywords": ["软件", "信息技术"]},
+      "relevant": ["pol03", "pol09"]
+    },
+    {
+      "id": "p-manufacturing",
+      "profile": {"district": "新吴区", "city": "无锡市", "industry": "智能制造装备", "main_business": "智能制造与高端装备生产", "tech_domains": ["智能制造", "高端装备"], "keywords": ["智能制造", "装备"]},
+      "relevant": ["pol04", "pol05"]
+    }
+  ],
+  "policies": [
+    {"id": "pol01", "title": "新吴区集成电路产业专项扶持政策", "region": "无锡市新吴区", "body_text": "为推动集成电路产业发展，对区内集成电路设计企业给予专项资金扶持。"},
+    {"id": "pol02", "title": "无锡市芯片设计企业研发补贴实施细则", "region": "无锡市", "body_text": "面向芯片设计企业的研发投入给予补贴，支持集成电路核心技术攻关。"},
+    {"id": "pol03", "title": "新吴区软件和信息技术服务业发展若干措施", "region": "无锡市新吴区", "body_text": "支持软件和信息技术服务企业做大做强，鼓励信息技术创新应用。"},
+    {"id": "pol04", "title": "无锡市智能制造示范工厂申报通知", "region": "无锡市", "body_text": "组织开展智能制造示范工厂申报，推动制造业数字化智能化改造。"},
+    {"id": "pol05", "title": "新吴区高端装备制造业扶持办法", "region": "无锡市新吴区", "body_text": "对高端装备制造企业的技术改造与装备升级给予支持。"},
+    {"id": "pol06", "title": "新吴区现代农业发展补贴政策", "region": "无锡市新吴区", "body_text": "对区内现代农业经营主体的种植养殖给予补贴。"},
+    {"id": "pol07", "title": "无锡市文化旅游产业扶持政策", "region": "无锡市", "body_text": "支持文化旅游融合发展，对旅游景区与文创项目给予扶持。"},
+    {"id": "pol08", "title": "无锡市商贸流通业促进措施", "region": "无锡市", "body_text": "促进商贸流通业发展，支持批发零售与物流配送。"},
+    {"id": "pol09", "title": "江苏省软件企业税收优惠政策", "region": "江苏省", "body_text": "对符合条件的软件企业实施企业所得税优惠，支持软件产业发展。"},
+    {"id": "pol10", "title": "新吴区集成电路人才引进专项", "region": "无锡市新吴区", "body_text": "对集成电路领域引进的高层次人才给予安家与项目支持。"}
+  ]
+}

@@ -163,8 +163,27 @@ docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build
 
 ## ✅ 质量
 
-- **288 个后端离线单元测试**（领域纯函数 / 工具 / 应用服务）；CI 三项（backend / frontend / 真库 integration）全绿。
+- **292 个后端离线单元测试**（领域纯函数 / 工具 / 应用服务 / 跨租户隔离）；CI 三项（backend / frontend / 真库 integration）全绿。
 - 前端 `tsc` / `eslint` / `next build` 全绿。
+
+### 核心能力效果评测（可复现测试结果）
+
+除"功能正确性"单测外，另建一套**效果评测**衡量核心 AI 能力的"好坏"——带标注数据集 + 量化指标 + 一键复现脚本（`api/tests/eval/`）。全部走**离线确定性**口径：真实 LLM/Embedding 调用只在录制冻结快照时发生，故任何人 clone 后无需密钥/网络即可复现同一组数字。
+
+| 能力 | 数据集 | 评测内核 | 主要指标（当前结果） |
+|---|---|---|---|
+| ⑥ 资质差距分析 | `qualification_gap.json`（真实资质目录） | `analyze_gap` 纯函数 | 状态准确率 1.0 · 缺字段误报不达标 0 |
+| ⑤ 申报截止抽取 | `deadline_extraction.json` | `parse_extraction_result` 纪律层 | 状态/日期准确率 1.0 · 编造率 0 |
+| RAG 向量检索 | `rag_retrieval.json` + 真实向量快照 | 余弦排序 | recall@5 1.0 · MRR 1.0 |
+| ③ 政策匹配 | `policy_matching.json`（受控语料） | `structured_score` 纯函数 | recall@3 1.0 · 干扰项零误命中 |
+
+```bash
+cd api && pip install -r requirements.txt && pip install 'pytest>=9.0.2'
+python scripts/run_eval.py     # 一键复现全部指标 + 刷新评测报告
+pytest tests/eval -q           # 或以门禁形式运行（指标低于阈值即 fail，CI 同款）
+```
+
+完整结果、指标定义与数据集说明见 [`docs/competition/评测报告.md`](./docs/competition/评测报告.md)（由 `run_eval.py` 自动生成）。
 
 ---
 
@@ -176,7 +195,7 @@ policy_manus/
 ├── ui/                 # 前端（Next.js）
 ├── sandbox/            # 沙箱（Ubuntu + Chrome + VNC）
 ├── nginx/              # 网关配置
-├── docs/competition/   # 比赛材料：项目说明书 / 演示视频脚本
+├── docs/competition/   # 比赛材料：项目说明书 / 演示视频脚本 / 评测报告
 ├── .agents/            # 协作记忆：STATUS / 架构 / 决策(ADR) / 交接 / 演示动线
 └── docker-compose.yml
 ```
