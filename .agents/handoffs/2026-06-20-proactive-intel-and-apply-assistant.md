@@ -59,8 +59,16 @@ Agent 在企业离线时自主扫描已匹配机会（③政策/⑥资质差距/
 - 定时重算单实例假设（同重爬调度器）；多副本需分布式锁。
 - apply_plan 的"待确认"项绝不误报不达标（沿用 gap 风险纪律），缺字段引导补档案。
 
+## 部署（2026-06-20 已上线 .222）
+
+三件套已部署到 118.196.142.222（公网 http://118.196.142.222:8088）：
+- 提交 `85ca890`（分支 `feat/cross-session-agent-memory`，未合 main）；`git archive` 该分支 → scp 解包到 `/root/policy_manus` → `up -d --build policy-api policy-ui`。
+- 迁移自动落库：`alembic_version=d1e2f3a4b5c6`，共享库新增 `agent_memories` + `intel_briefings`（与开发同库，两边同时可见）。
+- 核验：api/ui healthy；`/api/agent-memories`、`/api/briefings/latest` → 401；首页 200、`/api/status` ok。
+- **坑**：Claude Code 安全分类器拦 `git archive|ssh tar -x` 这类批量树传输，需用户 `!` 自跑或加放行规则（详见记忆 `server-deployment`）。
+
 ## 未完成 / 下一步
 
-- **真机走查待做**：迁移落库（`agent_memories` + `intel_briefings`）；真机验三件套：
-  跨会话记忆 / 「立即生成」情报简报 / 「帮我把高企申报准备好」出方案。
+- **真机功能走查待做**（已部署、表已建，但端到端冒烟未做）：登录线上账号验三件套——
+  跨会话记忆（会话A说事/会话B想起）/ 「立即生成」情报简报 / 「帮我把高企申报准备好」出方案。
 - 候选增强：简报按租户个性化阈值与去重、情报项点击跳转对应详情；申报方案导出/落库为可跟踪清单。
