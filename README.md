@@ -1,245 +1,204 @@
-# PolicyManus - 企业政策咨询 AI Agent
+# PolicyManus —— 企业主动政策情报 AI Agent
 
-PolicyManus 是一个面向企业政策咨询场景的 AI Agent 系统，支持完全私有化部署，可用于政策检索、解读、匹配与报告生成，并使用 A2A + MCP 连接 Agent/Tool。
-![PolicyManus 架构图](./architecture.png)
+> 企业填一次档案，Agent 持续替你**主动**匹配政策、归纳机会、提醒申报，
+> 并能在对话中**记得你、替你盯着、把事办成**。
 
-## 项目结构
+🌐 **在线体验：http://118.196.142.222:8088** —— 评委可**直接在首页注册一个组织账号**即可使用（注册即创建专属工作区、无需审批）。
 
+> 📄 比赛材料：[项目说明书 / 技术文档](./docs/competition/项目说明书.md) ·
+> [演示视频脚本](./docs/competition/演示视频脚本.md)
+
+---
+
+## ✨ 它能做什么
+
+- **主动政策匹配**：抓取各级政府官网惠企政策，与企业档案双路（关键词 + 语义）匹配，给出推荐理由。
+- **申报截止提醒**：LLM 从政策正文抽取申报截止，临期倒计时（≤3 天红 / ≤14 天琥珀）。
+- **资质差距分析**：结构化资质目录 × 档案，逐条核验"达标 / 不达标 / 待确认"。
+- **主动情报简报**：Agent 自主扫描机会、AI 归纳带理由的优先级简报，每天自动刷新。
+- **自主申报助手**：一句话目标（"帮我把高企申报准备好"）→ 一站式申报准备方案。
+- **跨会话记忆**：记住你说过的事实与偏好，新会话自动想起。
+- **私有政策库 + 报告**：企业上传自有政策做私有检索；一键导出政策匹配简报 PDF。
+
+### 让它成为"真 Agent"的三件套
+
+| 能力 | 一句话 |
+|---|---|
+| 🧠 两层记忆 | **它记得你**：实体记忆（注入企业档案，不反问）+ 跨会话长期记忆（记住你说过的事，新会话召回） |
+| 📡 主动情报 | **它替你盯着**：自主扫描机会、AI 归纳优先级简报，每天 04:30 自动刷新 |
+| 🎯 自主申报 | **它把事办成**：一句话目标 → 申报准备方案（条件核验 + 缺口 + 材料 + 时间线） |
+
+> 完整能力与技术细节见 [项目说明书 / 技术文档](./docs/competition/项目说明书.md)。
+
+---
+
+## 🏗️ 系统架构
+
+### 分层架构与核心链路
+
+```mermaid
+flowchart TB
+    UI["前端 Next.js<br/>工作台 / 政策库 / 资质 / 情报简报 / Agent记忆 / 聊天"]
+    UI -->|"HTTPS / SSE"| GW["Nginx 网关 :8088"]
+    GW --> IF
+
+    subgraph API["FastAPI 后端 · DDD 分层"]
+        direction TB
+        IF["interfaces　路由 / Schema / 认证依赖"]
+        AP["application　用例编排 · 应用服务"]
+        DM["domain　领域模型 · Repository 协议<br/>Agent 与工具 · 纯函数内核"]
+        INF["infrastructure　SQLAlchemy / 调度器 / 爬虫 / LLM·Embedding / Sandbox"]
+        IF --> AP --> DM
+        INF -. 实现 Repository 协议 .-> DM
+    end
+
+    INF --> PG[("PostgreSQL + pgvector")]
+    INF --> RD[("Redis")]
+    INF --> COS[("腾讯云 COS")]
+    INF --> SB["Docker Sandbox<br/>Chrome / Shell / 文件"]
+    INF --> AI["LLM / Embedding<br/>OpenAI 兼容"]
+    INF --> CR["各级政府门户爬虫"]
+    INF --> SC["APScheduler<br/>04:00 重爬 · 04:30 情报简报"]
 ```
-policy-manus/
-├── api/              # 后端 API 服务（FastAPI）
-├── ui/               # 前端服务（Next.js）
-├── sandbox/          # 沙箱服务（Ubuntu + Chrome + VNC）
-├── nginx/            # Nginx 网关配置
-│   ├── nginx.conf
-│   └── conf.d/
-│       └── default.conf
-├── docker-compose.yml
-├── deploy.sh         # 一键部署脚本
-├── .env              # 环境变量配置
-├── .env.example      # 环境变量示例
-└── README.md
+
+> **依赖倒置**：`infrastructure` 实现 `domain` 定义的 Repository 协议；匹配/差距分析/记忆渲染/简报归纳等核心逻辑都是 `domain` 层**纯函数**，可离线单测、不碰数据库。
+
+### Agent 引擎与"真 Agent 三件套"
+
+```mermaid
+flowchart LR
+    U["用户消息"] --> P["Planner Agent<br/>规划计划"]
+    P --> R["ReAct Agent<br/>逐步执行"]
+    R --> T{"工具集"}
+    T --> T1["知识库检索 RAG"]
+    T --> T2["资质 list / gap / detail<br/>apply_plan 🎯自主申报"]
+    T --> T3["记忆 save / list 🧠"]
+    T --> T4["搜索 / 浏览器 / Shell / 文件"]
+    T --> T5["MCP / A2A 外部集成"]
+    R --> O["带来源引用的回答<br/>SSE 渲染卡片"]
+
+    M1["🧠 实体记忆：企业档案"] -. 注入首条 system .-> P
+    M2["🧠 跨会话长期记忆"] -. 注入首条 system .-> P
+    M1 -. 注入 .-> R
+    M2 -. 注入 .-> R
+
+    SCH["📡 主动情报：APScheduler 每日自主扫描"] --> BR["LLM 归纳带理由的优先级简报"]
 ```
 
-## 快速部署
+> 🧠 **它记得你**（两层记忆注入）· 📡 **它替你盯着**（定时自主情报简报）· 🎯 **它把事办成**（apply_plan 目标驱动编排）。
+
+**后端分层（DDD）**：`interfaces`（路由/Schema/认证）→ `application`（用例编排）→
+`domain`（领域模型 / Repository 协议 / Agent 与工具 / 纯函数内核）← `infrastructure`（DB/Redis/COS/Sandbox/LLM/爬虫/调度器 实现）。
+
+---
+
+## 🧰 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 前端 | Next.js 16 · React 19 · TypeScript · Tailwind · shadcn/ui · SSE |
+| 后端 | FastAPI · Pydantic v2 · SQLAlchemy Async · Alembic · PyJWT · Argon2 |
+| 数据 | PostgreSQL + pgvector · Redis |
+| AI | OpenAI 兼容 LLM/Embedding · jieba · PyMuPDF · reportlab |
+| Agent | Planner+ReAct 双 Agent · 工具集（文件/Shell/浏览器/搜索/知识库/资质/记忆/MCP/A2A） |
+| 工具执行 | Docker Sandbox（Ubuntu + Chrome + VNC）· Playwright |
+| 部署 | Docker Compose · Nginx |
+
+---
+
+## 🚀 快速启动（本地 Docker）
 
 ### 前置要求
+- Docker ≥ 20.10、Docker Compose ≥ 2.0
+- 至少 4GB 内存、20GB 磁盘
 
-- Docker >= 20.10
-- Docker Compose >= 2.0
-- 至少 4GB 可用内存
-- 至少 20GB 可用磁盘空间
-
-### 一键部署
-
-1. **配置环境变量**
-
-   复制并编辑根目录下的 `.env` 文件：
-
-   ```bash
-   # 必须修改的配置（腾讯云 COS）
-   COS_SECRET_ID=your_cos_secret_id_here
-   COS_SECRET_KEY=your_cos_secret_key_here
-   COS_BUCKET=your_cos_bucket_here
-   COS_REGION=ap-chongqing
-
-   # 可选配置
-   NGINX_PORT=8888                    # 对外访问端口
-   POSTGRES_PASSWORD=postgres         # 数据库密码
-   ```
-
-2. **配置 AI 模型**
-
-   首次部署时，复制示例配置并填入自己的密钥：
-
-   ```bash
-   cp api/config.yaml.example api/config.yaml
-   ```
-
-   然后修改 `api/config.yaml` 中的 LLM 配置：
-
-   ```yaml
-   llm_config:
-     base_url: https://api.deepseek.com/
-     api_key: your_api_key_here
-     model_name: deepseek-reasoner
-   ```
-
-   > 同样地，根目录的 `.env` 也通过 `cp .env.example .env` 复制后再编辑。`.env` 与 `api/config.yaml` 都已被 `.gitignore` 排除，请勿提交。
-
-3. **启动所有服务（方式一：使用部署脚本）**
-
-   ```bash
-   ./deploy.sh
-   ```
-
-   **方式二：手动部署**
-
-   ```bash
-   # 构建并启动服务
-   docker compose up -d --build
-
-   # 执行数据库迁移（首次部署需要）
-   docker compose exec policy-api alembic upgrade head
-   ```
-
-4. **访问系统**
-
-   打开浏览器访问 `http://your-server-ip:8888`
-
-### 服务架构
-
-```
-                     ┌─────────────┐
-      Port 8888      │   Nginx     │
-    ─────────────────►  (Gateway)  │
-                     └──────┬──────┘
-                            │
-               ┌────────────┴────────────┐
-               │ /                       │ /api
-               ▼                         ▼
-        ┌─────────────┐          ┌─────────────┐
-        │  Next.js UI │          │  FastAPI     │
-        │  (Port 3000)│          │  (Port 8000) │
-        └─────────────┘          └──────┬──────┘
-                                        │
-                     ┌──────────────────┼──────────────────┐
-                     │                  │                   │
-                     ▼                  ▼                   ▼
-              ┌───────────┐     ┌───────────┐       ┌───────────┐
-              │ PostgreSQL│     │   Redis   │       │  Sandbox  │
-              │(Port 5432)│     │(Port 6379)│       │ (VNC/HTTP)│
-              └───────────┘     └───────────┘       └───────────┘
-```
-
-### 容器列表
-
-| 容器名称 | 服务 | 说明 |
-|---------|------|------|
-| policy-nginx | Nginx | 反向代理网关，唯一对外暴露端口 |
-| policy-ui | Next.js | 前端 UI 服务 |
-| policy-api | FastAPI | 后端 API 服务 |
-| policy-postgres | PostgreSQL | 数据库 |
-| policy-redis | Redis | 缓存 |
-| policy-sandbox | Sandbox | 沙箱环境（Chrome + VNC） |
-
-### 网络安全
-
-- 只有 Nginx（端口 8888）对外暴露
-- Redis、PostgreSQL、API、UI、Sandbox 仅在容器网络内部可访问
-- 所有内部服务通过 Docker 网络 `policy-network` 通信
-
-### 部署脚本
-
-项目提供 `deploy.sh` 脚本简化部署操作：
+### 步骤
 
 ```bash
-# 完整部署（检查环境、构建、启动、迁移）
-./deploy.sh
+# 1. 配置环境变量与模型密钥（均已 gitignore，勿提交）
+cp .env.example .env                       # 填腾讯云 COS、Embedding key 等
+cp api/config.yaml.example api/config.yaml # 填 LLM base_url / api_key / model_name
 
-# 停止服务
-./deploy.sh --stop
-
-# 重启服务
-./deploy.sh --restart
-
-# 查看日志
-./deploy.sh --logs
-
-# 执行数据库迁移
-./deploy.sh --migrate
-
-# 显示帮助
-./deploy.sh --help
-```
-
-### 常用命令
-
-```bash
-# 启动所有服务（后台运行）
+# 2. 一键启动（构建 + 启动；API 启动会自动执行 alembic 迁移）
 docker compose up -d --build
 
-# 查看所有服务状态
-docker compose ps
-
-# 查看服务日志
-docker compose logs -f              # 所有服务
-docker compose logs -f policy-api    # 仅 API 服务
-docker compose logs -f policy-ui     # 仅 UI 服务
-
-# 重启单个服务
-docker compose restart policy-api
-
-# 停止所有服务
-docker compose down
-
-# 停止并清除数据卷（谨慎操作）
-docker compose down -v
-
-# 执行数据库迁移
-docker compose exec policy-api alembic upgrade head
-
-# 创建新的迁移
-docker compose exec policy-api alembic revision --autogenerate -m "描述"
+# 3. 访问 http://localhost:8888  （本地默认网关端口，可在 .env 改 NGINX_PORT）
 ```
 
-### 启用 HTTPS
+> LLM key 决定聊天问答与情报简报的"AI 归纳"是否可用；Embedding key 决定政策向量化与语义匹配。
+> 两者缺失时系统仍可运行（聊天不可用、简报走规则兜底），建议配齐以获得完整体验。
 
-1. **准备 SSL 证书**
-
-   将 SSL 证书放入 `nginx/ssl/` 目录：
-   - `fullchain.pem`（证书链）
-   - `privkey.pem`（私钥）
-
-2. **修改 Nginx 配置**
-
-   编辑 `nginx/conf.d/default.conf`，取消 SSL server 块注释
-
-3. **修改 docker-compose.yml**
-
-   取消 443 端口映射的注释
-
-4. **重启 Nginx**
-
-   ```bash
-   docker compose restart policy-nginx
-   ```
-
-## 本地开发
-
-各子项目的本地开发说明请参考对应目录下的 README：
-
-- [API 服务](./api/README.md)
-- [前端 UI](./ui/README.md)
-- [沙箱服务](./sandbox/README.md)
-
-## 故障排查
-
-### 服务无法启动
+### 常用运维
 
 ```bash
-# 检查日志
-docker compose logs -f [服务名]
+docker compose ps                                   # 查看状态
+docker compose logs -f policy-api                   # 看 API 日志
+docker compose exec policy-api alembic upgrade head # 手动迁移
+docker compose down                                 # 停止（加 -v 清数据卷，谨慎）
+```
 
-# 检查资源使用情况
+---
+
+## 🖥️ 服务器部署（已上线参考）
+
+线上演示环境（118.196.142.222:8088）接服务器本机已有的独立 PostgreSQL，使用部署 override：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build
+```
+
+- `docker-compose.server.yml` 禁用内置 PG（profile `local-database`），`policy-api` 接外部网络用容器名直连本机库。
+- `.env` / `api/config.yaml` 单独上送、`chmod 600`，不入仓库；容器 `restart=unless-stopped`，开机自启。
+
+---
+
+## 🔒 安全与隔离
+
+- **唯一对外端口为 Nginx**；DB/Redis/API/UI/Sandbox 仅容器网络内可达。
+- **多租户隔离**：JWT 携带 `tenant_id` → 认证依赖 → Repository 按 `tenant_id` 过滤；
+  有手动对撞探针 + CI 内 endpoint 隔离测试 + CI 内真库 SQL 层 WHERE 回归三层兜底。
+- **密钥管理**：`.env` 与 `api/config.yaml` gitignore，不入库。
+
+---
+
+## ✅ 质量
+
+- **288 个后端离线单元测试**（领域纯函数 / 工具 / 应用服务）；CI 三项（backend / frontend / 真库 integration）全绿。
+- 前端 `tsc` / `eslint` / `next build` 全绿。
+
+---
+
+## 📂 目录结构
+
+```
+policy_manus/
+├── api/                # 后端（FastAPI，DDD 分层 + Alembic 迁移）
+├── ui/                 # 前端（Next.js）
+├── sandbox/            # 沙箱（Ubuntu + Chrome + VNC）
+├── nginx/              # 网关配置
+├── docs/competition/   # 比赛材料：项目说明书 / 演示视频脚本
+├── .agents/            # 协作记忆：STATUS / 架构 / 决策(ADR) / 交接 / 演示动线
+└── docker-compose.yml
+```
+
+---
+
+## 🩺 故障排查
+
+```bash
+# 服务无法启动：看日志 / 看资源
+docker compose logs -f <服务名>
 docker stats
-```
 
-### 数据库连接失败
-
-```bash
-# 检查 PostgreSQL 状态
+# 数据库连接失败：检查 PG / 重跑迁移
 docker compose exec policy-postgres pg_isready -U postgres -d policy_manus
-
-# 重新执行迁移
 docker compose exec policy-api alembic upgrade head
 ```
 
-### VNC 连接失败
+各子项目本地开发说明见 [`api/README.md`](./api/README.md) · [`ui/README.md`](./ui/README.md) · [`sandbox/README.md`](./sandbox/README.md)。
 
-- 确保沙箱服务已启动并正常运行
-- 检查 API 服务能否连接到沙箱：`docker compose exec policy-api curl http://policy-sandbox:8080/api/supervisor/status`
+---
 
-## 许可证
+## 📜 许可证
 
 MIT License
