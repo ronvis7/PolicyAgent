@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "capability": "⑤ 申报截止抽取（deadline_extractor）",
+    "description": "政策正文 → 申报截止情况（status ∈ extracted/rolling/unknown + deadline 日期）的抽取评测。源站不给结构化字段、日期埋在正文，本能力用 LLM 抽取并坚持『待核对纪律』：抽不到一律 unknown，绝不编造日期。",
+    "two_modes": {
+      "offline_committed": "评测确定性『待核对纪律』决策层 parse_extraction_result：对每条 model_output（冻结的模型原始输出快照）解析，比对 golden。golden = 在该模型输出下纪律层『应当』得到的判定（如：声称 found 却给非法日期 → 必须 unknown）。完全离线确定，CI 门禁。",
+      "live": "scripts/run_eval.py --live（需 LLM key）对 body_text 跑真实 extract_deadline，得到端到端真实抽取准确率，供有 key 的评委复现。"
+    },
+    "metric": "status 准确率 + extracted 用例日期精确率 + 编造率（golden 非 extracted 却被判出日期，纪律红线，应=0）+ 安全降级率（不确定/脏数据 → unknown）",
+    "thresholds": {"status_accuracy": 1.0, "deadline_exact": 1.0, "fabrication_rate": 0.0}
+  },
+  "cases": [
+    {
+      "id": "clear-deadline",
+      "scenario": "正文明确写出截止日期",
+      "title": "关于组织申报2026年度新吴区科技型中小企业的通知",
+      "body_text": "各有关单位：现组织开展2026年度科技型中小企业评价入库工作。请于2026年8月31日前完成线上填报并提交申报材料。逾期不予受理。联系人：王工。",
+      "model_output": "{\"found\": true, \"deadline\": \"2026-08-31\", \"rolling\": false, \"window\": \"请于2026年8月31日前完成线上填报\"}",
+      "golden": {"status": "extracted", "deadline": "2026-08-31"}
+    },
+    {
+      "id": "deadline-with-time-suffix",
+      "scenario": "模型给出带时间后缀的日期，应规整为 date",
+      "title": "无锡市专精特新中小企业申报通知",
+      "body_text": "申报系统开放至2026年9月30日17:00，请及时提交。",
+      "model_output": "{\"found\": true, \"deadline\": \"2026-09-30 17:00\", \"rolling\": false, \"window\": \"申报系统开放至2026年9月30日17:00\"}",
+      "golden": {"status": "extracted", "deadline": "2026-09-30"}
+    },
+    {
+      "id": "rolling-acceptance",
+      "scenario": "常年受理/无固定截止",
+      "title": "高新技术企业培育入库（常年受理）",
+      "body_text": "本入库工作常年受理，符合条件的企业可随时提出申请，无固定申报截止时间。",
+      "model_output": "{\"found\": false, \"deadline\": null, \"rolling\": true, \"window\": \"常年受理，无固定申报截止时间\"}",
+      "golden": {"status": "rolling", "deadline": null}
+    },
+    {
+      "id": "result-announcement-no-deadline",
+      "scenario": "结果公示类公文，本就无申报截止",
+      "title": "2025年度高新技术企业认定名单公示",
+      "body_text": "根据认定结果，现将2025年度通过认定的高新技术企业名单予以公示，公示期7天。",
+      "model_output": "{\"found\": false, \"deadline\": null, \"rolling\": false, \"window\": \"\"}",
+      "golden": {"status": "unknown", "deadline": null}
+    },
+    {
+      "id": "discipline-found-but-null-date",
+      "scenario": "纪律红线：模型声称 found 却给不出日期 → 不采信，判 unknown",
+      "title": "关于做好项目申报工作的通知",
+      "body_text": "请各单位认真做好申报工作，具体时间另行通知。",
+      "model_output": "{\"found\": true, \"deadline\": null, \"rolling\": false, \"window\": \"具体时间另行通知\"}",
+      "golden": {"status": "unknown", "deadline": null}
+    },
+    {
+      "id": "discipline-found-but-illegal-date",
+      "scenario": "纪律红线：模型给出非法日期『尽快』→ 绝不编造，回退 unknown",
+      "title": "申报通知",
+      "body_text": "请尽快提交相关材料。",
+      "model_output": "{\"found\": true, \"deadline\": \"尽快\", \"rolling\": false, \"window\": \"请尽快提交\"}",
+      "golden": {"status": "unknown", "deadline": null}
+    },
+    {
+      "id": "discipline-malformed-json",
+      "scenario": "安全降级：模型返回非合法 JSON（如带 markdown 围栏）→ 回退 unknown",
+      "title": "某申报通知",
+      "body_text": "申报截止2026年7月15日。",
+      "model_output": "```json\n{\"found\": true, \"deadline\": \"2026-07-15\"}\n```",
+      "golden": {"status": "unknown", "deadline": null}
+    },
+    {
+      "id": "discipline-empty-output",
+      "scenario": "安全降级：模型空返回 → unknown",
+      "title": "通知",
+      "body_text": "正文略。",
+      "model_output": "",
+      "golden": {"status": "unknown", "deadline": null}
+    },
+    {
+      "id": "implicit-year-window",
+      "scenario": "正文含明确完整日期与受理窗口描述",
+      "title": "江苏省工程技术研究中心2026年度申报通知",
+      "body_text": "受理时间为2026年5月10日至2026年6月20日，请在受理期内通过系统提交。",
+      "model_output": "{\"found\": true, \"deadline\": \"2026-06-20\", \"rolling\": false, \"window\": \"受理时间为2026年5月10日至2026年6月20日\"}",
+      "golden": {"status": "extracted", "deadline": "2026-06-20"}
+    },
+    {
+      "id": "extension-final-deadline",
+      "scenario": "延期通知应取最终截止日期",
+      "title": "关于延长某申报截止时间的通知",
+      "body_text": "原申报截止时间2026年7月31日延长至2026年8月20日，请知悉。",
+      "model_output": "{\"found\": true, \"deadline\": \"2026-08-20\", \"rolling\": false, \"window\": \"延长至2026年8月20日\"}",
+      "golden": {"status": "extracted", "deadline": "2026-08-20"}
+    },
+    {
+      "id": "rolling-with-found-false",
+      "scenario": "长期有效政策（rolling=true, found=false）",
+      "title": "研发费用加计扣除政策（长期有效）",
+      "body_text": "本政策长期有效，符合条件的企业在汇算清缴时享受，无单独申报截止。",
+      "model_output": "{\"found\": false, \"deadline\": null, \"rolling\": true, \"window\": \"长期有效\"}",
+      "golden": {"status": "rolling", "deadline": null}
+    },
+    {
+      "id": "no-deadline-policy-doc",
+      "scenario": "纯政策解读文件，无申报动作",
+      "title": "高新技术企业所得税优惠政策解读",
+      "body_text": "高新技术企业减按15%税率征收企业所得税，本文对政策要点进行解读。",
+      "model_output": "{\"found\": false, \"deadline\": null, \"rolling\": false, \"window\": \"\"}",
+      "golden": {"status": "unknown", "deadline": null}
+    }
+  ]
+}

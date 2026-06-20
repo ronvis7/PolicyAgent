@@ -1,0 +1,166 @@
+{
+  "meta": {
+    "capability": "⑥ 资质差距分析（analyze_gap 结构化核验）",
+    "description": "企业档案 × 真实资质目录条目的差距分析 golden 集。每条标注逐个硬条件的 golden 状态（met/unmet/unknown）、缺失前置资质、以及三态计数。资质条目取自 app.infrastructure.data.qualification_catalog（真实目录，非虚构）。",
+    "labeling": "状态由《认定办法》概要门槛 + 档案数值机械比对人工推算；核心纪律：档案缺字段必须判 unknown（待确认），绝不误报 unmet。",
+    "determinism": "analyze_gap 为纯函数（jieba 不参与），同输入恒定同输出，无网络/LLM。",
+    "metric": "逐条状态准确率（per-condition accuracy）+ 用例级精确匹配率（case exact-match：全部条件状态 + 前置缺口完全一致）",
+    "thresholds": {"condition_accuracy": 1.0, "case_exact_match": 1.0}
+  },
+  "cases": [
+    {
+      "id": "htech-strong-pass",
+      "qualification_key": "high-tech-enterprise",
+      "today": "2026-06-16",
+      "profile": {"established_date": "2018-01-01", "total_staff": 100, "rd_staff": 15, "annual_revenue_wan": 4000.0, "rd_investment_wan": 240.0},
+      "expected": {
+        "checks": {"company_age_years": "met", "rd_staff_ratio": "met", "rd_investment_ratio": "met"},
+        "prerequisites_missing": [],
+        "counts": {"met": 3, "unmet": 0, "unknown": 0}
+      }
+    },
+    {
+      "id": "htech-rdratio-and-investment-unmet",
+      "qualification_key": "high-tech-enterprise",
+      "today": "2026-06-16",
+      "profile": {"established_date": "2019-06-01", "total_staff": 100, "rd_staff": 8, "annual_revenue_wan": 8000.0, "rd_investment_wan": 240.0},
+      "expected": {
+        "checks": {"company_age_years": "met", "rd_staff_ratio": "unmet", "rd_investment_ratio": "unmet"},
+        "prerequisites_missing": [],
+        "counts": {"met": 1, "unmet": 2, "unknown": 0}
+      }
+    },
+    {
+      "id": "htech-young-and-band-unknown",
+      "qualification_key": "high-tech-enterprise",
+      "today": "2026-06-16",
+      "profile": {"established_date": "2026-01-01", "total_staff": 50, "rd_staff": 10},
+      "expected": {
+        "checks": {"company_age_years": "unmet", "rd_staff_ratio": "met", "rd_investment_ratio": "unknown"},
+        "prerequisites_missing": [],
+        "counts": {"met": 1, "unmet": 1, "unknown": 1}
+      }
+    },
+    {
+      "id": "htech-empty-profile-all-unknown",
+      "qualification_key": "high-tech-enterprise",
+      "today": "2026-06-16",
+      "profile": {},
+      "expected": {
+        "checks": {"company_age_years": "unknown", "rd_staff_ratio": "unknown", "rd_investment_ratio": "unknown"},
+        "prerequisites_missing": [],
+        "counts": {"met": 0, "unmet": 0, "unknown": 3}
+      }
+    },
+    {
+      "id": "htech-open-top-band-pass",
+      "qualification_key": "high-tech-enterprise",
+      "today": "2026-06-16",
+      "profile": {"established_date": "2015-03-01", "total_staff": 200, "rd_staff": 30, "annual_revenue_wan": 50000.0, "rd_investment_wan": 1800.0},
+      "expected": {
+        "checks": {"company_age_years": "met", "rd_staff_ratio": "met", "rd_investment_ratio": "met"},
+        "prerequisites_missing": [],
+        "counts": {"met": 3, "unmet": 0, "unknown": 0}
+      }
+    },
+    {
+      "id": "htech-band-known-but-investment-missing",
+      "qualification_key": "high-tech-enterprise",
+      "today": "2026-06-16",
+      "profile": {"established_date": "2015-01-01", "total_staff": 100, "rd_staff": 12, "annual_revenue_wan": 8000.0},
+      "expected": {
+        "checks": {"company_age_years": "met", "rd_staff_ratio": "met", "rd_investment_ratio": "unknown"},
+        "prerequisites_missing": [],
+        "counts": {"met": 2, "unmet": 0, "unknown": 1}
+      }
+    },
+    {
+      "id": "techsme-within-limits-pass",
+      "qualification_key": "tech-sme",
+      "today": "2026-06-16",
+      "profile": {"total_staff": 120, "annual_revenue_wan": 8000.0},
+      "expected": {
+        "checks": {"total_staff": "met", "annual_revenue_wan": "met"},
+        "prerequisites_missing": [],
+        "counts": {"met": 2, "unmet": 0, "unknown": 0}
+      }
+    },
+    {
+      "id": "techsme-both-exceed-unmet",
+      "qualification_key": "tech-sme",
+      "today": "2026-06-16",
+      "profile": {"total_staff": 800, "annual_revenue_wan": 30000.0},
+      "expected": {
+        "checks": {"total_staff": "unmet", "annual_revenue_wan": "unmet"},
+        "prerequisites_missing": [],
+        "counts": {"met": 0, "unmet": 2, "unknown": 0}
+      }
+    },
+    {
+      "id": "techsme-staff-ok-revenue-missing",
+      "qualification_key": "tech-sme",
+      "today": "2026-06-16",
+      "profile": {"total_staff": 200},
+      "expected": {
+        "checks": {"total_staff": "met", "annual_revenue_wan": "unknown"},
+        "prerequisites_missing": [],
+        "counts": {"met": 1, "unmet": 0, "unknown": 1}
+      }
+    },
+    {
+      "id": "techsme-staff-missing-revenue-ok",
+      "qualification_key": "tech-sme",
+      "today": "2026-06-16",
+      "profile": {"annual_revenue_wan": 5000.0},
+      "expected": {
+        "checks": {"total_staff": "unknown", "annual_revenue_wan": "met"},
+        "prerequisites_missing": [],
+        "counts": {"met": 1, "unmet": 0, "unknown": 1}
+      }
+    },
+    {
+      "id": "little-giant-missing-prerequisite",
+      "qualification_key": "spec-new-little-giant",
+      "today": "2026-06-16",
+      "profile": {"qualifications": []},
+      "expected": {
+        "checks": {},
+        "prerequisites_missing": ["专精特新中小企业"],
+        "counts": {"met": 0, "unmet": 0, "unknown": 0}
+      }
+    },
+    {
+      "id": "little-giant-has-prerequisite",
+      "qualification_key": "spec-new-little-giant",
+      "today": "2026-06-16",
+      "profile": {"qualifications": ["江苏省专精特新中小企业"]},
+      "expected": {
+        "checks": {},
+        "prerequisites_missing": [],
+        "counts": {"met": 0, "unmet": 0, "unknown": 0}
+      }
+    },
+    {
+      "id": "gazelle-missing-hightech-prerequisite",
+      "qualification_key": "js-gazelle",
+      "today": "2026-06-16",
+      "profile": {"qualifications": ["科技型中小企业"]},
+      "expected": {
+        "checks": {},
+        "prerequisites_missing": ["高新技术企业"],
+        "counts": {"met": 0, "unmet": 0, "unknown": 0}
+      }
+    },
+    {
+      "id": "gazelle-has-hightech-prerequisite",
+      "qualification_key": "js-gazelle",
+      "today": "2026-06-16",
+      "profile": {"qualifications": ["高新技术企业", "科技型中小企业"]},
+      "expected": {
+        "checks": {},
+        "prerequisites_missing": [],
+        "counts": {"met": 0, "unmet": 0, "unknown": 0}
+      }
+    }
+  ]
+}
