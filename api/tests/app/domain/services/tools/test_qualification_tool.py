@@ -196,3 +196,35 @@ def test_detail_unknown_key_returns_failure():
     result = asyncio.run(tool.qualification_detail(key="nope"))
 
     assert result.success is False
+
+
+def test_apply_plan_aggregates_gap_materials_and_timeline():
+    """申报准备方案：聚合条件核验 + 需补齐缺口 + 材料 + 时间线，带风险纪律字段。"""
+    # 成立满 7 年(达标)、研发人员 8%(不达标)
+    profile = _profile(established_date="2019-01-01", total_staff=100, rd_staff=8)
+    tool = _build_tool(TENANT, profile)
+
+    result = asyncio.run(tool.qualification_apply_plan(key="high-tech-enterprise"))
+
+    assert result.success is True
+    assert result.data.kind == "plan"
+    text = "\n".join(result.data.lines)
+    assert "【申报条件核验】" in text
+    assert "【需补齐 / 待确认】" in text  # 有不达标项
+    assert "【主要申报材料】" in text
+    assert "知识产权证明" in text
+    assert result.data.disclaimer and result.data.last_reviewed == "2026-06-15"
+
+
+def test_apply_plan_unknown_key_returns_failure():
+    """不存在的资质 key 返回失败。"""
+    tool = _build_tool(TENANT, _profile())
+    result = asyncio.run(tool.qualification_apply_plan(key="nope"))
+    assert result.success is False
+
+
+def test_apply_plan_missing_tenant_returns_failure():
+    """会话无租户上下文时返回失败。"""
+    tool = _build_tool(None, None)
+    result = asyncio.run(tool.qualification_apply_plan(key="high-tech-enterprise"))
+    assert result.success is False

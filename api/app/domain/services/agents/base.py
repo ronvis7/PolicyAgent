@@ -45,10 +45,16 @@ class BaseAgent(ABC):
         self._tools = tools
         # 企业档案上下文(实体长期记忆)，由 flow 在会话启动时注入，作为系统提示词后缀
         self._enterprise_context: str = ""
+        # 跨会话长期记忆上下文(ADR 004)，同样由 flow 在会话启动时注入，拼在企业档案之后
+        self._memory_context: str = ""
 
     def set_enterprise_context(self, context: str) -> None:
         """注入当前企业档案上下文，会拼到首条 system 消息(记忆为空时生效)。"""
         self._enterprise_context = context or ""
+
+    def set_memory_context(self, context: str) -> None:
+        """注入当前租户的跨会话长期记忆上下文，会拼到首条 system 消息(记忆为空时生效)。"""
+        self._memory_context = context or ""
 
     async def _ensure_memory(self) -> None:
         """确保智能体记忆是存在的"""
@@ -154,7 +160,8 @@ class BaseAgent(ABC):
         #   并把当前企业档案上下文(实体记忆)拼到系统提示词尾部，让Agent知道服务于哪家企业
         if self._memory.empty:
             self._memory.add_message({
-                "role": "system", "content": self._system_prompt + self._enterprise_context,
+                "role": "system",
+                "content": self._system_prompt + self._enterprise_context + self._memory_context,
             })
 
         # 3.将正常消息添加到记忆中

@@ -6,7 +6,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.errors.exceptions import UnauthorizedError
+from app.application.services.agent_memory_service import AgentMemoryService
 from app.application.services.agent_service import AgentService
+from app.application.services.briefing_service import BriefingService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.auth_service import AuthService
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
@@ -257,6 +259,11 @@ def get_enterprise_profile_service() -> EnterpriseProfileService:
     return EnterpriseProfileService(uow_factory=get_uow)
 
 
+def get_agent_memory_service() -> AgentMemoryService:
+    """获取 Agent 长期记忆管理服务(按租户读/删跨会话记忆)"""
+    return AgentMemoryService(uow_factory=get_uow)
+
+
 def get_policy_service() -> PolicyService:
     """获取公开政策库读服务(全局共享，分页浏览)"""
     return PolicyService(uow_factory=get_uow)
@@ -310,4 +317,23 @@ def get_report_service() -> ReportService:
         profile_service=get_enterprise_profile_service(),
         feed_service=get_feed_service(),
         qualification_service=get_qualification_service(),
+    )
+
+
+def get_briefing_service() -> BriefingService:
+    """获取主动情报简报服务（复用 ReportService 聚合 + 平台默认 LLM 归纳）。
+
+    简报用平台默认 LLM(系统级生成无租户)；平台未配 key 时吞掉传 None，
+    服务自动回退确定性兜底简报，与 best-effort 纪律一致。
+    """
+    app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
+    try:
+        llm = OpenAILLM(app_config.llm_config)
+    except Exception as e:  # noqa: BLE001 — 简报为增强，缺 key 走兜底而非报错
+        logger.warning("平台 LLM 未就绪，情报简报将走确定性兜底: %s", e)
+        llm = None
+    return BriefingService(
+        uow_factory=get_uow,
+        report_service=get_report_service(),
+        llm=llm,
     )

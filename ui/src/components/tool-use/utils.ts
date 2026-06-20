@@ -148,6 +148,8 @@ export function getFriendlyToolLabel(data: ToolEvent | null | undefined): string
         return key ? `正在分析资质差距 ${truncate(key, 40)}` : '正在分析资质差距'
       case 'qualification_detail':
         return key ? `正在查询资质详情 ${truncate(key, 40)}` : '正在查询资质详情'
+      case 'qualification_apply_plan':
+        return key ? `正在生成申报准备方案 ${truncate(key, 40)}` : '正在生成申报准备方案'
       default:
         return '正在处理资质申报指引'
     }

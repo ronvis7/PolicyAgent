@@ -8,13 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.infrastructure.logging import setup_logging
+from app.infrastructure.scheduler.briefing_refresh_scheduler import BriefingRefreshScheduler
 from app.infrastructure.scheduler.policy_recrawl_scheduler import PolicyRecrawlScheduler
 from app.infrastructure.storage.cos import get_cos
 from app.infrastructure.storage.postgres import get_postgres
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
-from app.interfaces.service_dependencies import get_default_agent_service, get_policy_ingest_service
+from app.interfaces.service_dependencies import get_default_agent_service, get_policy_ingest_service, get_briefing_service
 from core.config import get_settings
 
 
@@ -66,13 +67,28 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("公开政策定时重爬已禁用(POLICY_RECRAWL_ENABLED=false)")
 
+    # 3.6 启动主动情报简报定时重算调度器(主动情报 Agent；错开 04:00 重爬、基于最新政策生成)
+    briefing_scheduler: BriefingRefreshScheduler | None = None
+    if settings.briefing_refresh_enabled:
+        briefing_scheduler = BriefingRefreshScheduler(
+            hour=settings.briefing_refresh_hour,
+            minute=settings.briefing_refresh_minute,
+            regenerate_all=lambda: get_briefing_service().regenerate_all(),
+            timezone=settings.briefing_refresh_timezone,
+        )
+        briefing_scheduler.start()
+    else:
+        logger.info("主动情报简报定时重算已禁用(BRIEFING_REFRESH_ENABLED=false)")
+
     try:
         # 4.lifespan分界点
         yield
     finally:
-        # 4.5 停止重爬调度器
+        # 4.5 停止调度器
         if recrawl_scheduler is not None:
             recrawl_scheduler.shutdown()
+        if briefing_scheduler is not None:
+            briefing_scheduler.shutdown()
 
         try:
             # 5.等待agent服务关闭

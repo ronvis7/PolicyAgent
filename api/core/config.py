@@ -71,6 +71,13 @@ class Settings(BaseSettings):
         """解析逗号分隔的重爬来源为去空白的非空列表。"""
         return [s.strip() for s in self.policy_recrawl_sources.split(",") if s.strip()]
 
+    # 主动情报简报定时重算：Agent 在企业"离线"时自主为已建档租户刷新带理由的机会简报。
+    # 默认每天 04:30（错开 04:00 重爬，保证基于最新政策/Feed 生成）。
+    briefing_refresh_enabled: bool = Field(default=True, alias="BRIEFING_REFRESH_ENABLED")
+    briefing_refresh_hour: int = Field(default=4, alias="BRIEFING_REFRESH_HOUR")
+    briefing_refresh_minute: int = Field(default=30, alias="BRIEFING_REFRESH_MINUTE")
+    briefing_refresh_timezone: str = Field(default="Asia/Shanghai", alias="BRIEFING_REFRESH_TIMEZONE")
+
     # JWT认证配置
     jwt_secret_key: str = Field(default="dev-insecure-secret-change-me-in-production-please", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
