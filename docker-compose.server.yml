@@ -1,0 +1,33 @@
+# 服务器部署 override（118.196.142.222 本机部署）
+# 接入服务器上已独立运行的 policy-postgres（/opt/policy-postgres，库 policy_manus），
+# 不再起内置 PG；policy-api 额外接入其网络，用容器名直连，无需 SSH 隧道。
+#
+# 用法（在服务器仓库目录）：
+#   docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build
+#
+# 依赖：服务器上 /opt/policy-postgres 的 compose 已起，网络名 policy-postgres_default。
+# 库凭据（policy_app / 强密码 / policy_manus）由同目录 .env 提供。
+
+services:
+  # 禁用内置 PG：库由 /opt/policy-postgres 独立维护，避免起第二个库覆盖数据
+  policy-postgres:
+    profiles:
+      - local-database
+
+  policy-api:
+    # 内置 PG 已禁用，api 不再依赖它，只等 redis 健康
+    depends_on: !override
+      policy-redis:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: policy-postgres
+      POSTGRES_PORT: 5432
+    networks:
+      - policy-network
+      - policy-db
+
+networks:
+  # 引用 /opt/policy-postgres 这套 compose 已创建的网络
+  policy-db:
+    name: policy-postgres_default
+    external: true

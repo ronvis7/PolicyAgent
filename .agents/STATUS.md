@@ -107,7 +107,7 @@
   + **数据来源透明中心(#52)** + **资质 banded 分档条件(#53)** + **江苏省工信厅 gxt 申报源(#54)** + **gxt 政策文件栏目 gxt-policy(#55)**，均已合并；命中度修复(#51)、数据来源页(#52)真机已验证通过，#47 报告导出 + #53 banded + #54/#55 gxt 真机走查待做。
 - PR #11 `feat/enterprise-profile-enrich`：①b AI 补全，**暂停、暂不合并**（按钮已隐藏；落后 main 多个 PR、已冲突，待复活时一并 rebase 解）。
 - `test/c-plus-d`：C+D 集成测试分支（一次性，含暂停的 ①b，**勿合并主干**）。
-- 工作区未跟踪 `docker-compose.server.yml`：服务器本机部署 override（接 `/opt/policy-postgres`），按用户意图暂不提交、暂不碰服务器部署。
+- `docker-compose.server.yml`：服务器本机部署 override（接 `/opt/policy-postgres`，禁用内置 PG、api 直连其网络），**已入库**（无密钥，库凭据由服务器同目录 `.env` 提供）。服务器 .222 部署用 `docker compose -f docker-compose.yml -f docker-compose.server.yml up -d --build`。
 - 新增依赖（本轮）：`reportlab`（PDF）、`jieba`（中文分词，匹配+关键词共用）；均已入 `pyproject`/`requirements`/`uv.lock`。
 
 ## 已知风险
