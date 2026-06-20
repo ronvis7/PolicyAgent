@@ -6,7 +6,9 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from app.domain.repositories.uow import IUnitOfWork
+from .db_agent_memory_repository import DBAgentMemoryRepository
 from .db_document_chunk_repository import DBDocumentChunkRepository
+from .db_intel_briefing_repository import DBIntelBriefingRepository
 from .db_enterprise_profile_repository import DBEnterpriseProfileRepository
 from .db_feed_repository import DBFeedRepository
 from .db_file_repository import DBFileRepository
@@ -66,6 +68,8 @@ class DBUnitOfWork(IUnitOfWork):
         self.document_chunk = DBDocumentChunkRepository(db_session=self.db_session)
         self.policy = DBPolicyRepository(db_session=self.db_session)
         self.feed = DBFeedRepository(db_session=self.db_session)
+        self.agent_memory = DBAgentMemoryRepository(db_session=self.db_session)
+        self.intel_briefing = DBIntelBriefingRepository(db_session=self.db_session)
 
         return self
 

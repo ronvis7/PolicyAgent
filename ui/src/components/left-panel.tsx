@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Badge} from '@/components/ui/badge'
-import {Award, Building2, Database, KeyRound, LayoutDashboard, MessageSquareText, Plus, ScrollText, ShieldCheck} from 'lucide-react'
+import {Award, BrainCircuit, Building2, Database, KeyRound, LayoutDashboard, MessageSquareText, Plus, Radar, ScrollText, ShieldCheck} from 'lucide-react'
 import {Kbd, KbdGroup} from '@/components/ui/kbd'
 import {SessionList} from '@/components/session-list'
 import {TenantSwitcher} from '@/components/tenant-switcher'
@@ -28,10 +28,12 @@ import {cn} from '@/lib/utils'
 
 const primaryNav = [
   {href: '/enterprise-profile', label: '企业档案', icon: Building2},
+  {href: '/briefing', label: '情报简报', icon: Radar},
   {href: '/policies', label: '公开政策库', icon: ScrollText},
   {href: '/feed', label: '工作台', icon: LayoutDashboard},
   {href: '/qualifications', label: '资质机会', icon: Award},
   {href: '/knowledge', label: '知识库', icon: Database},
+  {href: '/agent-memory', label: 'Agent 记忆', icon: BrainCircuit},
   {href: '/sources', label: '数据来源', icon: ShieldCheck},
 ]
 

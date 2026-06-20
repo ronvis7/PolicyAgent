@@ -3,8 +3,10 @@
 from datetime import date
 from typing import Callable, Dict, List, Optional
 
+from app.domain.models.agent_memory import AgentMemory
 from app.domain.models.app_config import AgentConfig, AppConfig, A2AConfig, LLMConfig, MCPConfig
 from app.domain.models.enterprise_profile import EnterpriseProfile
+from app.domain.models.intel_briefing import IntelBriefing
 from app.domain.models.feed_item import FeedItem, FeedStatus
 from app.domain.models.knowledge_base import KnowledgeBase
 from app.domain.models.knowledge_file import KnowledgeFile
@@ -100,6 +102,22 @@ class FakeEnterpriseProfileRepository:
 
     async def save(self, profile: EnterpriseProfile) -> None:
         self._store[profile.tenant_id] = profile
+
+    async def list_tenant_ids(self) -> List[str]:
+        return list(self._store.keys())
+
+
+class FakeIntelBriefingRepository:
+    """内存级主动情报简报仓库（每租户一份，覆盖式）。"""
+
+    def __init__(self, store: Dict[str, IntelBriefing]) -> None:
+        self._store = store
+
+    async def get_by_tenant(self, tenant_id: str) -> Optional[IntelBriefing]:
+        return self._store.get(tenant_id)
+
+    async def save(self, briefing: IntelBriefing) -> None:
+        self._store[briefing.tenant_id] = briefing
 
 
 class FakePolicyRepository:
@@ -295,6 +313,28 @@ class FakeEmbedding:
         return [0.1, 0.2, 0.3]
 
 
+class FakeAgentMemoryRepository:
+    """内存级 Agent 长期记忆仓库，按租户过滤、按创建时间倒序返回。"""
+
+    def __init__(self, store: Dict[str, AgentMemory]) -> None:
+        self._store = store
+
+    async def list_by_tenant(self, tenant_id: str, limit: int = 0) -> List[AgentMemory]:
+        items = [m for m in self._store.values() if m.tenant_id == tenant_id]
+        items.sort(key=lambda m: m.created_at, reverse=True)
+        return items[:limit] if limit and limit > 0 else items
+
+    async def add(self, memory: AgentMemory) -> None:
+        self._store[memory.id] = memory
+
+    async def delete(self, tenant_id: str, memory_id: str) -> bool:
+        item = self._store.get(memory_id)
+        if item is None or item.tenant_id != tenant_id:
+            return False
+        del self._store[memory_id]
+        return True
+
+
 class FakeUnitOfWork:
     """共享底层 store 的内存级 UoW，commit/flush/rollback 均为空操作。"""
 
@@ -310,6 +350,8 @@ class FakeUnitOfWork:
             knowledge_bases: Dict[str, KnowledgeBase],
             knowledge_files: Dict[str, KnowledgeFile],
             document_chunks: Dict[str, list],
+            agent_memories: Dict[str, AgentMemory],
+            intel_briefings: Dict[str, IntelBriefing],
     ) -> None:
         self.user = FakeUserRepository(users)
         self.membership = FakeMembershipRepository(memberships)
@@ -321,6 +363,8 @@ class FakeUnitOfWork:
         self.knowledge_base = FakeKnowledgeBaseRepository(knowledge_bases)
         self.knowledge_file = FakeKnowledgeFileRepository(knowledge_files)
         self.document_chunk = FakeDocumentChunkRepository(document_chunks)
+        self.agent_memory = FakeAgentMemoryRepository(agent_memories)
+        self.intel_briefing = FakeIntelBriefingRepository(intel_briefings)
 
     async def commit(self) -> None: ...
     async def flush(self) -> None: ...
@@ -344,6 +388,8 @@ def make_uow_factory(
         knowledge_bases: Optional[Dict[str, KnowledgeBase]] = None,
         knowledge_files: Optional[Dict[str, KnowledgeFile]] = None,
         document_chunks: Optional[Dict[str, list]] = None,
+        agent_memories: Optional[Dict[str, AgentMemory]] = None,
+        intel_briefings: Optional[Dict[str, IntelBriefing]] = None,
 ) -> Callable[[], FakeUnitOfWork]:
     """构造一个每次返回新 UoW、但共享同一底层 store 的工厂(模拟跨事务持久化)。"""
     users = users if users is not None else {}
@@ -356,11 +402,14 @@ def make_uow_factory(
     knowledge_bases = knowledge_bases if knowledge_bases is not None else {}
     knowledge_files = knowledge_files if knowledge_files is not None else {}
     document_chunks = document_chunks if document_chunks is not None else {}
+    agent_memories = agent_memories if agent_memories is not None else {}
+    intel_briefings = intel_briefings if intel_briefings is not None else {}
 
     def factory() -> FakeUnitOfWork:
         return FakeUnitOfWork(
             users, memberships, tenant_settings, tenants, enterprise_profiles,
             policies, feed_items, knowledge_bases, knowledge_files, document_chunks,
+            agent_memories, intel_briefings,
         )
 
     return factory

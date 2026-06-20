@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,3 +33,9 @@ class DBEnterpriseProfileRepository(EnterpriseProfileRepository):
             self.db_session.add(EnterpriseProfileModel.from_domain(profile))
             return
         record.update_from_domain(profile)
+
+    async def list_tenant_ids(self) -> List[str]:
+        """列出所有已建档租户id。"""
+        stmt = select(EnterpriseProfileModel.tenant_id)
+        result = await self.db_session.execute(stmt)
+        return [row[0] for row in result.all()]

@@ -1,4 +1,4 @@
-from typing import Optional, Protocol
+from typing import List, Optional, Protocol
 
 from app.domain.models.enterprise_profile import EnterpriseProfile
 
@@ -12,4 +12,8 @@ class EnterpriseProfileRepository(Protocol):
 
     async def save(self, profile: EnterpriseProfile) -> None:
         """存储或更新企业档案"""
+        ...
+
+    async def list_tenant_ids(self) -> List[str]:
+        """列出所有已建档租户id（供主动情报定时为活跃租户重算简报）"""
         ...

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import status_routes,app_config_routes,file_routes,session_routes,auth_routes,knowledge_routes,tenant_llm_routes,membership_routes,enterprise_profile_routes,policy_routes,feed_routes,qualification_routes,report_routes
+from . import status_routes,app_config_routes,file_routes,session_routes,auth_routes,knowledge_routes,tenant_llm_routes,membership_routes,enterprise_profile_routes,agent_memory_routes,policy_routes,feed_routes,qualification_routes,report_routes,briefing_routes
 
 def create_api_routes() -> APIRouter:
     """创建API路由,涵盖整个项目的所有路由管路"""
@@ -14,6 +14,7 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(tenant_llm_routes.router)
     api_router.include_router(membership_routes.router)
     api_router.include_router(enterprise_profile_routes.router)
+    api_router.include_router(agent_memory_routes.router)
     api_router.include_router(file_routes.router)
     api_router.include_router(session_routes.router)
     api_router.include_router(knowledge_routes.router)
@@ -21,6 +22,7 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(feed_routes.router)
     api_router.include_router(qualification_routes.router)
     api_router.include_router(report_routes.router)
+    api_router.include_router(briefing_routes.router)
     # 3.返回api_router实例
     return api_router
 

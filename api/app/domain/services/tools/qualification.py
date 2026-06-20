@@ -200,6 +200,88 @@ class QualificationTool(BaseTool):
         )
 
     @tool(
+        name="qualification_apply_plan",
+        description=(
+            "为指定资质(由 key 指定)生成一份**申报准备方案**：把'企业档案 × 申报条件'差距分析、"
+            "需补齐的缺口、主要申报材料、申报时间线与政策依据聚合为一份可执行的准备清单。"
+            "当用户表达'帮我把XX申报准备好/我想申报XX要怎么准备/给我一份XX申报方案'等**目标驱动**"
+            "诉求时，**优先调用本工具**一站式产出，而不是零散地多次调用。门槛/材料为结构性概要，"
+            "请连同返回的 disclaimer 与 last_reviewed 告知用户，并建议对'待确认/需人工确认'项结合 "
+            "knowledge_base_search 检索的政策原文核对后再定稿。"
+        ),
+        parameters={
+            "key": {
+                "type": "string",
+                "description": "资质唯一标识 key(如 high-tech-enterprise)，来自 qualification_list 返回项。",
+            },
+        },
+        required=["key"],
+    )
+    async def qualification_apply_plan(self, key: str) -> ToolResult[QualificationToolData]:
+        """聚合差距/缺口/材料/时间线，产出资质申报准备方案。"""
+        key = (key or "").strip()
+        if not key:
+            return ToolResult(success=False, message="资质 key 不能为空")
+
+        qual = self._by_key.get(key)
+        if qual is None:
+            return ToolResult(success=False, message=f"资质[{key}]不存在")
+
+        tenant_id = await self._get_tenant_id()
+        if not tenant_id:
+            return ToolResult(success=False, message="当前会话缺少租户上下文，无法生成申报方案")
+
+        profile = await self._load_profile(tenant_id) or EnterpriseProfile(tenant_id=tenant_id)
+        report = analyze_gap(profile, qual)
+
+        # 1.条件达标情况(逐条 ✓/✗/?)
+        lines: List[str] = ["【申报条件核验】"]
+        lines.extend(f"{_STATUS_ICON[c.status]} {c.detail}" for c in report.checks)
+
+        # 2.需补齐的缺口(不达标 + 待确认 + 缺前置 + 需人工确认)
+        gaps: List[str] = []
+        gaps.extend(c.detail for c in report.checks if c.status == ConditionStatus.UNMET)
+        gaps.extend(f"{c.label or c.detail}（档案未填，待确认）"
+                    for c in report.checks if c.status == ConditionStatus.UNKNOWN)
+        gaps.extend(f"缺前置资质：{p}" for p in report.prerequisites_missing)
+        gaps.extend(f"需结合材料/政策原文确认：{m}" for m in report.manual_review)
+        if gaps:
+            lines.append("【需补齐 / 待确认】")
+            lines.extend(f"· {g}" for g in gaps)
+
+        # 3.主要材料清单
+        if qual.materials:
+            lines.append("【主要申报材料】")
+            lines.extend(f"· {m}" for m in qual.materials)
+
+        # 4.申报时间线与依据
+        timeline: List[str] = []
+        if qual.timing:
+            timeline.append(f"申报时间：{qual.timing}")
+        if qual.policy_basis:
+            timeline.append(f"政策依据：{qual.policy_basis}")
+        if qual.benefit:
+            timeline.append(f"主要价值：{qual.benefit}")
+        if timeline:
+            lines.append("【时间线与依据】")
+            lines.extend(f"· {t}" for t in timeline)
+
+        ready = "可着手准备" if report.unmet_count == 0 and not report.prerequisites_missing else "尚有缺口待补"
+        summary = (
+            f"{qual.name} 申报准备方案：{report.met_count} 项达标、{report.unmet_count} 项不达标、"
+            f"{report.unknown_count} 项待确认，{len(gaps)} 项需补齐/确认（{ready}）。"
+        )
+        return ToolResult(
+            success=True,
+            message=summary,
+            data=QualificationToolData(
+                kind="plan", title=f"{qual.name} 申报准备方案",
+                summary=summary, lines=lines,
+                disclaimer=qual.disclaimer, last_reviewed=qual.last_reviewed,
+            ),
+        )
+
+    @tool(
         name="qualification_detail",
         description=(
             "取指定资质(由 key 指定)的申报详情：核心条件、主要材料、申报时间、政策依据、主要价值。"

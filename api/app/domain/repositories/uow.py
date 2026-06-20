@@ -2,10 +2,12 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
+from .agent_memory_repository import AgentMemoryRepository
 from .document_chunk_repository import DocumentChunkRepository
 from .enterprise_profile_repository import EnterpriseProfileRepository
 from .feed_repository import FeedRepository
 from .file_repository import FileRepository
+from .intel_briefing_repository import IntelBriefingRepository
 from .knowledge_base_repository import KnowledgeBaseRepository
 from .knowledge_file_repository import KnowledgeFileRepository
 from .membership_repository import MembershipRepository
@@ -32,6 +34,8 @@ class IUnitOfWork(ABC):
     document_chunk: DocumentChunkRepository
     policy: PolicyRepository
     feed: FeedRepository
+    agent_memory: AgentMemoryRepository
+    intel_briefing: IntelBriefingRepository
 
     @abstractmethod
     async def commit(self):

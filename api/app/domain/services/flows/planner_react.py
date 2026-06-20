@@ -18,11 +18,13 @@ from app.domain.models.session import SessionStatus
 from app.domain.services.agents.planner import PlannerAgent
 from app.domain.services.agents.react import ReActAgent
 from app.domain.services.enterprise_context import render_enterprise_context
+from app.domain.services.memory_context import render_memory_context
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.browser import BrowserTool
 from app.domain.services.tools.file import FileTool
 from app.domain.services.tools.knowledge import KnowledgeBaseTool
 from app.domain.services.tools.mcp import MCPTool
+from app.domain.services.tools.memory import MemoryTool
 from app.domain.services.tools.qualification import QualificationTool
 from app.domain.services.tools.message import MessageTool
 from app.domain.services.tools.search import SearchTool
@@ -31,6 +33,9 @@ from .base import BaseFlow, FlowStatus
 from ...repositories.uow import IUnitOfWork
 
 logger = logging.getLogger(__name__)
+
+# 会话启动时注入系统提示词的最近长期记忆条数上限(ADR 004：注入侧兜底，防止条目无界膨胀上下文)
+MEMORY_RECALL_LIMIT = 30
 
 
 class PlannerReActFlow(BaseFlow):
@@ -75,6 +80,10 @@ class PlannerReActFlow(BaseFlow):
                 catalog=qualification_catalog,
                 session_id=session_id,
             ),
+            MemoryTool(
+                uow_factory=uow_factory,
+                session_id=session_id,
+            ),
             MessageTool(),
             mcp_tool,
             a2a_tool,
@@ -110,14 +119,21 @@ class PlannerReActFlow(BaseFlow):
         if not session:
             raise ValueError(f"会话[{self._session_id}]不存在, 请核实后尝试")
 
-        # 1.5 注入企业档案作为实体记忆上下文(让两个Agent都知道服务于哪家企业、其档案是什么)。
-        #     在首条 system 消息生效；问资质/政策时直接用档案分析，不再反问用户企业信息。
+        # 1.5 注入企业档案(实体记忆)+ 跨会话长期记忆(ADR 004)作为持久上下文。
+        #     让两个Agent都知道服务于哪家企业、其档案是什么，并"记得"历次会话中记下的事实/偏好。
+        #     均在首条 system 消息生效；问资质/政策时直接用档案分析，不再反问用户企业信息。
         if session.tenant_id:
             async with self._uow:
                 profile = await self._uow.enterprise_profile.get_by_tenant(session.tenant_id)
+                memories = await self._uow.agent_memory.list_by_tenant(
+                    session.tenant_id, limit=MEMORY_RECALL_LIMIT,
+                )
             enterprise_context = render_enterprise_context(profile)
+            memory_context = render_memory_context(memories)
             self.planner.set_enterprise_context(enterprise_context)
             self.react.set_enterprise_context(enterprise_context)
+            self.planner.set_memory_context(memory_context)
+            self.react.set_memory_context(memory_context)
 
         # 2.判断会话的状态是不是空闲
         #   如果不是则有可能有两种状态
