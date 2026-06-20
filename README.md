@@ -34,6 +34,8 @@
 
 ## 🏗️ 系统架构
 
+![PolicyManus 系统架构图](./docs/architecture/system-architecture.png)
+
 ### 分层架构与核心链路
 
 ```mermaid
