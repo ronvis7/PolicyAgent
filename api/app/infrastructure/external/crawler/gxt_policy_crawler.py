@@ -187,11 +187,16 @@ class GxtPolicyCrawler(PolicyCrawler):
                 xml_text = await self._fetch_list(client, page)
                 if xml_text is None:
                     break
-                page_policies = self._parse_list_payload(
-                    xml_text, self._source, self._title_keyword,
-                )
-                if not page_policies:
+                # 先按原始记录判"到底"，再做关键词过滤：低频词(如赛事子源的"大赛")
+                # 常把整页滤空，滤空 ≠ 到底，须继续翻页。
+                raw_policies = self._parse_list_payload(xml_text, self._source)
+                if not raw_policies:
                     break
+                page_policies = (
+                    [p for p in raw_policies if self._title_keyword in p.title]
+                    if self._title_keyword
+                    else raw_policies
+                )
                 for policy in page_policies:
                     await self._enrich_detail(client, policy)
                     collected.append(policy)

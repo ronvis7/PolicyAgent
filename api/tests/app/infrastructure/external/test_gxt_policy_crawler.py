@@ -164,6 +164,69 @@ def test_parse_detail_handles_missing_body() -> None:
     assert doc_number == ""
 
 
+def _list_xml(total: int, *entries: tuple) -> str:
+    """构造 dataproxy 列表 XML fixture：entries=(href, title, date) 三元组。"""
+    records = "".join(
+        f'<record><![CDATA[ <li><a href="{href}" title="{title}">{title}</a>'
+        f"<span>{d}</span></li> ]]></record>"
+        for href, title, d in entries
+    )
+    return f"<datastore><totalrecord>{total}</totalrecord><recordset>{records}</recordset></datastore>"
+
+
+def test_crawl_keeps_paginating_when_keyword_filters_page_empty() -> None:
+    """关键词过滤后某页为空 ≠ 到底了：翻页须继续(赛事子源'大赛'低频，首页常被滤空)。
+
+    真机复现：gxt-contest 首页无"大赛"标题即停，而创客中国/i创杯通知在第 5 页以后。
+    """
+    pages = {
+        1: _list_xml(
+            30,
+            ("/art/2026/6/10/art_6278_1.html", "关于印发实施方案的通知", "2026-06-10"),
+        ),
+        2: _list_xml(
+            30,
+            ("/art/2026/5/1/art_6278_2.html", "关于举办创新创业大赛的通知", "2026-05-01"),
+        ),
+    }
+    crawler = GxtPolicyCrawler(
+        page_size=15, title_keyword="大赛", source="gxt-contest", request_delay=0,
+    )
+
+    async def fake_fetch_list(client, page):
+        return pages.get(page)
+
+    async def fake_enrich(client, policy):
+        policy.body_text = "正文"
+
+    crawler._fetch_list = fake_fetch_list  # type: ignore[method-assign]
+    crawler._enrich_detail = fake_enrich  # type: ignore[method-assign]
+
+    policies = asyncio.run(crawler.crawl(max_pages=2))
+
+    assert len(policies) == 1
+    assert "大赛" in policies[0].title
+
+
+def test_crawl_stops_on_truly_empty_page() -> None:
+    """原始记录为空的页才是到底：不应无谓继续翻页。"""
+    crawler = GxtPolicyCrawler(
+        page_size=15, title_keyword="大赛", source="gxt-contest", request_delay=0,
+    )
+    fetched: list = []
+
+    async def fake_fetch_list(client, page):
+        fetched.append(page)
+        return _list_xml(30)  # 无任何记录
+
+    crawler._fetch_list = fake_fetch_list  # type: ignore[method-assign]
+
+    policies = asyncio.run(crawler.crawl(max_pages=5))
+
+    assert policies == []
+    assert fetched == [1]  # 第 1 页即到底，不再翻
+
+
 def test_absolute_url_prefixes_relative_paths() -> None:
     assert _absolute_url("/art/2026/6/10/art_6278_1.html") == "https://gxt.jiangsu.gov.cn/art/2026/6/10/art_6278_1.html"
     assert _absolute_url("https://x/y.html") == "https://x/y.html"
