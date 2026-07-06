@@ -44,12 +44,13 @@ def _policy(url: str, title: str, region: str) -> Policy:
                   publish_date=date(2026, 6, 1))
 
 
-def _service(crawlers, llm=None, uow_factory=None):
+def _service(crawlers, llm=None, uow_factory=None, on_new_policies=None):
     return PolicyIngestService(
         uow_factory=uow_factory or make_uow_factory(),
         crawlers=crawlers,
         embedding=FakeEmbedding(),
         llm=llm,
+        on_new_policies=on_new_policies,
     )
 
 
@@ -117,6 +118,98 @@ def test_ingest_with_failing_llm_does_not_block_ingest() -> None:
     # LLM 抽取失败被吞，入库照常完成、截止字段安全回退 unknown
     assert summary["upserted"] == 1
     assert store["wnd-1"].deadline_status == "unknown"
+
+
+def test_ingest_summary_distinguishes_new_from_updated() -> None:
+    """summary 报告本次新增条数(new)：区分首次入库与既有政策的 upsert 更新。"""
+    store: dict = {}
+    uow_factory = make_uow_factory(policies=store)
+    wnd = FakeCrawler([_policy("wnd-1", "政策一", "江苏省无锡市新吴区")])
+    service = _service({"wnd": wnd}, uow_factory=uow_factory)
+
+    first = asyncio.run(service.ingest("wnd", max_pages=1))
+    assert first["new"] == 1
+
+    # 同一批再入库：全部是更新，无新增
+    second = asyncio.run(service.ingest("wnd", max_pages=1))
+    assert second["new"] == 0
+    assert second["upserted"] == 1
+
+
+def test_ingest_calls_on_new_policies_hook_with_only_new_items() -> None:
+    """钩子只收到本次真正新增的政策(新赛事即推的依据)，已存在的不重复推。"""
+    store: dict = {}
+    uow_factory = make_uow_factory(policies=store)
+    received: list = []
+
+    async def hook(source: str, policies: List[Policy]) -> None:
+        received.append((source, [p.source_url for p in policies]))
+
+    old = _policy("wnd-old", "既有政策", "江苏省无锡市新吴区")
+    crawler = FakeCrawler([old, _policy("wnd-new", "新大赛通知", "江苏省无锡市新吴区")])
+    service = _service({"wnd": crawler}, uow_factory=uow_factory, on_new_policies=hook)
+
+    # 预置既有政策
+    asyncio.run(_service({"pre": FakeCrawler([old])}, uow_factory=uow_factory).ingest("pre"))
+
+    asyncio.run(service.ingest("wnd", max_pages=1))
+
+    assert received[-1] == ("wnd", ["wnd-new"])
+
+
+def test_ingest_does_not_call_hook_when_nothing_new() -> None:
+    store: dict = {}
+    uow_factory = make_uow_factory(policies=store)
+    calls: list = []
+
+    async def hook(source: str, policies: List[Policy]) -> None:
+        calls.append(source)
+
+    wnd = FakeCrawler([_policy("wnd-1", "政策一", "江苏省无锡市新吴区")])
+    service = _service({"wnd": wnd}, uow_factory=uow_factory, on_new_policies=hook)
+
+    asyncio.run(service.ingest("wnd"))
+    asyncio.run(service.ingest("wnd"))  # 第二次无新增
+
+    assert calls == ["wnd"]
+
+
+def test_ingest_dedupes_new_policies_by_source_url() -> None:
+    """同批爬取的跨页重复条目(如 gxt dataproxy 重叠)只算一次新增、只推一次。"""
+    store: dict = {}
+    uow_factory = make_uow_factory(policies=store)
+    received: list = []
+
+    async def hook(source: str, policies: List[Policy]) -> None:
+        received.append([p.source_url for p in policies])
+
+    dup_a = _policy("wnd-1", "大赛通知", "江苏省无锡市新吴区")
+    dup_b = _policy("wnd-1", "大赛通知", "江苏省无锡市新吴区")
+    service = _service({"wnd": FakeCrawler([dup_a, dup_b])},
+                       uow_factory=uow_factory, on_new_policies=hook)
+
+    summary = asyncio.run(service.ingest("wnd"))
+
+    assert summary["new"] == 1
+    assert received == [["wnd-1"]]
+
+
+def test_ingest_hook_failure_does_not_block_ingest() -> None:
+    """推送钩子 best-effort：钩子抛错不影响入库结果。"""
+    store: dict = {}
+
+    async def boom(source: str, policies: List[Policy]) -> None:
+        raise RuntimeError("webhook down")
+
+    wnd = FakeCrawler([_policy("wnd-1", "政策一", "江苏省无锡市新吴区")])
+    service = _service({"wnd": wnd},
+                       uow_factory=make_uow_factory(policies=store), on_new_policies=boom)
+
+    summary = asyncio.run(service.ingest("wnd"))
+
+    assert summary["upserted"] == 1
+    assert summary["new"] == 1
+    assert "wnd-1" in store
 
 
 def test_registry_lists_sources_and_builds_crawlers() -> None:
