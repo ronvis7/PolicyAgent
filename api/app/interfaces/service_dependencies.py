@@ -38,7 +38,7 @@ from app.infrastructure.external.embedding.openai_embedding import OpenAIEmbeddi
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.data.qualification_catalog import load_qualification_catalog
-from app.infrastructure.external.crawler.registry import build_crawlers
+from app.infrastructure.external.crawler.registry import build_crawlers, competition_source_keys
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
@@ -303,11 +303,12 @@ def get_qualification_service() -> QualificationService:
 
 
 def get_feed_service() -> FeedService:
-    """获取工作台 Feed 服务(④：物化③政策 + ⑥资质匹配结果 + 状态机)"""
+    """获取工作台 Feed 服务(④：物化③政策/赛事 + ⑥资质匹配结果 + 状态机)"""
     return FeedService(
         uow_factory=get_uow,
         match_service=get_policy_match_service(),
         qualification_service=get_qualification_service(),
+        competition_sources=competition_source_keys(),
     )
 
 

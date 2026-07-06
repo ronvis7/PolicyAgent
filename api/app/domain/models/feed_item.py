@@ -55,12 +55,21 @@ class FeedItem(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
     @classmethod
-    def from_policy_match(cls, tenant_id: str, match: PolicyMatch) -> "FeedItem":
-        """由③政策匹配候选构造一条 Feed 条目(新条目，status 默认 unread)。"""
+    def from_policy_match(
+        cls,
+        tenant_id: str,
+        match: PolicyMatch,
+        item_type: FeedItemType = FeedItemType.POLICY,
+    ) -> "FeedItem":
+        """由③政策匹配候选构造一条 Feed 条目(新条目，status 默认 unread)。
+
+        item_type 由调用方按机会来源派生：赛事子源爬来的"政策"是比赛通知，
+        打 competition；缺省保持 policy(向后兼容)。
+        """
         p = match.policy
         return cls(
             tenant_id=tenant_id,
-            type=FeedItemType.POLICY,
+            type=item_type,
             policy_id=p.id,
             title=p.title,
             issuer=p.issuer,
@@ -100,8 +109,13 @@ class FeedItem(BaseModel):
         )
 
     def with_snapshot_from(self, other: "FeedItem") -> "FeedItem":
-        """用 other 的计算快照更新本条目，保留 id/status/created_at(重算不覆盖用户状态)。"""
+        """用 other 的计算快照更新本条目，保留 id/status/created_at(重算不覆盖用户状态)。
+
+        type 随快照更新：它由机会来源派生(政策/资质/赛事)而非用户状态，
+        来源分类调整后旧条目在下次重算时自愈。
+        """
         return self.model_copy(update={
+            "type": other.type,
             "title": other.title,
             "issuer": other.issuer,
             "publish_date": other.publish_date,

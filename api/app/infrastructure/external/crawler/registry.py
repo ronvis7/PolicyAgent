@@ -5,9 +5,10 @@
 """
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Set
 
 from app.domain.external.policy_crawler import PolicyCrawler
+from app.domain.models.feed_item import FeedItemType
 from app.infrastructure.external.crawler.gxt_policy_crawler import GxtPolicyCrawler
 from app.infrastructure.external.crawler.shyp_policy_crawler import ShypPolicyCrawler
 from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCrawler
@@ -15,12 +16,17 @@ from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCraw
 
 @dataclass(frozen=True)
 class CrawlerSource:
-    """一个政策来源：稳定的 key、展示名、适用地区、官网链接、构造爬虫的工厂。"""
+    """一个政策来源：稳定的 key、展示名、适用地区、官网链接、构造爬虫的工厂。
+
+    item_type 标记该来源产出的机会类型(缺省=政策)：赛事子源(如"大赛"关键词检索)
+    标记为 competition，供 ④ Feed 物化时按 policy.source 打对应 type(预留扩展位)。
+    """
     key: str
     name: str
     region: str
     factory: Callable[[], PolicyCrawler]
     home_url: str = ""  # 来源门户官网/栏目地址(供「数据来源」页溯源展示)
+    item_type: FeedItemType = FeedItemType.POLICY  # 该来源产出的机会类型
 
 
 # 已登记的政策来源。新增地区/栏目在此追加一条即可。
@@ -64,7 +70,31 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
         ),
         home_url="https://gxt.jiangsu.gov.cn",
     ),
+    # ---- 赛事子源(机会类型=competition)：创业类大赛的赛区通知本来就发省市门户，
+    # 复用既有爬虫按标题关键词"大赛"检索/过滤，绕开公众号(比赛机会重启决策)。
+    CrawlerSource(
+        key="wnd-contest",
+        name="无锡高新区(新吴区)门户·大赛通知",
+        region="江苏省无锡市新吴区",
+        factory=lambda: WndPolicyCrawler(title_keyword="大赛", source="wnd-contest"),
+        home_url="https://www.wnd.gov.cn",
+        item_type=FeedItemType.COMPETITION,
+    ),
+    CrawlerSource(
+        key="gxt-contest",
+        name="江苏省工信厅门户·大赛通知",
+        region="江苏省",
+        # 「文件通知」栏目(缺省栏目)按标题含"大赛"过滤(创客中国/创新创业大赛等省赛通知)。
+        factory=lambda: GxtPolicyCrawler(title_keyword="大赛", source="gxt-contest"),
+        home_url="https://gxt.jiangsu.gov.cn",
+        item_type=FeedItemType.COMPETITION,
+    ),
 ]
+
+
+def competition_source_keys() -> Set[str]:
+    """返回全部赛事来源的 key(供 Feed 物化把这些来源的条目打 type=competition)。"""
+    return {s.key for s in CRAWLER_SOURCES if s.item_type == FeedItemType.COMPETITION}
 
 
 def list_sources() -> List[CrawlerSource]:
