@@ -37,12 +37,13 @@ const FILTERS: { label: string; value: FeedStatus | '' }[] = [
   { label: '已忽略', value: 'ignored' },
 ]
 
-/** 机会类型分栏（空串=全部）：把政策与资质分开看，避免混在一个列表 */
-type OpportunityType = 'policy' | 'qualification'
+/** 机会类型分栏（空串=全部）：把政策/资质/赛事分开看，避免混在一个列表 */
+type OpportunityType = 'policy' | 'qualification' | 'competition'
 const TYPE_TABS: { label: string; value: OpportunityType | '' }[] = [
   { label: '全部机会', value: '' },
   { label: '政策机会', value: 'policy' },
   { label: '资质机会', value: 'qualification' },
+  { label: '赛事机会', value: 'competition' },
 ]
 
 const STATUS_LABEL: Record<FeedStatus, string> = {
@@ -216,10 +217,12 @@ export default function FeedPage() {
     }
   }
 
-  // 类型分栏在前端按已加载列表过滤（状态过滤走服务端）
+  // 类型分栏在前端按已加载列表过滤（状态过滤走服务端）；政策 tab 兜底吃掉未知类型，避免新类型条目"消失"
   const visibleItems = typeFilter
     ? items.filter((m) =>
-        typeFilter === 'qualification' ? m.type === 'qualification' : m.type !== 'qualification',
+        typeFilter === 'policy'
+          ? m.type !== 'qualification' && m.type !== 'competition'
+          : m.type === typeFilter,
       )
     : items
 
@@ -325,11 +328,15 @@ export default function FeedPage() {
                   key={m.id}
                   className="group relative overflow-hidden rounded-2xl border border-[#e7e4df] bg-white p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                 >
-                  {/* 机会类型左侧彩条：资质=翠绿、政策=品牌青绿 */}
+                  {/* 机会类型左侧彩条：资质=翠绿、赛事=紫罗兰、政策=品牌青绿 */}
                   <span
                     className={cn(
                       'absolute left-0 top-0 h-full w-1',
-                      m.type === 'qualification' ? 'bg-emerald-400' : 'bg-primary',
+                      m.type === 'qualification'
+                        ? 'bg-emerald-400'
+                        : m.type === 'competition'
+                          ? 'bg-violet-400'
+                          : 'bg-primary',
                     )}
                   />
                   <div className="flex items-start gap-2 mb-1">
@@ -346,16 +353,18 @@ export default function FeedPage() {
                         {STATUS_LABEL.ignored}
                       </Badge>
                     )}
-                    {/* 机会类型徽章：资质区别于政策 */}
+                    {/* 机会类型徽章：资质/赛事区别于政策 */}
                     <Badge
                       variant="outline"
                       className={`mt-0.5 shrink-0 ${
                         m.type === 'qualification'
                           ? 'border-emerald-300 text-emerald-700 dark:text-emerald-400'
-                          : 'text-muted-foreground'
+                          : m.type === 'competition'
+                            ? 'border-violet-300 text-violet-700 dark:text-violet-400'
+                            : 'text-muted-foreground'
                       }`}
                     >
-                      {m.type === 'qualification' ? '资质' : '政策'}
+                      {m.type === 'qualification' ? '资质' : m.type === 'competition' ? '赛事' : '政策'}
                     </Badge>
                     {/* 申报截止徽章（主线⑤；临期标红/琥珀） */}
                     <DeadlineBadge item={m} />

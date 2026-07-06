@@ -12,10 +12,10 @@
 
 import logging
 from datetime import date, datetime, timedelta
-from typing import Callable, List, Optional, Protocol, Tuple
+from typing import Callable, List, Optional, Protocol, Set, Tuple
 
 from app.application.errors.exceptions import NotFoundError
-from app.domain.models.feed_item import FeedItem, FeedStatus
+from app.domain.models.feed_item import FeedItem, FeedItemType, FeedStatus
 from app.domain.models.policy_match import PolicyMatch
 from app.domain.models.qualification import QualificationMatch
 from app.domain.repositories.uow import IUnitOfWork
@@ -48,10 +48,14 @@ class FeedService:
         uow_factory: Callable[[], IUnitOfWork],
         match_service: MatchService,
         qualification_service: Optional[QualificationMatchService] = None,
+        competition_sources: Optional[Set[str]] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._match_service = match_service
         self._qualification_service = qualification_service
+        # 赛事来源 key 集合(registry.competition_source_keys())：这些来源爬来的"政策"
+        # 实为比赛通知，物化时打 type=competition。缺省空集=全部按政策，向后兼容。
+        self._competition_sources = competition_sources or set()
 
     async def recompute_for_tenant(
         self, tenant_id: str, top_k: int = DEFAULT_FEED_TOP_K,
@@ -83,15 +87,24 @@ class FeedService:
         return {"new": new_count, "updated": updated_count}
 
     async def _collect_fresh_items(self, tenant_id: str, top_k: int) -> List[FeedItem]:
-        """汇集政策与资质两类机会，统一转为待 upsert 的 FeedItem 列表。"""
+        """汇集政策/赛事与资质各类机会，统一转为待 upsert 的 FeedItem 列表。"""
         matches = await self._match_service.match_for_tenant(tenant_id, top_k=top_k)
-        items = [FeedItem.from_policy_match(tenant_id, m) for m in matches]
+        items = [
+            FeedItem.from_policy_match(tenant_id, m, item_type=self._item_type_of(m))
+            for m in matches
+        ]
 
         if self._qualification_service is not None:
             qual_matches = await self._qualification_service.match_for_tenant(tenant_id)
             items.extend(FeedItem.from_qualification_match(tenant_id, qm) for qm in qual_matches)
 
         return items
+
+    def _item_type_of(self, match: PolicyMatch) -> FeedItemType:
+        """按机会来源派生条目类型：赛事子源的候选=比赛通知，其余保持政策。"""
+        if match.policy.source in self._competition_sources:
+            return FeedItemType.COMPETITION
+        return FeedItemType.POLICY
 
     async def list_feed(
         self,

@@ -34,9 +34,11 @@ class StubMatchService:
         return self._matches.get(tenant_id, [])
 
 
-def _match(policy_id: str, title: str, score: float = 1.0) -> PolicyMatch:
+def _match(
+    policy_id: str, title: str, score: float = 1.0, source: str = "wnd",
+) -> PolicyMatch:
     policy = Policy(
-        id=policy_id, source_url=f"url-{policy_id}", title=title,
+        id=policy_id, source=source, source_url=f"url-{policy_id}", title=title,
         region="江苏省无锡市新吴区", publish_date=date(2026, 6, 1),
     )
     return PolicyMatch(
@@ -115,6 +117,57 @@ def test_recompute_folds_qualifications_into_feed() -> None:
 
     policy_item = items["p1"]
     assert policy_item.type == FeedItemType.POLICY
+
+
+def test_recompute_marks_contest_source_items_as_competition() -> None:
+    """赛事来源(competition_sources)的候选打 type=competition，政策来源不受影响。"""
+    feed: dict = {}
+    service = FeedService(
+        uow_factory=make_uow_factory(feed_items=feed),
+        match_service=StubMatchService({"t1": [
+            _match("c1", "创新创业大赛申报通知", source="wnd-contest"),
+            _match("p1", "集成电路奖励", source="wnd"),
+        ]}),
+        competition_sources={"wnd-contest", "gxt-contest"},
+    )
+
+    result = asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert result == {"new": 2, "updated": 0}
+    items = {i.policy_id: i for i in feed.values()}
+    assert items["c1"].type == FeedItemType.COMPETITION
+    assert items["c1"].title == "创新创业大赛申报通知"
+    assert items["p1"].type == FeedItemType.POLICY
+
+
+def test_recompute_without_competition_sources_defaults_to_policy() -> None:
+    """未配置赛事来源(缺省)时全部保持 policy 类型，向后兼容。"""
+    feed: dict = {}
+    service = _service({"t1": [_match("c1", "大赛通知", source="wnd-contest")]}, feed)
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert all(i.type == FeedItemType.POLICY for i in feed.values())
+
+
+def test_recompute_preserves_competition_type_on_snapshot_update() -> None:
+    """重算更新快照时 competition 类型不被冲掉(with_snapshot_from 不动 type，但新快照同类型)。"""
+    feed: dict = {}
+    matches = {"t1": [_match("c1", "大赛通知", source="wnd-contest")]}
+    service = FeedService(
+        uow_factory=make_uow_factory(feed_items=feed),
+        match_service=StubMatchService(matches),
+        competition_sources={"wnd-contest"},
+    )
+    asyncio.run(service.recompute_for_tenant("t1"))
+    matches["t1"] = [_match("c1", "大赛通知(延期)", source="wnd-contest")]
+
+    result = asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert result == {"new": 0, "updated": 1}
+    item = next(iter(feed.values()))
+    assert item.type == FeedItemType.COMPETITION
+    assert item.title == "大赛通知(延期)"
 
 
 def test_recompute_without_qualification_service_only_does_policies() -> None:
