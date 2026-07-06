@@ -30,6 +30,17 @@ def test_to_domain_passes_structured_fields() -> None:
     assert profile.annual_revenue_wan is None  # 未填写保持 None
 
 
+def test_to_domain_passes_contest_regions_cleaned() -> None:
+    """参赛关注地区随请求进领域模型，并按标签规则清洗(去空白/去重)。"""
+    req = UpdateEnterpriseProfileRequest(
+        contest_regions=["江苏省", " 江苏省 ", "重庆市", ""],
+    )
+
+    profile = req.to_domain("tenant-a")
+
+    assert profile.contest_regions == ["江苏省", "重庆市"]
+
+
 @pytest.mark.parametrize("field", ["total_staff", "rd_staff", "invention_patents", "registered_capital_wan"])
 def test_negative_numbers_rejected(field: str) -> None:
     with pytest.raises(ValidationError):

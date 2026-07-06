@@ -116,6 +116,26 @@ def region_matches(profile: EnterpriseProfile, policy: Policy) -> bool:
     return False
 
 
+def contest_region_matches(item_region: str, selected: List[str]) -> bool:
+    """赛事地区是否落在参赛关注地区内(比赛可异地参加，与档案所在地解耦)。
+
+    地区串为"省市区"层级前缀形态(与 registry 来源 region 一致)，双向前缀命中：
+    - 选"江苏省" → 命中"江苏省无锡市新吴区"的区级赛事(省选含辖内)；
+    - 选"江苏省无锡市新吴区" → 命中"江苏省"的省级赛事(省赛可参加)。
+    未选任何地区 = 不限(全部通过)；赛事无地区而用户选了地区 → 不命中(宁缺勿滥)。
+    """
+    if not selected:
+        return True
+    item_region = (item_region or "").strip()
+    if not item_region:
+        return False
+    for chosen in selected:
+        chosen = (chosen or "").strip()
+        if chosen and (item_region.startswith(chosen) or chosen.startswith(item_region)):
+            return True
+    return False
+
+
 def score_terms(
     terms: List[str], policy: Policy, region_match: bool = False,
 ) -> Tuple[float, List[str]]:

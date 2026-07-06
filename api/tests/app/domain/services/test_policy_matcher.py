@@ -7,6 +7,7 @@ from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.policy import Policy
 from app.domain.services.policy_matcher import (
     build_profile_query,
+    contest_region_matches,
     extract_profile_terms,
     reciprocal_rank_fusion,
     region_matches,
@@ -79,6 +80,26 @@ def test_region_matches_by_district_then_city() -> None:
     assert region_matches(_profile(), _policy(region="苏州市")) is False
     # 政策无地区
     assert region_matches(_profile(), _policy(region="")) is False
+
+
+# ---------- contest_region_matches(参赛关注地区) ----------
+
+def test_contest_region_matches_hierarchical_both_directions() -> None:
+    """层级前缀双向命中：选省含省内区县赛事；选区县含其省级赛事(省赛可参加)。"""
+    assert contest_region_matches("江苏省无锡市新吴区", ["江苏省"]) is True
+    assert contest_region_matches("江苏省", ["江苏省无锡市新吴区"]) is True
+    assert contest_region_matches("重庆市", ["江苏省", "上海市杨浦区"]) is False
+    assert contest_region_matches("上海市杨浦区", ["重庆市", "上海市杨浦区"]) is True
+
+
+def test_contest_region_matches_empty_selection_means_no_limit() -> None:
+    """未选任何关注地区 = 不限地区(全部通过)。"""
+    assert contest_region_matches("重庆市", []) is True
+
+
+def test_contest_region_matches_blank_item_region_fails_closed() -> None:
+    """赛事无地区信息且用户选了地区：不命中(宁缺勿滥)。"""
+    assert contest_region_matches("", ["江苏省"]) is False
 
 
 # ---------- structured_score ----------

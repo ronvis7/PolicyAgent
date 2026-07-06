@@ -12,6 +12,7 @@ import {
   Sparkles,
   Tags,
   TrendingUp,
+  Trophy,
   X,
 } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
@@ -27,7 +28,7 @@ import {
   FieldLegend,
   FieldSet,
 } from '@/components/ui/field'
-import { profileApi } from '@/lib/api'
+import { policyApi, profileApi } from '@/lib/api'
 import type { EnterpriseProfile, EnterpriseScale } from '@/lib/api'
 import { useAuth } from '@/providers/auth-provider'
 
@@ -73,6 +74,7 @@ const EMPTY_PROFILE: EnterpriseProfile = {
   qualifications: [],
   tech_domains: [],
   keywords: [],
+  contest_regions: [],
   established_date: '',
   total_staff: null,
   rd_staff: null,
@@ -253,6 +255,69 @@ function TagInput({
         </div>
       )}
       {description && <FieldDescription className="text-xs">{description}</FieldDescription>}
+    </Field>
+  )
+}
+
+/** 参赛关注地区多选（编辑态）：选项来自已接入赛事来源的地区，点击切换选中 */
+function ContestRegionPicker({
+  values,
+  onChange,
+}: {
+  values: string[]
+  onChange: (next: string[]) => void
+}) {
+  const [options, setOptions] = useState<string[]>([])
+  const [loadingOptions, setLoadingOptions] = useState(true)
+
+  useEffect(() => {
+    policyApi
+      .listSources()
+      .then((res) => {
+        // 选项 = 赛事来源(item_type=competition)的地区去重；来源下线后已选值仍保留可退选
+        const regions = [
+          ...new Set(res.items.filter((s) => s.item_type === 'competition').map((s) => s.region)),
+        ]
+        setOptions(regions)
+      })
+      .catch(() => setOptions([]))
+      .finally(() => setLoadingOptions(false))
+  }, [])
+
+  const toggle = (region: string) =>
+    onChange(values.includes(region) ? values.filter((v) => v !== region) : [...values, region])
+
+  // 已选但不在当前选项里的地区(如来源调整后)也要展示，保证可退选
+  const allChips = [...options, ...values.filter((v) => !options.includes(v))]
+
+  return (
+    <Field>
+      <FieldLabel>参赛关注地区</FieldLabel>
+      {loadingOptions ? (
+        <span className="text-xs text-muted-foreground">加载可选地区…</span>
+      ) : allChips.length === 0 ? (
+        <span className="text-xs text-muted-foreground">暂无已接入的赛事地区来源。</span>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {allChips.map((region) => {
+            const selected = values.includes(region)
+            return (
+              <Badge
+                key={region}
+                variant={selected ? 'default' : 'outline'}
+                className="cursor-pointer select-none hover:opacity-85"
+                onClick={() => toggle(region)}
+              >
+                {selected ? '✓ ' : ''}
+                {region}
+              </Badge>
+            )
+          })}
+        </div>
+      )}
+      <FieldDescription className="text-xs">
+        比赛可异地参加，与企业所在地相互独立。不选＝不限地区；可选地区随赛事来源接入自动扩充。
+      </FieldDescription>
     </Field>
   )
 }
@@ -535,6 +600,17 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
             <div className="mb-2 text-xs font-semibold text-[#8b92a0]">关键词标签</div>
             <TagCloud values={profile.keywords} />
           </div>
+          <div>
+            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-[#8b92a0]">
+              <Trophy className="size-3.5" />
+              参赛关注地区
+            </div>
+            {profile.contest_regions.length === 0 ? (
+              <span className="text-sm text-[#98a2b3]">不限地区（未选择）</span>
+            ) : (
+              <TagCloud values={profile.contest_regions} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -730,6 +806,19 @@ function EditForm({
               values={draft.keywords}
               presets={keywordSuggestions}
               onChange={(next) => patch('keywords', next)}
+            />
+          </FieldSet>
+        </div>
+
+        <div className={CARD_CLASS}>
+          <FieldSet>
+            <FieldLegend className="text-base font-bold text-[#202939]">参赛关注地区</FieldLegend>
+            <p className="-mt-1 mb-1 text-xs text-muted-foreground">
+              工作台「赛事机会」按此过滤大赛/比赛通知。
+            </p>
+            <ContestRegionPicker
+              values={draft.contest_regions}
+              onChange={(next) => patch('contest_regions', next)}
             />
           </FieldSet>
         </div>

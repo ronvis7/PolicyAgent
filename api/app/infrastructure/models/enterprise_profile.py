@@ -79,6 +79,7 @@ class EnterpriseProfileModel(Base):
             "qualifications": profile.qualifications,
             "tech_domains": profile.tech_domains,
             "keywords": profile.keywords,
+            "contest_regions": profile.contest_regions,
         }
         for name in cls._SCALAR_ATTRIBUTE_FIELDS:
             attributes[name] = getattr(profile, name)
@@ -121,6 +122,7 @@ class EnterpriseProfileModel(Base):
             qualifications=list(attributes.get("qualifications", [])),
             tech_domains=list(attributes.get("tech_domains", [])),
             keywords=list(attributes.get("keywords", [])),
+            contest_regions=list(attributes.get("contest_regions", [])),  # 老数据缺键回落空=不限
             updated_at=self.updated_at,
             created_at=self.created_at,
             **scalars,

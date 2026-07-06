@@ -91,6 +91,7 @@ async def list_policy_sources(
         PolicySourceItem(
             key=s.key, name=s.name, region=s.region, home_url=s.home_url,
             policy_count=s.policy_count, last_crawled_at=s.last_crawled_at,
+            item_type=s.item_type,
         )
         for s in sources
     ]

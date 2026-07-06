@@ -93,6 +93,7 @@ class PolicySourceItem(BaseModel):
     home_url: str = ""  # 来源门户官网/栏目地址
     policy_count: int = 0  # 已收录政策条数
     last_crawled_at: Optional[datetime] = None  # 最近一次抓取时间
+    item_type: str = "policy"  # 机会类型(policy/competition，参赛地区选项据此过滤)
 
 
 class PolicySourceListResponse(BaseModel):

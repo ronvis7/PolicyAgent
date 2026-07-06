@@ -70,6 +70,7 @@ export type PolicySourceItem = {
   home_url: string; // 来源门户官网/栏目地址
   policy_count: number; // 已收录政策条数
   last_crawled_at: string | null; // 最近一次抓取时间
+  item_type: string; // 机会类型（policy/competition，参赛地区选项据此过滤）
 };
 
 /** 政策来源列表响应 */

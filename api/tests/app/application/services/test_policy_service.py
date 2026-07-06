@@ -103,6 +103,9 @@ def test_list_sources_with_stats_merges_registry_and_counts() -> None:
     assert by_key["wnd-apply"].policy_count == 0
     assert by_key["wnd-apply"].last_crawled_at is None
     assert by_key["wnd"].home_url.startswith("http")
+    # 机会类型透出：赛事子源=competition、政策来源=policy(前端据此生成参赛地区选项)
+    assert by_key["wnd-contest"].item_type == "competition"
+    assert by_key["wnd"].item_type == "policy"
 
 
 # ---------- PolicyIngestService 写 ----------
