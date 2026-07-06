@@ -10,6 +10,7 @@ from typing import List
 
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.feed_service import FeedService
+from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.feed_item import FeedItem, FeedItemType, FeedStatus
 from app.domain.models.policy import Policy
 from app.domain.models.policy_match import PolicyMatch
@@ -36,10 +37,11 @@ class StubMatchService:
 
 def _match(
     policy_id: str, title: str, score: float = 1.0, source: str = "wnd",
+    region: str = "江苏省无锡市新吴区",
 ) -> PolicyMatch:
     policy = Policy(
         id=policy_id, source=source, source_url=f"url-{policy_id}", title=title,
-        region="江苏省无锡市新吴区", publish_date=date(2026, 6, 1),
+        region=region, publish_date=date(2026, 6, 1),
     )
     return PolicyMatch(
         policy=policy, score=score, structured_score=score,
@@ -168,6 +170,57 @@ def test_recompute_preserves_competition_type_on_snapshot_update() -> None:
     item = next(iter(feed.values()))
     assert item.type == FeedItemType.COMPETITION
     assert item.title == "大赛通知(延期)"
+
+
+def _contest_service(matches_by_tenant: dict, feed: dict, profiles: dict) -> FeedService:
+    return FeedService(
+        uow_factory=make_uow_factory(feed_items=feed, enterprise_profiles=profiles),
+        match_service=StubMatchService(matches_by_tenant),
+        competition_sources={"wnd-contest", "gxt-contest", "cq-contest"},
+    )
+
+
+def test_recompute_filters_competition_by_contest_regions() -> None:
+    """档案选了参赛关注地区：地区外的赛事不物化进 Feed，政策条目不受影响。"""
+    feed: dict = {}
+    profiles = {"t1": EnterpriseProfile(tenant_id="t1", contest_regions=["江苏省"])}
+    service = _contest_service({"t1": [
+        _match("c-js", "江苏大赛", source="gxt-contest", region="江苏省"),
+        _match("c-cq", "重庆大赛", source="cq-contest", region="重庆市"),
+        _match("p-cq", "重庆政策", source="cq", region="重庆市"),  # 政策不走关注地区
+    ]}, feed, profiles)
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert {i.policy_id for i in feed.values()} == {"c-js", "p-cq"}
+
+
+def test_recompute_contest_regions_empty_means_no_limit() -> None:
+    """未选关注地区(或未建档)：赛事不按地区过滤，全部物化。"""
+    feed: dict = {}
+    service = _contest_service({"t1": [
+        _match("c-cq", "重庆大赛", source="cq-contest", region="重庆市"),
+    ]}, feed, profiles={})  # 无档案
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert {i.policy_id for i in feed.values()} == {"c-cq"}
+
+
+def test_recompute_contest_regions_hierarchical() -> None:
+    """选区县也命中其省级赛事(省赛可参加)。"""
+    feed: dict = {}
+    profiles = {"t1": EnterpriseProfile(
+        tenant_id="t1", contest_regions=["江苏省无锡市新吴区"],
+    )}
+    service = _contest_service({"t1": [
+        _match("c-province", "省级大赛", source="gxt-contest", region="江苏省"),
+        _match("c-sh", "上海大赛", source="wnd-contest", region="上海市杨浦区"),
+    ]}, feed, profiles)
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert {i.policy_id for i in feed.values()} == {"c-province"}
 
 
 def test_recompute_without_qualification_service_only_does_policies() -> None:

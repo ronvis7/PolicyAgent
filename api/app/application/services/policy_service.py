@@ -26,6 +26,7 @@ class SourceWithStats:
     home_url: str
     policy_count: int
     last_crawled_at: Optional[datetime]
+    item_type: str = "policy"  # 该来源产出的机会类型(policy/competition，前端据此生成参赛地区选项)
 
 # 分页边界，防止非法/超大 page_size 拖垮查询
 _MIN_PAGE = 1
@@ -73,6 +74,7 @@ class PolicyService:
             result.append(SourceWithStats(
                 key=s.key, name=s.name, region=s.region, home_url=s.home_url,
                 policy_count=count, last_crawled_at=last_crawled_at,
+                item_type=s.item_type.value,
             ))
         return result
 

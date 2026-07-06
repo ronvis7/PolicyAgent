@@ -19,6 +19,7 @@ from app.domain.models.feed_item import FeedItem, FeedItemType, FeedStatus
 from app.domain.models.policy_match import PolicyMatch
 from app.domain.models.qualification import QualificationMatch
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.policy_matcher import contest_region_matches
 
 logger = logging.getLogger(__name__)
 
@@ -93,12 +94,32 @@ class FeedService:
             FeedItem.from_policy_match(tenant_id, m, item_type=self._item_type_of(m))
             for m in matches
         ]
+        items = await self._filter_contests_by_region(tenant_id, items)
 
         if self._qualification_service is not None:
             qual_matches = await self._qualification_service.match_for_tenant(tenant_id)
             items.extend(FeedItem.from_qualification_match(tenant_id, qm) for qm in qual_matches)
 
         return items
+
+    async def _filter_contests_by_region(
+        self, tenant_id: str, items: List[FeedItem],
+    ) -> List[FeedItem]:
+        """赛事条目按档案「参赛关注地区」过滤(比赛可异地参加，与所在地解耦)。
+
+        未建档/未选地区 = 不限，全部保留；政策/资质条目不受影响。
+        """
+        if not any(i.type == FeedItemType.COMPETITION for i in items):
+            return items
+        async with self._uow_factory() as uow:
+            profile = await uow.enterprise_profile.get_by_tenant(tenant_id)
+        regions = profile.contest_regions if profile else []
+        if not regions:
+            return items
+        return [
+            i for i in items
+            if i.type != FeedItemType.COMPETITION or contest_region_matches(i.region, regions)
+        ]
 
     def _item_type_of(self, match: PolicyMatch) -> FeedItemType:
         """按机会来源派生条目类型：赛事子源的候选=比赛通知，其余保持政策。"""

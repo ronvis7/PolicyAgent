@@ -41,6 +41,7 @@ class UpdateEnterpriseProfileRequest(BaseModel):
     qualifications: List[str] = Field(default_factory=list)
     tech_domains: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
+    contest_regions: List[str] = Field(default_factory=list)  # 参赛关注地区(空=不限)
     # ---- 结构化资质条件字段(均可空；数值非负)----
     established_date: str = Field(default="", max_length=10)  # 成立/注册日期
     total_staff: Optional[int] = Field(default=None, ge=0)  # 员工总数
@@ -51,7 +52,7 @@ class UpdateEnterpriseProfileRequest(BaseModel):
     invention_patents: Optional[int] = Field(default=None, ge=0)  # 发明专利数
     other_ip_count: Optional[int] = Field(default=None, ge=0)  # 其他知识产权数
 
-    @field_validator("qualifications", "tech_domains", "keywords")
+    @field_validator("qualifications", "tech_domains", "keywords", "contest_regions")
     @classmethod
     def _normalize_tags(cls, values: List[str]) -> List[str]:
         return _clean_tags(values)
@@ -78,6 +79,7 @@ class UpdateEnterpriseProfileRequest(BaseModel):
             qualifications=self.qualifications,
             tech_domains=self.tech_domains,
             keywords=self.keywords,
+            contest_regions=self.contest_regions,
             established_date=self.established_date,
             total_staff=self.total_staff,
             rd_staff=self.rd_staff,
@@ -117,6 +119,7 @@ class EnterpriseProfileResponse(BaseModel):
     qualifications: List[str] = Field(default_factory=list)
     tech_domains: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
+    contest_regions: List[str] = Field(default_factory=list)
     established_date: str = ""
     total_staff: Optional[int] = None
     rd_staff: Optional[int] = None
@@ -141,6 +144,7 @@ class EnterpriseProfileResponse(BaseModel):
             qualifications=profile.qualifications,
             tech_domains=profile.tech_domains,
             keywords=profile.keywords,
+            contest_regions=profile.contest_regions,
             established_date=profile.established_date,
             total_staff=profile.total_staff,
             rd_staff=profile.rd_staff,

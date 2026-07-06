@@ -75,6 +75,16 @@ def test_legacy_row_without_new_keys_falls_back_to_defaults() -> None:
     assert loaded.registered_capital_wan is None
     assert loaded.invention_patents is None
     assert loaded.qualifications == ["高新技术企业"]
+    assert loaded.contest_regions == []  # 老数据缺键回落空列表(不限地区)
+
+
+def test_contest_regions_roundtrip_through_jsonb() -> None:
+    """参赛关注地区经 attributes(JSONB) 正确往返(零迁移新增列表字段)。"""
+    profile = EnterpriseProfile(tenant_id="t1", contest_regions=["江苏省", "重庆市"])
+    model = EnterpriseProfileModel.from_domain(profile)
+
+    assert model.attributes["contest_regions"] == ["江苏省", "重庆市"]
+    assert model.to_domain().contest_regions == ["江苏省", "重庆市"]
 
 
 def test_unset_numeric_fields_persist_as_none() -> None:

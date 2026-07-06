@@ -32,6 +32,9 @@ class EnterpriseProfile(BaseModel):
     qualifications: List[str] = Field(default_factory=list)  # 已有资质(高新/专精特新/科技型中小企业…)
     tech_domains: List[str] = Field(default_factory=list)  # 技术/产品领域
     keywords: List[str] = Field(default_factory=list)  # 关键词标签
+    # 参赛关注地区(赛事机会按此过滤；比赛可异地参加，与所在地解耦)。空=不限。
+    # 取值为已接入赛事来源的 region 串(如"江苏省"/"重庆市")，层级前缀匹配见 contest_region_matches。
+    contest_regions: List[str] = Field(default_factory=list)
     # ---- 结构化资质条件字段(手动填写，供 ⑥ 差距分析)----
     # 统一用 Optional[...]=None 表达"未填写"，与"填了0"区分(差距分析里未知≠不达标)。
     established_date: str = ""  # 成立/注册日期(YYYY-MM-DD)，用于"成立满N年"类硬条件
