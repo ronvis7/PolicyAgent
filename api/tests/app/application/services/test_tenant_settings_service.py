@@ -5,6 +5,9 @@
 
 import asyncio
 
+import pytest
+
+from app.application.errors.exceptions import BadRequestError
 from app.application.services.tenant_settings_service import TenantSettingsService
 from app.domain.models.app_config import LLMConfig
 
@@ -154,3 +157,121 @@ def test_empty_embed_key_keeps_existing_tenant_key() -> None:
 
     assert config.api_key == "tenant-a-embed-key"
     assert is_custom is True
+
+
+# ---------- 飞书 webhook 推送配置(租户级，前端配置替代 env) ----------
+
+FEISHU_URL = "https://open.feishu.cn/open-apis/bot/v2/hook/abcd1234"
+
+
+def test_feishu_config_unset_returns_none() -> None:
+    """组织未配置飞书 webhook 时返回 None(不推送)"""
+    service = _service()
+
+    assert asyncio.run(service.get_feishu_config(TENANT_A)) is None
+
+
+def test_update_then_get_feishu_config() -> None:
+    """组织配置 webhook 后可读回(URL+secret)"""
+    service = _service()
+
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+    config = asyncio.run(service.get_feishu_config(TENANT_A))
+
+    assert config is not None
+    assert config.webhook_url == FEISHU_URL
+    assert config.secret == "sec-1"
+
+
+def test_update_feishu_empty_secret_keeps_existing() -> None:
+    """再次保存时 secret 留空表示不修改，沿用已有签名密钥"""
+    service = _service()
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, ""))
+    config = asyncio.run(service.get_feishu_config(TENANT_A))
+
+    assert config is not None
+    assert config.secret == "sec-1"
+
+
+def test_update_feishu_requires_webhook_url() -> None:
+    """webhook_url 为空时拒绝保存(留空不代表清除，清除走 clear)"""
+    service = _service()
+
+    with pytest.raises(BadRequestError):
+        asyncio.run(service.update_feishu_config(TENANT_A, "   ", "sec"))
+
+
+def test_clear_feishu_config_disables_push() -> None:
+    """清除配置后读回 None，且不再出现在已配置列表"""
+    service = _service()
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+
+    asyncio.run(service.clear_feishu_config(TENANT_A))
+
+    assert asyncio.run(service.get_feishu_config(TENANT_A)) is None
+    assert asyncio.run(service.list_feishu_configured()) == []
+
+
+def test_list_feishu_configured_returns_only_configured() -> None:
+    """已配置列表只含配了 webhook 的租户(其他覆盖如 LLM key 不算)"""
+    service = _service()
+    asyncio.run(service.update_llm_config(TENANT_B, LLMConfig(api_key="k")))
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, ""))
+
+    configured = asyncio.run(service.list_feishu_configured())
+
+    assert [s.tenant_id for s in configured] == [TENANT_A]
+
+
+def test_feishu_config_does_not_disturb_llm_override() -> None:
+    """配置 webhook 不影响同租户既有 LLM 覆盖(不可变更新)"""
+    service = _service()
+    asyncio.run(service.update_llm_config(TENANT_A, LLMConfig(api_key="tenant-a-key")))
+
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "s"))
+    llm, is_custom = asyncio.run(service.resolve_llm_config(TENANT_A))
+
+    assert llm.api_key == "tenant-a-key"
+    assert is_custom is True
+
+
+def test_update_feishu_new_url_with_blank_secret_drops_old_secret() -> None:
+    """换 webhook 地址且 secret 留空=新机器人未开签名，不沿用旧密钥(避免换群后签名错静默发不出)"""
+    service = _service()
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+
+    new_url = "https://open.feishu.cn/open-apis/bot/v2/hook/other999"
+    asyncio.run(service.update_feishu_config(TENANT_A, new_url, ""))
+    config = asyncio.run(service.get_feishu_config(TENANT_A))
+
+    assert config is not None
+    assert config.webhook_url == new_url
+    assert config.secret == ""
+
+
+def test_update_feishu_blank_url_keeps_existing_when_configured() -> None:
+    """已配置后 URL 留空=沿用已有地址(支持只轮换 secret，前端不回显明文 URL)"""
+    service = _service()
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+
+    asyncio.run(service.update_feishu_config(TENANT_A, "", "sec-2"))
+    config = asyncio.run(service.get_feishu_config(TENANT_A))
+
+    assert config is not None
+    assert config.webhook_url == FEISHU_URL
+    assert config.secret == "sec-2"
+
+
+def test_update_feishu_rejects_non_feishu_url() -> None:
+    """webhook 只认飞书官方域名(https)，防 SSRF(服务端会向该地址发请求)"""
+    service = _service()
+
+    for bad in (
+        "http://open.feishu.cn/open-apis/bot/v2/hook/x",  # 非 https
+        "https://evil.example.com/hook",  # 非飞书域名
+        "http://169.254.169.254/latest/meta-data",  # 内网地址
+    ):
+        with pytest.raises(BadRequestError):
+            asyncio.run(service.update_feishu_config(TENANT_A, bad, ""))

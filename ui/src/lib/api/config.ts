@@ -2,6 +2,7 @@ import { get, post } from "./fetch";
 import type {
   LLMConfig,
   EmbedConfig,
+  FeishuConfig,
   AgentConfig,
   MCPConfig,
   MCPServersData,
@@ -46,6 +47,37 @@ export const configApi = {
    */
   updateEmbedConfig: (apiKey: string): Promise<EmbedConfig> => {
     return post<EmbedConfig>("/app-config/embedding", { api_key: apiKey ?? "" });
+  },
+
+  /**
+   * 获取组织飞书推送配置（脱敏回显）
+   */
+  getFeishuConfig: (): Promise<FeishuConfig> => {
+    return get<FeishuConfig>("/app-config/feishu");
+  },
+
+  /**
+   * 更新组织飞书推送配置（secret 留空表示不修改已有签名密钥）
+   */
+  updateFeishuConfig: (webhookUrl: string, secret: string): Promise<FeishuConfig> => {
+    return post<FeishuConfig>("/app-config/feishu", {
+      webhook_url: webhookUrl ?? "",
+      secret: secret ?? "",
+    });
+  },
+
+  /**
+   * 清除组织飞书推送配置（停用新赛事推送）
+   */
+  clearFeishuConfig: (): Promise<FeishuConfig> => {
+    return post<FeishuConfig>("/app-config/feishu/delete", {});
+  },
+
+  /**
+   * 发送飞书测试消息（用已保存的配置）
+   */
+  testFeishuPush: (): Promise<FeishuConfig> => {
+    return post<FeishuConfig>("/app-config/feishu/test", {});
   },
 
   /**

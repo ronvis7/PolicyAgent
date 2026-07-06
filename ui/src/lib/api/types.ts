@@ -57,6 +57,18 @@ export type EmbedConfig = {
 };
 
 /**
+ * 飞书推送配置（组织级新赛事即推）
+ * 服务端只回显脱敏 URL 与配置状态；webhook_url/secret 为本地编辑值，保存后即清空。
+ */
+export type FeishuConfig = {
+  configured?: boolean;
+  webhook_url_masked?: string;
+  secret_configured?: boolean;
+  webhook_url?: string;
+  secret?: string;
+};
+
+/**
  * Agent 通用配置
  */
 export type AgentConfig = {

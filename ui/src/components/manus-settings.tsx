@@ -2,7 +2,7 @@
 
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {Boxes, LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
+import {Bell, Boxes, LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -22,8 +22,9 @@ import {Badge} from '@/components/ui/badge'
 import {Switch} from '@/components/ui/switch'
 import {Textarea} from '@/components/ui/textarea'
 import {configApi} from '@/lib/api'
-import type {AgentConfig, LLMConfig, EmbedConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
+import type {AgentConfig, LLMConfig, EmbedConfig, FeishuConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
 import {MembersSetting} from '@/components/members-setting'
+import {FeishuSetting} from '@/components/feishu-setting'
 import {useAuth} from '@/providers/auth-provider'
 
 // ==================== 通用配置 ====================
@@ -589,7 +590,10 @@ function EmbedSetting({config, onChange}: EmbedSettingProps) {
 
 // ==================== 设置弹窗主组件 ====================
 
-type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'feishu-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+
+// 由弹窗底部统一「保存」按钮提交、共用 loadingConfig 加载态的表单页签
+const FORM_TABS: SettingTab[] = ['common-setting', 'llm-setting', 'embedding-setting', 'feishu-setting']
 
 // scope 决定可见性：'org' 对组织 owner/admin 开放；'platform' 仅平台管理员
 type SettingScope = 'org' | 'platform'
@@ -602,6 +606,7 @@ const SETTING_MENUS: Array<{
 }> = [
   {key: 'llm-setting', icon: Languages, title: '模型提供商', scope: 'org'},
   {key: 'embedding-setting', icon: Boxes, title: '向量模型', scope: 'org'},
+  {key: 'feishu-setting', icon: Bell, title: '飞书推送', scope: 'org'},
   {key: 'members-setting', icon: Users, title: '组织成员', scope: 'org'},
   {key: 'common-setting', icon: Settings, title: '通用配置', scope: 'platform'},
   {key: 'a2a-setting', icon: LayoutGrid, title: 'A2A Agent 配置', scope: 'platform'},
@@ -639,6 +644,7 @@ export function ManusSettings({
   const [agentConfig, setAgentConfig] = useState<AgentConfig>({})
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({})
   const [embedConfig, setEmbedConfig] = useState<EmbedConfig>({})
+  const [feishuConfig, setFeishuConfig] = useState<FeishuConfig>({})
   const [mcpServers, setMcpServers] = useState<ListMCPServerItem[]>([])
   const [a2aServers, setA2aServers] = useState<ListA2AServerItem[]>([])
 
@@ -647,6 +653,8 @@ export function ManusSettings({
   const [loadingMCP, setLoadingMCP] = useState(false)
   const [loadingA2A, setLoadingA2A] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [feishuTesting, setFeishuTesting] = useState(false)
+  const [feishuClearing, setFeishuClearing] = useState(false)
 
   // 防止 Strict Mode 重复获取
   const fetchingRef = useRef(false)
@@ -664,6 +672,12 @@ export function ManusSettings({
         .then((embed) => setEmbedConfig(embed))
         .catch((err) => {
           console.error('[Settings] 获取 Embedding 配置失败:', err)
+        })
+      configApi
+        .getFeishuConfig()
+        .then((feishu) => setFeishuConfig(feishu))
+        .catch((err) => {
+          console.error('[Settings] 获取飞书推送配置失败:', err)
         })
       configApi
         .getLLMConfig()
@@ -738,6 +752,15 @@ export function ManusSettings({
         const updated = await configApi.updateEmbedConfig(embedConfig.api_key ?? '')
         setEmbedConfig({...updated, api_key: ''})
         toast.success('向量模型配置保存成功')
+      } else if (activeSetting === 'feishu-setting') {
+        const url = (feishuConfig.webhook_url ?? '').trim()
+        if (!url && !feishuConfig.configured) {
+          toast.error('请填写飞书机器人 webhook 地址')
+          return
+        }
+        const updated = await configApi.updateFeishuConfig(url, feishuConfig.secret ?? '')
+        setFeishuConfig({...updated, webhook_url: '', secret: ''})
+        toast.success('飞书推送配置保存成功')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '保存失败'
@@ -746,6 +769,32 @@ export function ManusSettings({
       setSaving(false)
     }
   }
+
+  // ---- 飞书推送操作（测试消息 / 停用） ----
+  const handleFeishuTest = useCallback(async () => {
+    setFeishuTesting(true)
+    try {
+      await configApi.testFeishuPush()
+      toast.success('测试消息已发送，请在飞书群里查收')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '测试消息发送失败')
+    } finally {
+      setFeishuTesting(false)
+    }
+  }, [])
+
+  const handleFeishuClear = useCallback(async () => {
+    setFeishuClearing(true)
+    try {
+      const updated = await configApi.clearFeishuConfig()
+      setFeishuConfig({...updated, webhook_url: '', secret: ''})
+      toast.success('已停用飞书推送')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '操作失败，请重试')
+    } finally {
+      setFeishuClearing(false)
+    }
+  }, [])
 
   // ---- MCP 操作 ----
   const handleMCPToggle = useCallback(async (serverName: string, enabled: boolean) => {
@@ -895,7 +944,7 @@ export function ManusSettings({
 
           {/* 右侧内容 */}
           <div className="flex-1 h-[500px] scrollbar-hide overflow-y-auto">
-            {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting') ? (
+            {loadingConfig && FORM_TABS.includes(activeSetting) ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="size-6 animate-spin text-muted-foreground"/>
               </div>
@@ -909,6 +958,16 @@ export function ManusSettings({
                 )}
                 {activeSetting === 'embedding-setting' && (
                   <EmbedSetting config={embedConfig} onChange={setEmbedConfig}/>
+                )}
+                {activeSetting === 'feishu-setting' && (
+                  <FeishuSetting
+                    config={feishuConfig}
+                    onChange={setFeishuConfig}
+                    onTest={handleFeishuTest}
+                    onClear={handleFeishuClear}
+                    testing={feishuTesting}
+                    clearing={feishuClearing}
+                  />
                 )}
               </>
             )}
@@ -939,7 +998,7 @@ export function ManusSettings({
           <DialogClose asChild>
             <Button variant="outline" className="cursor-pointer">取消</Button>
           </DialogClose>
-          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting') && (
+          {FORM_TABS.includes(activeSetting) && (
             <Button
               className="cursor-pointer"
               disabled={saving}

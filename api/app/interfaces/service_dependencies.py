@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -25,6 +25,7 @@ from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
 from app.application.services.tenant_settings_service import TenantSettingsService
 from app.domain.models.app_config import LLMConfig
+from app.domain.models.policy import Policy
 from app.domain.external.password_hasher import PasswordHasher
 from app.domain.external.token_service import TokenService
 from app.infrastructure.external.security.argon2_password_hasher import Argon2Hasher
@@ -46,6 +47,7 @@ from app.infrastructure.external.crawler.registry import (
 from app.infrastructure.external.notify.feishu_webhook import (
     FeishuWebhookNotifier,
     make_contest_push_hook,
+    make_tenant_contest_push_hook,
 )
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
@@ -278,18 +280,32 @@ def get_policy_service() -> PolicyService:
 
 
 def _build_contest_push_hook():
-    """构造"新赛事即推"飞书回调：未配 FEISHU_WEBHOOK_URL 返回 None(零行为变化)。"""
-    if not settings.feishu_webhook_url:
-        return None
-    notifier = FeishuWebhookNotifier(
-        webhook_url=settings.feishu_webhook_url,
-        secret=settings.feishu_webhook_secret,
-    )
+    """构造"新赛事即推"飞书回调，两级组合：
+
+    - 租户级(主)：组织在设置页配置 webhook 后自动生效，按参赛关注地区过滤后扇出推送；
+    - 部署级(兜底)：配置了 env FEISHU_WEBHOOK_URL 时额外全量推送到该群，不过滤。
+    各级独立 best-effort，互不拖累。
+    """
     contest_keys = competition_source_keys()
     contest_source_names = {
         s.key: s.name for s in list_sources() if s.key in contest_keys
     }
-    return make_contest_push_hook(notifier, contest_source_names)
+    hooks = [make_tenant_contest_push_hook(get_uow, contest_source_names)]
+    if settings.feishu_webhook_url:
+        notifier = FeishuWebhookNotifier(
+            webhook_url=settings.feishu_webhook_url,
+            secret=settings.feishu_webhook_secret,
+        )
+        hooks.append(make_contest_push_hook(notifier, contest_source_names))
+
+    async def push_all(source: str, new_policies: List[Policy]) -> None:
+        for hook in hooks:
+            try:
+                await hook(source, new_policies)
+            except Exception as e:  # noqa: BLE001 — 单级失败不影响另一级
+                logger.warning("新赛事推送回调失败: %s: %s", type(e).__name__, e)
+
+    return push_all
 
 
 def get_policy_ingest_service() -> PolicyIngestService:

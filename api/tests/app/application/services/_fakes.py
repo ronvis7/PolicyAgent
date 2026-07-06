@@ -92,6 +92,9 @@ class FakeTenantSettingsRepository:
     async def save(self, settings: TenantSettings) -> None:
         self._store[settings.tenant_id] = settings
 
+    async def list_feishu_configured(self) -> List[TenantSettings]:
+        return [s for s in self._store.values() if s.feishu_config is not None]
+
 
 class FakeEnterpriseProfileRepository:
     def __init__(self, store: Dict[str, EnterpriseProfile]) -> None:
