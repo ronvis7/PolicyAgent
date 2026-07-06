@@ -17,6 +17,7 @@ export type EnterpriseProfile = {
   qualifications: string[];
   tech_domains: string[];
   keywords: string[];
+  contest_regions: string[]; // 参赛关注地区（赛事机会按此过滤；空=不限）
   // ---- 结构化资质条件字段（手动填写，供 ⑥ 差距分析；未填写为 null）----
   established_date: string; // 成立/注册日期 YYYY-MM-DD
   total_staff: number | null; // 员工总数
