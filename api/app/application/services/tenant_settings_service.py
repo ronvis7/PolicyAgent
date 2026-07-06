@@ -12,6 +12,13 @@ from app.domain.repositories.uow import IUnitOfWork
 
 logger = logging.getLogger(__name__)
 
+# 飞书群机器人 webhook 只可能落在官方域名下；服务端会向配置的地址发 POST，
+# 收紧到官方 https 前缀防 SSRF(内网/任意外部地址)。larksuite 为国际版。
+_ALLOWED_FEISHU_WEBHOOK_PREFIXES = (
+    "https://open.feishu.cn/",
+    "https://open.larksuite.com/",
+)
+
 
 class TenantSettingsService:
     """租户设置服务，目前负责按租户读写 LLM 配置覆盖"""
@@ -134,20 +141,28 @@ class TenantSettingsService:
     ) -> FeishuNotifyConfig:
         """保存某租户的飞书 webhook 配置。
 
-        webhook_url 必填；secret 为空表示不修改(沿用已有签名密钥，从未配置过则视为
-        未开启签名校验)。清除配置(停用推送)走 clear_feishu_config，不用空 URL 表达。
+        webhook_url 留空=沿用已有地址(前端只回显脱敏 URL，支持只轮换 secret；从未配置过
+        则报错)；只认飞书官方域名的 https 地址(服务端会向该地址发请求，防 SSRF)。
+        secret 留空：地址未变=不修改已有签名密钥；换了地址=视为新机器人未开签名校验，
+        不沿用旧密钥(避免换群后签名错、推送静默失败)。停用推送走 clear_feishu_config。
         """
-        url = webhook_url.strip()
-        if not url:
-            raise BadRequestError("webhook 地址不能为空")
-
         async with self.uow_factory() as uow:
             settings = await uow.tenant_settings.get_by_tenant(tenant_id)
             existing = settings.feishu_config if settings else None
 
+            url = webhook_url.strip()
+            if not url:
+                if existing is None or not existing.webhook_url.strip():
+                    raise BadRequestError("webhook 地址不能为空")
+                url = existing.webhook_url
+            if not url.startswith(_ALLOWED_FEISHU_WEBHOOK_PREFIXES):
+                raise BadRequestError(
+                    "仅支持飞书群机器人 webhook 地址(https://open.feishu.cn/ 开头)"
+                )
+
             key = secret.strip()
-            if not key and existing:
-                key = existing.secret  # 留空=不修改已有签名密钥
+            if not key and existing and existing.webhook_url == url:
+                key = existing.secret  # 地址未变且留空=不修改已有签名密钥
 
             new_config = FeishuNotifyConfig(webhook_url=url, secret=key)
             record = (settings or TenantSettings(tenant_id=tenant_id)).model_copy(

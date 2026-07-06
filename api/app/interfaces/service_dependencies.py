@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -25,6 +25,7 @@ from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
 from app.application.services.tenant_settings_service import TenantSettingsService
 from app.domain.models.app_config import LLMConfig
+from app.domain.models.policy import Policy
 from app.domain.external.password_hasher import PasswordHasher
 from app.domain.external.token_service import TokenService
 from app.infrastructure.external.security.argon2_password_hasher import Argon2Hasher
@@ -297,7 +298,7 @@ def _build_contest_push_hook():
         )
         hooks.append(make_contest_push_hook(notifier, contest_source_names))
 
-    async def push_all(source, new_policies):
+    async def push_all(source: str, new_policies: List[Policy]) -> None:
         for hook in hooks:
             try:
                 await hook(source, new_policies)

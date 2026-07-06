@@ -20,16 +20,18 @@ class TenantSettingsModel(Base):
         primary_key=True,
         nullable=False,
     )  # 租户id(主键兼外键)
+    # 三列均 none_as_null=True：显式赋 None 落 SQL NULL 而非 JSONB 'null'
+    # ('null'::jsonb IS NOT NULL 为真，会让 feishu_config 的 IS NOT NULL 过滤误匹配所有行)
     llm_config: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONB(none_as_null=True),
         nullable=True,
     )  # 组织自定义LLM配置(JSON)，NULL表示未覆盖
     embed_config: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONB(none_as_null=True),
         nullable=True,
     )  # 组织自定义Embedding配置(JSON，仅api_key生效)，NULL表示未覆盖
     feishu_config: Mapped[Optional[dict]] = mapped_column(
-        JSONB,
+        JSONB(none_as_null=True),
         nullable=True,
     )  # 组织飞书群webhook配置(JSON，新赛事即推)，NULL表示未开启
     updated_at: Mapped[datetime] = mapped_column(

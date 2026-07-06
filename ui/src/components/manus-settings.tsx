@@ -24,6 +24,7 @@ import {Textarea} from '@/components/ui/textarea'
 import {configApi} from '@/lib/api'
 import type {AgentConfig, LLMConfig, EmbedConfig, FeishuConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
 import {MembersSetting} from '@/components/members-setting'
+import {FeishuSetting} from '@/components/feishu-setting'
 import {useAuth} from '@/providers/auth-provider'
 
 // ==================== 通用配置 ====================
@@ -587,98 +588,12 @@ function EmbedSetting({config, onChange}: EmbedSettingProps) {
 }
 
 
-// ==================== 飞书推送配置 ====================
-
-type FeishuSettingProps = {
-  config: FeishuConfig
-  onChange: (config: FeishuConfig) => void
-  onTest: () => void
-  onClear: () => void
-  testing: boolean
-  clearing: boolean
-}
-
-function FeishuSetting({config, onChange, onTest, onClear, testing, clearing}: FeishuSettingProps) {
-  return (
-    <form className="w-full px-1" onSubmit={(e) => e.preventDefault()}>
-      <FieldGroup>
-        <FieldSet>
-          <FieldLegend className="text-lg font-bold text-gray-700">飞书推送（新赛事即推）</FieldLegend>
-          <FieldDescription className="text-sm">
-            新赛事机会入库后即时推送到本组织的飞书群，并按企业档案的「参赛关注地区」过滤。
-            配置方法：建群 → 群设置添加「自定义机器人」→ 复制 webhook 地址填入（建议同时开启「签名校验」并填入密钥）。
-            <br/>
-            推送状态：
-            <span className={config.configured ? 'text-green-600' : 'text-amber-600'}>
-              {config.configured ? ` 已开启（${config.webhook_url_masked || '已配置'}）` : ' 未开启'}
-            </span>
-            {config.configured ? (config.secret_configured ? '，已启用签名校验' : '，未启用签名校验') : ''}
-          </FieldDescription>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="feishu_webhook_url">机器人 webhook 地址</FieldLabel>
-              <Input
-                id="feishu_webhook_url"
-                type="text"
-                autoComplete="off"
-                placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"
-                value={config.webhook_url ?? ''}
-                onChange={(e) => onChange({...config, webhook_url: e.target.value})}
-              />
-              <FieldDescription className="text-xs">
-                webhook 地址即推送凭据，仅保存到服务端、页面只回显脱敏尾号。
-              </FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="feishu_secret">签名校验密钥（可选）</FieldLabel>
-              <Input
-                id="feishu_secret"
-                type="password"
-                autoComplete="new-password"
-                placeholder="机器人开启签名校验后的密钥；留空则保留当前密钥"
-                value={config.secret ?? ''}
-                onChange={(e) => onChange({...config, secret: e.target.value})}
-              />
-              <FieldDescription className="text-xs">
-                与机器人「签名校验」开关保持一致：机器人开了校验必须填，未开则留空。
-              </FieldDescription>
-            </Field>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="cursor-pointer"
-                disabled={!config.configured || testing}
-                onClick={onTest}
-              >
-                {testing && <Loader2 className="animate-spin"/>}
-                发送测试消息
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="cursor-pointer text-destructive"
-                disabled={!config.configured || clearing}
-                onClick={onClear}
-              >
-                {clearing && <Loader2 className="animate-spin"/>}
-                停用推送
-              </Button>
-            </div>
-            <FieldDescription className="text-xs">
-              「发送测试消息」用已保存的配置向群里发一条验证消息；修改后请先保存再测试。
-            </FieldDescription>
-          </FieldGroup>
-        </FieldSet>
-      </FieldGroup>
-    </form>
-  )
-}
-
-
 // ==================== 设置弹窗主组件 ====================
 
 type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'feishu-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+
+// 由弹窗底部统一「保存」按钮提交、共用 loadingConfig 加载态的表单页签
+const FORM_TABS: SettingTab[] = ['common-setting', 'llm-setting', 'embedding-setting', 'feishu-setting']
 
 // scope 决定可见性：'org' 对组织 owner/admin 开放；'platform' 仅平台管理员
 type SettingScope = 'org' | 'platform'
@@ -839,7 +754,7 @@ export function ManusSettings({
         toast.success('向量模型配置保存成功')
       } else if (activeSetting === 'feishu-setting') {
         const url = (feishuConfig.webhook_url ?? '').trim()
-        if (!url) {
+        if (!url && !feishuConfig.configured) {
           toast.error('请填写飞书机器人 webhook 地址')
           return
         }
@@ -1029,7 +944,7 @@ export function ManusSettings({
 
           {/* 右侧内容 */}
           <div className="flex-1 h-[500px] scrollbar-hide overflow-y-auto">
-            {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting' || activeSetting === 'feishu-setting') ? (
+            {loadingConfig && FORM_TABS.includes(activeSetting) ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="size-6 animate-spin text-muted-foreground"/>
               </div>
@@ -1083,7 +998,7 @@ export function ManusSettings({
           <DialogClose asChild>
             <Button variant="outline" className="cursor-pointer">取消</Button>
           </DialogClose>
-          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting' || activeSetting === 'feishu-setting') && (
+          {FORM_TABS.includes(activeSetting) && (
             <Button
               className="cursor-pointer"
               disabled={saving}

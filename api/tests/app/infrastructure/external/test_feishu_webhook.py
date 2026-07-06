@@ -14,13 +14,18 @@ from typing import List
 
 import httpx
 
+from app.domain.models.enterprise_profile import EnterpriseProfile
 from app.domain.models.policy import Policy
+from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
 from app.infrastructure.external.notify.feishu_webhook import (
     FeishuWebhookNotifier,
     build_contest_message,
     feishu_sign,
     make_contest_push_hook,
+    make_tenant_contest_push_hook,
+    mask_webhook_url,
 )
+from tests.app.application.services._fakes import make_uow_factory
 
 
 def _policy(
@@ -158,9 +163,7 @@ def test_contest_push_hook_only_pushes_contest_sources() -> None:
 
 # ---------- 租户级扇出推送(前端配 webhook + 按参赛关注地区过滤) ----------
 
-def _tenant_settings(tenant_id: str, url: str, secret: str = "") -> "TenantSettings":
-    from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
-
+def _tenant_settings(tenant_id: str, url: str, secret: str = "") -> TenantSettings:
     return TenantSettings(
         tenant_id=tenant_id,
         feishu_config=FeishuNotifyConfig(webhook_url=url, secret=secret),
@@ -169,9 +172,6 @@ def _tenant_settings(tenant_id: str, url: str, secret: str = "") -> "TenantSetti
 
 def _fanout_env(handler):
     """组装两租户环境：A 关注江苏、B 关注重庆，各配独立 webhook。"""
-    from app.domain.models.enterprise_profile import EnterpriseProfile
-    from tests.app.application.services._fakes import make_uow_factory
-
     uow_factory = make_uow_factory(
         tenant_settings={
             "tenant-a": _tenant_settings("tenant-a", "https://hook/a"),
@@ -182,10 +182,6 @@ def _fanout_env(handler):
             "tenant-b": EnterpriseProfile(tenant_id="tenant-b", contest_regions=["重庆市"]),
         },
     )
-    from app.infrastructure.external.notify.feishu_webhook import (
-        make_tenant_contest_push_hook,
-    )
-
     return make_tenant_contest_push_hook(
         uow_factory,
         contest_source_names={"wnd-contest": "无锡新吴区·大赛通知"},
@@ -209,11 +205,6 @@ def test_tenant_fanout_filters_by_contest_regions() -> None:
 
 def test_tenant_fanout_without_profile_pushes_all() -> None:
     """配了 webhook 但没建档案(未选关注地区)=不限，全部推送。"""
-    from tests.app.application.services._fakes import make_uow_factory
-    from app.infrastructure.external.notify.feishu_webhook import (
-        make_tenant_contest_push_hook,
-    )
-
     sent: List[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -271,8 +262,6 @@ def test_tenant_fanout_one_failure_does_not_block_others() -> None:
 # ---------- webhook URL 脱敏 ----------
 
 def test_mask_webhook_url_hides_token() -> None:
-    from app.infrastructure.external.notify.feishu_webhook import mask_webhook_url
-
     masked = mask_webhook_url("https://open.feishu.cn/open-apis/bot/v2/hook/abcd1234-ef56-7890-abcd")
 
     assert "abcd1234-ef56-7890-abcd" not in masked
@@ -281,8 +270,6 @@ def test_mask_webhook_url_hides_token() -> None:
 
 
 def test_mask_webhook_url_short_token_fully_masked() -> None:
-    from app.infrastructure.external.notify.feishu_webhook import mask_webhook_url
-
     masked = mask_webhook_url("https://hook/ab")
 
     assert "ab" not in masked.rsplit("/", 1)[-1].replace("****", "")

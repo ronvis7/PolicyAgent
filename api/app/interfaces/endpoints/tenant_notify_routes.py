@@ -103,11 +103,12 @@ async def test_feishu_push(
 ) -> Response[PublicFeishuConfig]:
     """向组织飞书群发送测试消息(用已保存的配置)"""
     config = await tenant_settings_service.get_feishu_config(current_user.tenant_id)
-    if config is None or not config.webhook_url.strip():
+    public = _to_public(config)  # "已配置"判定与 GET 回显同一谓词
+    if config is None or not public.configured:
         raise BadRequestError("请先保存飞书 webhook 配置")
 
     notifier = FeishuWebhookNotifier(webhook_url=config.webhook_url, secret=config.secret)
     ok = await notifier.send(build_test_message())
     if not ok:
         raise BadRequestError("测试消息发送失败，请检查 webhook 地址与签名密钥")
-    return Response.success(msg="测试消息已发送，请在群里查收", data=_to_public(config))
+    return Response.success(msg="测试消息已发送，请在群里查收", data=public)

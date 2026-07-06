@@ -13,6 +13,7 @@
   按各租户企业档案的参赛关注地区过滤新赛事后分别推送。
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -23,6 +24,7 @@ from typing import Awaitable, Callable, Dict, List, Optional
 import httpx
 
 from app.domain.models.policy import Policy
+from app.domain.models.tenant_settings import TenantSettings
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.policy_matcher import contest_region_matches
 
@@ -187,15 +189,15 @@ def make_tenant_contest_push_hook(
                 for ts in configured
             }
 
-        for ts in configured:
+        async def push_one(ts: TenantSettings) -> None:
             config = ts.feishu_config
             if config is None or not config.webhook_url.strip():
-                continue
+                return
             profile = profiles.get(ts.tenant_id)
             regions = profile.contest_regions if profile else []
             matched = [p for p in new_policies if contest_region_matches(p.region, regions)]
             if not matched:
-                continue
+                return
             try:
                 notifier = FeishuWebhookNotifier(
                     webhook_url=config.webhook_url,
@@ -207,5 +209,8 @@ def make_tenant_contest_push_hook(
                 logger.warning(
                     "租户 %s 飞书推送异常: %s: %s", ts.tenant_id, type(e).__name__, e,
                 )
+
+        # 各租户 webhook 互相独立，并发发送；单个挂起(10s 超时)不阻塞整批入库任务
+        await asyncio.gather(*(push_one(ts) for ts in configured))
 
     return push_new_contests

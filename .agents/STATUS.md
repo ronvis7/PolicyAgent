@@ -1,6 +1,6 @@
 # 当前状态
 
-最后更新：2026-07-06（**赛事机会重启三连**：老板转向"收集适合初创公司的创业类比赛+飞书推送"。PR #64 赛事子源+Feed 赛事分栏**已合并 main**；PR #65 飞书新赛事即推、PR #66 参赛关注地区多选**已开待合并**。全程零迁移零新增依赖；重庆门户已探活待逆向(PR3)。详见 handoff `2026-07-06-contest-opportunities-feishu`。此前：核心能力效果评测工程已合并 main `d8b09fb`；服务器 .222 未部署本轮改动）
+最后更新：2026-07-06（**赛事机会重启三连全部合并 + 飞书改前端配置**：PR #64 赛事子源+Feed 赛事分栏、PR #65 飞书新赛事即推、PR #66 参赛关注地区多选**均已合并 main**（#65 恢复后 CI 未跑，空提交补跑三绿后合入）。随后按用户决定"webhook 前端配置、不走 env"开 **PR #67 `feat/feishu-tenant-webhook`**：租户级 webhook 设置页(tenant_settings.feishu_config，迁移 `e2f3a4b5c6d7` **现 head**)+新赛事按租户扇出、按参赛关注地区过滤(顺带解决交接风险3)+测试推送端点；已过 8 角度代码评审并修复(JSONB none_as_null、换 URL 不沿用旧 secret、webhook 域名白名单防 SSRF、URL 留空=保留支持轮换 secret)。**飞书联调改为在设置页完成，不再进服务器 .env**。重庆门户已探活待逆向(PR3)。详见 handoff `2026-07-06-contest-opportunities-feishu`。服务器 .222 未部署本轮改动）
 
 ## 仓库状态
 
@@ -105,10 +105,11 @@
 
 ## 分支/PR 状态（2026-07-06 收尾）
 
-- **#64 赛事子源+Feed 赛事分栏：已合并 main**。
-- **#65 `feat/feishu-contest-push`（飞书新赛事即推）：待合并**（base 已切回 main；曾因 #64 合并删分支被 GitHub 连带关闭、已恢复——叠 PR 先改 base 再删分支）。
-- **#66 `feat/contest-regions`（参赛关注地区多选）：待合并**。与 #65 无文件重叠，合并顺序随意。
-- 合并后待办：飞书机器人 URL/secret 进服务器 `.env` 联调；真机走查赛事动线；PR3 重庆爬虫（kjj/jjxxw 已探活）。
+- **#64 赛事子源+Feed 赛事分栏 / #65 飞书新赛事即推 / #66 参赛关注地区多选：均已合并 main**。
+- **#67 `feat/feishu-tenant-webhook`（飞书 webhook 前端配置·租户级+按关注地区扇出）：已开**，
+  首版 CI 三绿后又按代码评审修复一轮(none_as_null/换URL丢旧secret/域名白名单/URL留空保留)，待 CI 再绿合并。
+- 合并后待办：**飞书联调走设置页**（owner/admin 打开设置→「飞书推送」→贴 webhook+secret→「发送测试消息」→
+  手动抓 wnd-contest 验证群收卡片，**不再需要动服务器 .env**）；真机走查赛事动线；PR3 重庆爬虫（kjj/jjxxw 已探活）。
 
 ## 分支/PR 状态（2026-06-19 收尾，历史）
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)

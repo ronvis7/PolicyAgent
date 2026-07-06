@@ -5,6 +5,9 @@
 
 import asyncio
 
+import pytest
+
+from app.application.errors.exceptions import BadRequestError
 from app.application.services.tenant_settings_service import TenantSettingsService
 from app.domain.models.app_config import LLMConfig
 
@@ -194,10 +197,6 @@ def test_update_feishu_empty_secret_keeps_existing() -> None:
 
 def test_update_feishu_requires_webhook_url() -> None:
     """webhook_url 为空时拒绝保存(留空不代表清除，清除走 clear)"""
-    import pytest
-
-    from app.application.errors.exceptions import BadRequestError
-
     service = _service()
 
     with pytest.raises(BadRequestError):
@@ -236,3 +235,43 @@ def test_feishu_config_does_not_disturb_llm_override() -> None:
 
     assert llm.api_key == "tenant-a-key"
     assert is_custom is True
+
+
+def test_update_feishu_new_url_with_blank_secret_drops_old_secret() -> None:
+    """换 webhook 地址且 secret 留空=新机器人未开签名，不沿用旧密钥(避免换群后签名错静默发不出)"""
+    service = _service()
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+
+    new_url = "https://open.feishu.cn/open-apis/bot/v2/hook/other999"
+    asyncio.run(service.update_feishu_config(TENANT_A, new_url, ""))
+    config = asyncio.run(service.get_feishu_config(TENANT_A))
+
+    assert config is not None
+    assert config.webhook_url == new_url
+    assert config.secret == ""
+
+
+def test_update_feishu_blank_url_keeps_existing_when_configured() -> None:
+    """已配置后 URL 留空=沿用已有地址(支持只轮换 secret，前端不回显明文 URL)"""
+    service = _service()
+    asyncio.run(service.update_feishu_config(TENANT_A, FEISHU_URL, "sec-1"))
+
+    asyncio.run(service.update_feishu_config(TENANT_A, "", "sec-2"))
+    config = asyncio.run(service.get_feishu_config(TENANT_A))
+
+    assert config is not None
+    assert config.webhook_url == FEISHU_URL
+    assert config.secret == "sec-2"
+
+
+def test_update_feishu_rejects_non_feishu_url() -> None:
+    """webhook 只认飞书官方域名(https)，防 SSRF(服务端会向该地址发请求)"""
+    service = _service()
+
+    for bad in (
+        "http://open.feishu.cn/open-apis/bot/v2/hook/x",  # 非 https
+        "https://evil.example.com/hook",  # 非飞书域名
+        "http://169.254.169.254/latest/meta-data",  # 内网地址
+    ):
+        with pytest.raises(BadRequestError):
+            asyncio.run(service.update_feishu_config(TENANT_A, bad, ""))
