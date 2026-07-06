@@ -106,10 +106,11 @@
 ## 分支/PR 状态（2026-07-06 收尾）
 
 - **#64 赛事子源+Feed 赛事分栏 / #65 飞书新赛事即推 / #66 参赛关注地区多选：均已合并 main**。
-- **#67 `feat/feishu-tenant-webhook`（飞书 webhook 前端配置·租户级+按关注地区扇出）：已开**，
-  首版 CI 三绿后又按代码评审修复一轮(none_as_null/换URL丢旧secret/域名白名单/URL留空保留)，待 CI 再绿合并。
-- 合并后待办：**飞书联调走设置页**（owner/admin 打开设置→「飞书推送」→贴 webhook+secret→「发送测试消息」→
-  手动抓 wnd-contest 验证群收卡片，**不再需要动服务器 .env**）；真机走查赛事动线；PR3 重庆爬虫（kjj/jjxxw 已探活）。
+- **#67 `feat/feishu-tenant-webhook`（飞书 webhook 前端配置·租户级+按关注地区扇出）：已合并 main**
+  （首版 CI 三绿后按 8 角度代码评审修复一轮：none_as_null/换URL丢旧secret/域名白名单/URL留空保留，复绿合入）。
+- 待办：**部署 .222**(`up -d --build`，迁移 `e2f3a4b5c6d7` 随 api 启动自动升级)→**飞书联调走设置页**
+  （owner/admin 打开设置→「飞书推送」→贴 webhook+secret→「发送测试消息」→手动抓 wnd-contest 验证群收卡片，
+  **不再需要动服务器 .env**）；真机走查赛事动线；PR3 重庆爬虫（kjj/jjxxw 已探活）。
 
 ## 分支/PR 状态（2026-06-19 收尾，历史）
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)
