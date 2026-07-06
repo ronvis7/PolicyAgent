@@ -8,7 +8,7 @@ RAG 分块/Embedding 流水线写入全局公开知识库(挂系统租户 'publi
 
 import logging
 import uuid
-from typing import Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional
 
 from app.application.errors.exceptions import BadRequestError
 from app.domain.external.embedding import EmbeddingProvider
@@ -42,17 +42,23 @@ class PolicyIngestService:
         crawlers: Dict[str, PolicyCrawler],
         embedding: EmbeddingProvider,
         llm: Optional[LLM] = None,
+        on_new_policies: Optional[Callable[[str, List[Policy]], Awaitable[None]]] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._crawlers = crawlers
         self._embedding = embedding
         # 用于从正文抽取申报截止日期(主线⑤)；缺省(None)则跳过抽取，保持向后兼容/可离线单测。
         self._llm = llm
+        # 新增政策回调(source, 本次首次入库的政策)：供"新赛事即推"等通知接线，
+        # best-effort 调用(回调异常不影响入库)；缺省(None)零行为变化。
+        self._on_new_policies = on_new_policies
 
     async def ingest(self, source: str, max_pages: int = 1) -> Dict[str, object]:
-        """按来源(source)抓取并入库，返回 {source, crawled, upserted, indexed} 计数。
+        """按来源(source)抓取并入库，返回 {source, crawled, upserted, new, indexed} 计数。
 
         结构化 upsert 必做；向量双写为逐篇 best-effort(单篇失败不影响整批与结构化结果)。
+        new=本次首次入库(source_url 此前不存在)的条数，入库完成后经 on_new_policies
+        回调通知(如飞书推送新赛事)。
         """
         crawler = self._crawlers.get(source)
         if crawler is None:
@@ -61,6 +67,8 @@ class PolicyIngestService:
 
         for policy in policies:
             await self._enrich_deadline(policy)
+
+        new_policies = await self._detect_new(policies)
 
         upserted = 0
         async with self._uow_factory() as uow:
@@ -81,9 +89,44 @@ class PolicyIngestService:
                     f"政策向量双写失败[{policy.source_url}]: {type(e).__name__}: {e}"
                 )
 
-        summary = {"source": source, "crawled": len(policies), "upserted": upserted, "indexed": indexed}
+        summary = {
+            "source": source, "crawled": len(policies), "upserted": upserted,
+            "new": len(new_policies), "indexed": indexed,
+        }
         logger.info(f"公开政策入库完成: {summary}")
+
+        await self._notify_new(source, new_policies)
         return summary
+
+    async def _detect_new(self, policies: List[Policy]) -> List[Policy]:
+        """入库前按 source_url 批量比对存量，返回本次首次入库的政策(同批重复去重)。"""
+        if not policies:
+            return []
+        urls = [p.source_url for p in policies]
+        async with self._uow_factory() as uow:
+            existing = await uow.policy.list_by_source_urls(urls)
+        existing_urls = {p.source_url for p in existing}
+
+        seen: set = set()
+        new_policies: List[Policy] = []
+        for policy in policies:
+            # 同批跨页重复(如 gxt dataproxy 分页重叠)只算一次
+            if policy.source_url in existing_urls or policy.source_url in seen:
+                continue
+            seen.add(policy.source_url)
+            new_policies.append(policy)
+        return new_policies
+
+    async def _notify_new(self, source: str, new_policies: List[Policy]) -> None:
+        """best-effort 通知新增政策(如飞书推送新赛事)；回调异常只记 warning，不冒泡。"""
+        if self._on_new_policies is None or not new_policies:
+            return
+        try:
+            await self._on_new_policies(source, new_policies)
+        except Exception as e:  # noqa: BLE001 — 通知为增强，绝不影响入库结果
+            logger.warning(
+                "新增政策通知回调失败 source=%s: %s: %s", source, type(e).__name__, e,
+            )
 
     async def _enrich_deadline(self, policy: Policy) -> None:
         """best-effort 抽取申报截止情况写回政策；无 LLM/失败时保持 unknown，绝不阻断入库。"""
