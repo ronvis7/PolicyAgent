@@ -1,6 +1,6 @@
 # 当前状态
 
-最后更新：2026-06-20（**核心能力效果评测工程**：比赛第3项「可复现测试结果」，已合并 main 并 push `d8b09fb`；服务器 .222 运行时已是最新、保持现状不重新部署。此前：Agent 比赛三件套·跨会话记忆 + 主动情报 + 自主申报已合并 main；总演示文档 `.agents/DEMO_WALKTHROUGH.md` + 前端视觉升级 PR #56/#57 + Agent 实体记忆 PR #59）
+最后更新：2026-07-06（**赛事机会重启三连**：老板转向"收集适合初创公司的创业类比赛+飞书推送"。PR #64 赛事子源+Feed 赛事分栏**已合并 main**；PR #65 飞书新赛事即推、PR #66 参赛关注地区多选**已开待合并**。全程零迁移零新增依赖；重庆门户已探活待逆向(PR3)。详见 handoff `2026-07-06-contest-opportunities-feishu`。此前：核心能力效果评测工程已合并 main `d8b09fb`；服务器 .222 未部署本轮改动）
 
 ## 仓库状态
 
@@ -12,6 +12,7 @@
 
 > 细节以 `git log` 为准，本节只记里程碑。
 
+- **赛事机会重启·门户"大赛"子源 + Feed 赛事分栏（PR #64，2026-07-06 合并；#65/#66 待合并）**：比赛机会类型按新路线落地——创业类大赛(创客中国/i创杯)赛区通知本来就发省市门户，复用既有爬虫 `title_keyword="大赛"` 加 `wnd-contest`/`gxt-contest` 子源绕开公众号；`CrawlerSource.item_type` 分类 + Feed 按来源打 `type=competition`(④预留列启用，**零迁移**)；⑤截止抽取自动覆盖报名截止、随 04:00 定时重爬保鲜；前端工作台「赛事机会」分栏+紫罗兰徽章。**顺手修真 bug**：gxt 爬虫关键词滤空页误判"到底"提前停翻页(赛事子源恒 0 条的根因)。真机冒烟 wnd-contest 20 条(含「飞凤杯」创新创业大赛)、gxt-contest 修后 8 页 10 条。**PR #65(待合并)飞书即推**：ingest 识别首次入库(new 计数+去重)+`on_new_policies` best-effort 回调；`notify/feishu_webhook.py`(签名/富文本卡片/单条上限10/仅赛事来源触发)；env `FEISHU_WEBHOOK_URL/SECRET` 留空零行为变化。**PR #66(待合并)参赛关注地区**：档案 `contest_regions`(JSONB 零迁移)+`contest_region_matches` 层级前缀双向匹配(选省含区县、选区县含省级赛事)+Feed 赛事按关注地区过滤+`/policies/sources` 透出 `item_type`+档案页徽章多选(选项动态取自赛事来源，**重庆等新来源接入后选项自动出现**)。**甄别**：全国赛事平台(创客中国官网等)连不上、放弃；重庆 kjj/jjxxw 已探活 200 待逆向(PR3)。详见 handoff `2026-07-06-contest-opportunities-feishu`。
 - **核心能力效果评测工程（比赛第3项·可复现测试结果，已合并 main + push `d8b09fb`）**：补"AI 效果有多好"的量化证据（区别于既有 292 功能单测）。新增 `api/tests/eval/`：四项核心能力各带**标注数据集 + 量化指标 + 离线确定性门禁**——⑥资质差距 `analyze_gap`（14 用例/26 条件，状态准确率 1.0、缺字段误报 0）、⑤截止抽取 `parse_extraction_result` 纪律层（12 用例，状态/日期准确率 1.0、编造率 0）、RAG 检索（**冻结真实 text-embedding-v3 向量快照** 1024 维，recall@5/MRR 1.0）、③政策匹配 `structured_score`（受控语料 recall@3/MRR 1.0、干扰项零误命中）。`scripts/run_eval.py` 一键复现 + 生成 `docs/competition/评测报告.md`；`record_rag_vectors.py` 重录向量。**真实 LLM/Embedding 仅录快照时调用，平时跑快照，clone 后无需密钥/网络即可复现**。零运行时改动、零迁移、零依赖；`pytest tests/eval` 4 passed、全量离线 292 passed、随 CI `pytest tests` 自动跑门禁。另把 `docker-compose.server.yml`（.222 部署 override，无密钥）纳入跟踪。**服务器 .222 核对**：后端(208)+前端(112)源码与 main 逐文件零差异、运行时已最新，按用户决定保持现状不重新部署（本次为测试/文档/部署配置、零运行时影响）。详见 handoff `2026-06-20-eval-harness`。
 
 - **Agent 比赛三件套之主动情报 Agent + 自主申报助手（分支 `feat/cross-session-agent-memory`，PR 待开，真机走查待做）**：继跨会话记忆后再补"主动性 + 目标驱动编排"，凑齐"记得你/替你盯着/把事办成"。**A 主动情报 Agent**：Agent 离线时自主扫描已匹配机会(③政策/⑥差距/⑤临期)→LLM 归纳**带理由的优先级简报**(总览+情报项[紧迫度/类别/理由/下一步])。复用 ReportService 聚合 + best-effort LLM 范式；纯函数 `briefing_composer`(build_facts/build_messages/parse + **确定性兜底** fallback，无 LLM/解析失败兜底始终有产出)；新表 `intel_briefings`(迁移 `d1e2f3a4b5c6`，**现 head**，每租户最新一份)；`BriefingService`(generate/get_latest/regenerate_all) + `GET /briefings/latest`+`POST /briefings/generate`；定时 `BriefingRefreshScheduler` 每天 04:30 为已建档租户重算(错开 04:00 重爬，`BRIEFING_REFRESH_*` 可调)；前端「情报简报」页 + 左栏入口。**B 自主申报助手**：`QualificationTool` 扩 `qualification_apply_plan(key)`——把差距核验+需补齐缺口+材料+时间线聚合为**申报准备方案**(kind=plan)；`system.py` 加 `<application_assistant>` 段引导目标驱动一站式产出；前端通用渲染零改动即生效。新增 14 单测、全量离线 **288 passed**、前端 tsc/eslint/build 全绿、零新增依赖。总演示动线见 `.agents/DEMO_WALKTHROUGH.md`。**已部署上线 .222（http://118.196.142.222:8088，commit `85ca890`，迁移落库 `alembic_version=d1e2f3a4b5c6`、新表 agent_memories+intel_briefings 已建、api/ui healthy、新路由 401 正常）；线上端到端功能走查待做**。详见 handoff `2026-06-20-proactive-intel-and-apply-assistant`。
@@ -102,7 +103,14 @@
 > **定时重爬**：应用内 APScheduler 调度器每天 04:00 CST 重爬 `wnd-apply` 保鲜（env 全可调），真机验证 job 注册/next_run 正确。**PR #34 已合并 main**。详见 handoff `2026-06-17-scheduled-apply-recrawl`。
 > **前端视觉统一 + 品牌收尾（PR #35，已合并）**：采纳同事 `ui` 分支（政策库/知识库页刷新，知识库 Neo4j 图谱/文件夹/KB 类型卡等预留功能保留作路线图展示），把工作台 Feed/资质/企业档案/登录注册拉齐到同一套视觉语言；修复企业档案分区标题(legend 跳出 fieldset padding)；品牌收尾（落地页问候改真实 display_name、logo 占位与助手字标统一 PolicyManus、推荐问题换成贴合产品文案）。纯前端、无接口/迁移。详见 handoff `2026-06-17-ui-refresh-and-brand`。
 
-## 分支/PR 状态（2026-06-19 收尾）
+## 分支/PR 状态（2026-07-06 收尾）
+
+- **#64 赛事子源+Feed 赛事分栏：已合并 main**。
+- **#65 `feat/feishu-contest-push`（飞书新赛事即推）：待合并**（base 已切回 main；曾因 #64 合并删分支被 GitHub 连带关闭、已恢复——叠 PR 先改 base 再删分支）。
+- **#66 `feat/contest-regions`（参赛关注地区多选）：待合并**。与 #65 无文件重叠，合并顺序随意。
+- 合并后待办：飞书机器人 URL/secret 进服务器 `.env` 联调；真机走查赛事动线；PR3 重庆爬虫（kjj/jjxxw 已探活）。
+
+## 分支/PR 状态（2026-06-19 收尾，历史）
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)
   + 跨租户隔离 endpoint 测试进 CI(#46) + **报告 PDF 导出(#47)** + **匹配质量 jieba(#48)** +
   **DB-in-CI 隔离集成测试(#49)** + **档案关键词智能提取(#50)** + **结构化挖主营业务词(真机走查修, #51)**
