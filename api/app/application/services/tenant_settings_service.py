@@ -2,10 +2,11 @@
 
 import logging
 from datetime import datetime
-from typing import Callable, Tuple
+from typing import Callable, List, Optional, Tuple
 
+from app.application.errors.exceptions import BadRequestError
 from app.domain.models.app_config import EmbedConfig, LLMConfig
-from app.domain.models.tenant_settings import TenantSettings
+from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.domain.repositories.uow import IUnitOfWork
 
@@ -119,3 +120,55 @@ class TenantSettingsService:
             await uow.tenant_settings.save(record)
 
         return new_embed, True
+
+    # ---------- 飞书 webhook 推送配置(组织级"新赛事即推"，前端设置页配置) ----------
+
+    async def get_feishu_config(self, tenant_id: str) -> Optional[FeishuNotifyConfig]:
+        """获取某租户的飞书 webhook 配置；None 表示未开启推送"""
+        async with self.uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+        return settings.feishu_config if settings else None
+
+    async def update_feishu_config(
+            self, tenant_id: str, webhook_url: str, secret: str,
+    ) -> FeishuNotifyConfig:
+        """保存某租户的飞书 webhook 配置。
+
+        webhook_url 必填；secret 为空表示不修改(沿用已有签名密钥，从未配置过则视为
+        未开启签名校验)。清除配置(停用推送)走 clear_feishu_config，不用空 URL 表达。
+        """
+        url = webhook_url.strip()
+        if not url:
+            raise BadRequestError("webhook 地址不能为空")
+
+        async with self.uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+            existing = settings.feishu_config if settings else None
+
+            key = secret.strip()
+            if not key and existing:
+                key = existing.secret  # 留空=不修改已有签名密钥
+
+            new_config = FeishuNotifyConfig(webhook_url=url, secret=key)
+            record = (settings or TenantSettings(tenant_id=tenant_id)).model_copy(
+                update={"feishu_config": new_config, "updated_at": datetime.now()}
+            )
+            await uow.tenant_settings.save(record)
+
+        return new_config
+
+    async def clear_feishu_config(self, tenant_id: str) -> None:
+        """清除某租户的飞书 webhook 配置(停用新赛事推送)；未配置过则无操作"""
+        async with self.uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+            if settings is None or settings.feishu_config is None:
+                return
+            record = settings.model_copy(
+                update={"feishu_config": None, "updated_at": datetime.now()}
+            )
+            await uow.tenant_settings.save(record)
+
+    async def list_feishu_configured(self) -> List[TenantSettings]:
+        """列出配置了飞书 webhook 的租户设置(供新赛事推送扇出)"""
+        async with self.uow_factory() as uow:
+            return await uow.tenant_settings.list_feishu_configured()

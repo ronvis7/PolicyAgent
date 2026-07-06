@@ -1,4 +1,4 @@
-from typing import Optional, Protocol
+from typing import List, Optional, Protocol
 
 from app.domain.models.tenant_settings import TenantSettings
 
@@ -12,4 +12,8 @@ class TenantSettingsRepository(Protocol):
 
     async def save(self, settings: TenantSettings) -> None:
         """存储或更新租户设置"""
+        ...
+
+    async def list_feishu_configured(self) -> List[TenantSettings]:
+        """列出配置了飞书 webhook 的租户设置(供新赛事推送扇出)"""
         ...

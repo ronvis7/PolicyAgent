@@ -24,6 +24,7 @@ export type {
   MCPTransport,
   LLMConfig,
   EmbedConfig,
+  FeishuConfig,
   AgentConfig,
   ListMCPServerItem,
   MCPServerConfig,

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,12 @@ class DBTenantSettingsRepository(TenantSettingsRepository):
         result = await self.db_session.execute(stmt)
         record = result.scalar_one_or_none()
         return record.to_domain() if record is not None else None
+
+    async def list_feishu_configured(self) -> List[TenantSettings]:
+        """列出配置了飞书 webhook 的租户设置(供新赛事推送扇出)"""
+        stmt = select(TenantSettingsModel).where(TenantSettingsModel.feishu_config.isnot(None))
+        result = await self.db_session.execute(stmt)
+        return [record.to_domain() for record in result.scalars().all()]
 
     async def save(self, settings: TenantSettings) -> None:
         """新增或更新租户设置"""

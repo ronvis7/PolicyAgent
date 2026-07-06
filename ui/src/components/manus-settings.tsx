@@ -2,7 +2,7 @@
 
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {Boxes, LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
+import {Bell, Boxes, LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -22,7 +22,7 @@ import {Badge} from '@/components/ui/badge'
 import {Switch} from '@/components/ui/switch'
 import {Textarea} from '@/components/ui/textarea'
 import {configApi} from '@/lib/api'
-import type {AgentConfig, LLMConfig, EmbedConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
+import type {AgentConfig, LLMConfig, EmbedConfig, FeishuConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
 import {MembersSetting} from '@/components/members-setting'
 import {useAuth} from '@/providers/auth-provider'
 
@@ -587,9 +587,98 @@ function EmbedSetting({config, onChange}: EmbedSettingProps) {
 }
 
 
+// ==================== 飞书推送配置 ====================
+
+type FeishuSettingProps = {
+  config: FeishuConfig
+  onChange: (config: FeishuConfig) => void
+  onTest: () => void
+  onClear: () => void
+  testing: boolean
+  clearing: boolean
+}
+
+function FeishuSetting({config, onChange, onTest, onClear, testing, clearing}: FeishuSettingProps) {
+  return (
+    <form className="w-full px-1" onSubmit={(e) => e.preventDefault()}>
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend className="text-lg font-bold text-gray-700">飞书推送（新赛事即推）</FieldLegend>
+          <FieldDescription className="text-sm">
+            新赛事机会入库后即时推送到本组织的飞书群，并按企业档案的「参赛关注地区」过滤。
+            配置方法：建群 → 群设置添加「自定义机器人」→ 复制 webhook 地址填入（建议同时开启「签名校验」并填入密钥）。
+            <br/>
+            推送状态：
+            <span className={config.configured ? 'text-green-600' : 'text-amber-600'}>
+              {config.configured ? ` 已开启（${config.webhook_url_masked || '已配置'}）` : ' 未开启'}
+            </span>
+            {config.configured ? (config.secret_configured ? '，已启用签名校验' : '，未启用签名校验') : ''}
+          </FieldDescription>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="feishu_webhook_url">机器人 webhook 地址</FieldLabel>
+              <Input
+                id="feishu_webhook_url"
+                type="text"
+                autoComplete="off"
+                placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/…"
+                value={config.webhook_url ?? ''}
+                onChange={(e) => onChange({...config, webhook_url: e.target.value})}
+              />
+              <FieldDescription className="text-xs">
+                webhook 地址即推送凭据，仅保存到服务端、页面只回显脱敏尾号。
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="feishu_secret">签名校验密钥（可选）</FieldLabel>
+              <Input
+                id="feishu_secret"
+                type="password"
+                autoComplete="new-password"
+                placeholder="机器人开启签名校验后的密钥；留空则保留当前密钥"
+                value={config.secret ?? ''}
+                onChange={(e) => onChange({...config, secret: e.target.value})}
+              />
+              <FieldDescription className="text-xs">
+                与机器人「签名校验」开关保持一致：机器人开了校验必须填，未开则留空。
+              </FieldDescription>
+            </Field>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="cursor-pointer"
+                disabled={!config.configured || testing}
+                onClick={onTest}
+              >
+                {testing && <Loader2 className="animate-spin"/>}
+                发送测试消息
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="cursor-pointer text-destructive"
+                disabled={!config.configured || clearing}
+                onClick={onClear}
+              >
+                {clearing && <Loader2 className="animate-spin"/>}
+                停用推送
+              </Button>
+            </div>
+            <FieldDescription className="text-xs">
+              「发送测试消息」用已保存的配置向群里发一条验证消息；修改后请先保存再测试。
+            </FieldDescription>
+          </FieldGroup>
+        </FieldSet>
+      </FieldGroup>
+    </form>
+  )
+}
+
+
 // ==================== 设置弹窗主组件 ====================
 
-type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'feishu-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
 
 // scope 决定可见性：'org' 对组织 owner/admin 开放；'platform' 仅平台管理员
 type SettingScope = 'org' | 'platform'
@@ -602,6 +691,7 @@ const SETTING_MENUS: Array<{
 }> = [
   {key: 'llm-setting', icon: Languages, title: '模型提供商', scope: 'org'},
   {key: 'embedding-setting', icon: Boxes, title: '向量模型', scope: 'org'},
+  {key: 'feishu-setting', icon: Bell, title: '飞书推送', scope: 'org'},
   {key: 'members-setting', icon: Users, title: '组织成员', scope: 'org'},
   {key: 'common-setting', icon: Settings, title: '通用配置', scope: 'platform'},
   {key: 'a2a-setting', icon: LayoutGrid, title: 'A2A Agent 配置', scope: 'platform'},
@@ -639,6 +729,7 @@ export function ManusSettings({
   const [agentConfig, setAgentConfig] = useState<AgentConfig>({})
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({})
   const [embedConfig, setEmbedConfig] = useState<EmbedConfig>({})
+  const [feishuConfig, setFeishuConfig] = useState<FeishuConfig>({})
   const [mcpServers, setMcpServers] = useState<ListMCPServerItem[]>([])
   const [a2aServers, setA2aServers] = useState<ListA2AServerItem[]>([])
 
@@ -647,6 +738,8 @@ export function ManusSettings({
   const [loadingMCP, setLoadingMCP] = useState(false)
   const [loadingA2A, setLoadingA2A] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [feishuTesting, setFeishuTesting] = useState(false)
+  const [feishuClearing, setFeishuClearing] = useState(false)
 
   // 防止 Strict Mode 重复获取
   const fetchingRef = useRef(false)
@@ -664,6 +757,12 @@ export function ManusSettings({
         .then((embed) => setEmbedConfig(embed))
         .catch((err) => {
           console.error('[Settings] 获取 Embedding 配置失败:', err)
+        })
+      configApi
+        .getFeishuConfig()
+        .then((feishu) => setFeishuConfig(feishu))
+        .catch((err) => {
+          console.error('[Settings] 获取飞书推送配置失败:', err)
         })
       configApi
         .getLLMConfig()
@@ -738,6 +837,15 @@ export function ManusSettings({
         const updated = await configApi.updateEmbedConfig(embedConfig.api_key ?? '')
         setEmbedConfig({...updated, api_key: ''})
         toast.success('向量模型配置保存成功')
+      } else if (activeSetting === 'feishu-setting') {
+        const url = (feishuConfig.webhook_url ?? '').trim()
+        if (!url) {
+          toast.error('请填写飞书机器人 webhook 地址')
+          return
+        }
+        const updated = await configApi.updateFeishuConfig(url, feishuConfig.secret ?? '')
+        setFeishuConfig({...updated, webhook_url: '', secret: ''})
+        toast.success('飞书推送配置保存成功')
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '保存失败'
@@ -746,6 +854,32 @@ export function ManusSettings({
       setSaving(false)
     }
   }
+
+  // ---- 飞书推送操作（测试消息 / 停用） ----
+  const handleFeishuTest = useCallback(async () => {
+    setFeishuTesting(true)
+    try {
+      await configApi.testFeishuPush()
+      toast.success('测试消息已发送，请在飞书群里查收')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '测试消息发送失败')
+    } finally {
+      setFeishuTesting(false)
+    }
+  }, [])
+
+  const handleFeishuClear = useCallback(async () => {
+    setFeishuClearing(true)
+    try {
+      const updated = await configApi.clearFeishuConfig()
+      setFeishuConfig({...updated, webhook_url: '', secret: ''})
+      toast.success('已停用飞书推送')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '操作失败，请重试')
+    } finally {
+      setFeishuClearing(false)
+    }
+  }, [])
 
   // ---- MCP 操作 ----
   const handleMCPToggle = useCallback(async (serverName: string, enabled: boolean) => {
@@ -895,7 +1029,7 @@ export function ManusSettings({
 
           {/* 右侧内容 */}
           <div className="flex-1 h-[500px] scrollbar-hide overflow-y-auto">
-            {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting') ? (
+            {loadingConfig && (activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting' || activeSetting === 'feishu-setting') ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="size-6 animate-spin text-muted-foreground"/>
               </div>
@@ -909,6 +1043,16 @@ export function ManusSettings({
                 )}
                 {activeSetting === 'embedding-setting' && (
                   <EmbedSetting config={embedConfig} onChange={setEmbedConfig}/>
+                )}
+                {activeSetting === 'feishu-setting' && (
+                  <FeishuSetting
+                    config={feishuConfig}
+                    onChange={setFeishuConfig}
+                    onTest={handleFeishuTest}
+                    onClear={handleFeishuClear}
+                    testing={feishuTesting}
+                    clearing={feishuClearing}
+                  />
                 )}
               </>
             )}
@@ -939,7 +1083,7 @@ export function ManusSettings({
           <DialogClose asChild>
             <Button variant="outline" className="cursor-pointer">取消</Button>
           </DialogClose>
-          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting') && (
+          {(activeSetting === 'common-setting' || activeSetting === 'llm-setting' || activeSetting === 'embedding-setting' || activeSetting === 'feishu-setting') && (
             <Button
               className="cursor-pointer"
               disabled={saving}
