@@ -38,7 +38,15 @@ from app.infrastructure.external.embedding.openai_embedding import OpenAIEmbeddi
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.data.qualification_catalog import load_qualification_catalog
-from app.infrastructure.external.crawler.registry import build_crawlers, competition_source_keys
+from app.infrastructure.external.crawler.registry import (
+    build_crawlers,
+    competition_source_keys,
+    list_sources,
+)
+from app.infrastructure.external.notify.feishu_webhook import (
+    FeishuWebhookNotifier,
+    make_contest_push_hook,
+)
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
@@ -269,11 +277,27 @@ def get_policy_service() -> PolicyService:
     return PolicyService(uow_factory=get_uow)
 
 
+def _build_contest_push_hook():
+    """构造"新赛事即推"飞书回调：未配 FEISHU_WEBHOOK_URL 返回 None(零行为变化)。"""
+    if not settings.feishu_webhook_url:
+        return None
+    notifier = FeishuWebhookNotifier(
+        webhook_url=settings.feishu_webhook_url,
+        secret=settings.feishu_webhook_secret,
+    )
+    contest_keys = competition_source_keys()
+    contest_source_names = {
+        s.key: s.name for s in list_sources() if s.key in contest_keys
+    }
+    return make_contest_push_hook(notifier, contest_source_names)
+
+
 def get_policy_ingest_service() -> PolicyIngestService:
     """获取公开政策入库编排服务(按来源选择爬虫 + 结构化 upsert + 向量双写 + 截止日期抽取)。
 
     抽取用平台默认 LLM(系统级入库无租户)；平台未配 key 时 OpenAILLM 会抛错，
     此处吞掉传 None，让入库照常进行(截止字段留 unknown)，与 best-effort 纪律一致。
+    配置 FEISHU_WEBHOOK_URL 后，赛事子源入库的新增经飞书群机器人即推(best-effort)。
     """
     app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
     embedding = OpenAIEmbedding(app_config.embed_config, api_key=settings.embed_api_key)
@@ -287,6 +311,7 @@ def get_policy_ingest_service() -> PolicyIngestService:
         crawlers=build_crawlers(),
         embedding=embedding,
         llm=llm,
+        on_new_policies=_build_contest_push_hook(),
     )
 
 

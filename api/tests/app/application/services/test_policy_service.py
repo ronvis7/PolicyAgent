@@ -129,7 +129,7 @@ def test_ingest_upserts_and_vector_double_writes() -> None:
 
     summary = asyncio.run(service.ingest("wnd", max_pages=1))
 
-    assert summary == {"source": "wnd", "crawled": 2, "upserted": 2, "indexed": 1}
+    assert summary == {"source": "wnd", "crawled": 2, "upserted": 2, "new": 2, "indexed": 1}
     # 结构化表两条
     assert len(policies_store) == 2
     # 公开库已建并挂系统租户

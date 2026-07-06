@@ -74,6 +74,11 @@ class Settings(BaseSettings):
         """解析逗号分隔的重爬来源为去空白的非空列表。"""
         return [s.strip() for s in self.policy_recrawl_sources.split(",") if s.strip()]
 
+    # 飞书群自定义机器人 webhook(新赛事即推)：配置 URL 后，赛事子源每次入库的新增
+    # 通知即推送到群；留空=不推送(零行为变化)。secret 为机器人"签名校验"密钥，可选。
+    feishu_webhook_url: str = Field(default="", alias="FEISHU_WEBHOOK_URL")
+    feishu_webhook_secret: str = Field(default="", alias="FEISHU_WEBHOOK_SECRET")
+
     # 主动情报简报定时重算：Agent 在企业"离线"时自主为已建档租户刷新带理由的机会简报。
     # 默认每天 04:30（错开 04:00 重爬，保证基于最新政策/Feed 生成）。
     briefing_refresh_enabled: bool = Field(default=True, alias="BRIEFING_REFRESH_ENABLED")
