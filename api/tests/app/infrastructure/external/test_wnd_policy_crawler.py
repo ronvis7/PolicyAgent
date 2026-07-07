@@ -143,3 +143,52 @@ def test_clean_dash_strips_placeholder() -> None:
     assert _clean_dash("—  —") == ""
     assert _clean_dash("\xa0-\xa0") == ""
     assert _clean_dash("锡政〔2026〕1号") == "锡政〔2026〕1号"
+
+
+def _payload(total_pages: int, *rows: tuple) -> dict:
+    """构造列表接口 JSON fixture：rows=(url, title, writeTime) 三元组。"""
+    return {"data": {"totalPages": total_pages, "data": [
+        {"url": u, "title": t, "writeTime": d} for (u, t, d) in rows
+    ]}}
+
+
+def test_crawl_contest_mode_skips_stale_and_result_notices() -> None:
+    """赛事模式(时效窗口+排除词)：过旧/获奖公示类条目在详情抓取前跳过；
+    列表按时间倒序，整页过旧提前停止翻页。"""
+    import asyncio
+    from datetime import timedelta
+
+    today = date.today()
+    fresh = (today - timedelta(days=30)).isoformat()
+    stale = (today - timedelta(days=400)).isoformat()
+    pages = {
+        1: _payload(3,
+                    ("u1", "关于举办2026创新创业大赛的通知", fresh),
+                    ("u2", "关于公布大赛获奖名单的通知", fresh),
+                    ("u3", "关于举办2024大赛的通知", stale)),
+        2: _payload(3, ("u4", "关于举办2023大赛的通知", stale)),  # 整页过旧
+        3: _payload(3, ("u5", "不应被抓到的大赛", fresh)),
+    }
+    crawler = WndPolicyCrawler(
+        request_delay=0, title_keyword="大赛", source="wnd-contest",
+        max_age_days=180, title_exclude=("获奖", "公示", "公布", "名单", "结果"),
+    )
+    fetched: list = []
+    enriched: list = []
+
+    async def fake_fetch_list(client, page):
+        fetched.append(page)
+        return pages.get(page)
+
+    async def fake_enrich(client, policy):
+        enriched.append(policy.source_url)
+        policy.body_text = "正文"
+
+    crawler._fetch_list = fake_fetch_list  # type: ignore[method-assign]
+    crawler._enrich_detail = fake_enrich  # type: ignore[method-assign]
+
+    policies = asyncio.run(crawler.crawl(max_pages=3))
+
+    assert [p.source_url for p in policies] == ["u1"]
+    assert enriched == ["u1"]  # 过滤发生在详情抓取之前(省详情/LLM/向量开销)
+    assert fetched == [1, 2]  # 第2页整页过旧 → 不再翻第3页

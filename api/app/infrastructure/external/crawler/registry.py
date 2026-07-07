@@ -7,11 +7,25 @@
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Set
 
+from core.config import get_settings
+
 from app.domain.external.policy_crawler import PolicyCrawler
 from app.domain.models.feed_item import FeedItemType
 from app.infrastructure.external.crawler.gxt_policy_crawler import GxtPolicyCrawler
 from app.infrastructure.external.crawler.shyp_policy_crawler import ShypPolicyCrawler
 from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCrawler
+
+# 赛事标题排除词：获奖公示/名单类通知从来不是"可报名的机会"，列表页即排除
+# (风险收紧：真机首抓 gxt-contest 大半是历史获奖公示)。
+_CONTEST_EXCLUDE_WORDS = ("获奖", "公示", "公布", "名单", "结果")
+
+
+def _contest_filter_kwargs() -> dict:
+    """赛事子源共用的保鲜过滤参数(时效窗口 CONTEST_MAX_AGE_DAYS 可调)。"""
+    return {
+        "max_age_days": get_settings().contest_max_age_days,
+        "title_exclude": _CONTEST_EXCLUDE_WORDS,
+    }
 
 
 @dataclass(frozen=True)
@@ -76,7 +90,9 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
         key="wnd-contest",
         name="无锡高新区(新吴区)门户·大赛通知",
         region="江苏省无锡市新吴区",
-        factory=lambda: WndPolicyCrawler(title_keyword="大赛", source="wnd-contest"),
+        factory=lambda: WndPolicyCrawler(
+            title_keyword="大赛", source="wnd-contest", **_contest_filter_kwargs(),
+        ),
         home_url="https://www.wnd.gov.cn",
         item_type=FeedItemType.COMPETITION,
     ),
@@ -85,7 +101,9 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
         name="江苏省工信厅门户·大赛通知",
         region="江苏省",
         # 「文件通知」栏目(缺省栏目)按标题含"大赛"过滤(创客中国/创新创业大赛等省赛通知)。
-        factory=lambda: GxtPolicyCrawler(title_keyword="大赛", source="gxt-contest"),
+        factory=lambda: GxtPolicyCrawler(
+            title_keyword="大赛", source="gxt-contest", **_contest_filter_kwargs(),
+        ),
         home_url="https://gxt.jiangsu.gov.cn",
         item_type=FeedItemType.COMPETITION,
     ),

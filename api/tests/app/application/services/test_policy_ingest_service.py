@@ -44,13 +44,15 @@ def _policy(url: str, title: str, region: str) -> Policy:
                   publish_date=date(2026, 6, 1))
 
 
-def _service(crawlers, llm=None, uow_factory=None, on_new_policies=None):
+def _service(crawlers, llm=None, uow_factory=None, on_new_policies=None,
+             skip_expired_sources=None):
     return PolicyIngestService(
         uow_factory=uow_factory or make_uow_factory(),
         crawlers=crawlers,
         embedding=FakeEmbedding(),
         llm=llm,
         on_new_policies=on_new_policies,
+        skip_expired_sources=skip_expired_sources,
     )
 
 
@@ -175,7 +177,12 @@ def test_ingest_does_not_call_hook_when_nothing_new() -> None:
 
 
 def test_ingest_dedupes_new_policies_by_source_url() -> None:
-    """同批爬取的跨页重复条目(如 gxt dataproxy 重叠)只算一次新增、只推一次。"""
+    """同批爬取的跨页重复条目(如 gxt dataproxy 重叠)只算一次新增、只推一次。
+
+    upsert/索引也必须按去重后的批次执行：真库 save 是"查存量、无则 INSERT"，
+    同事务内第二条重复 url 看不到未提交的第一条，双双 INSERT 会撞
+    uq_policies_source_url 唯一约束导致整批回滚(gxt-contest 真机曾复现)。
+    """
     store: dict = {}
     uow_factory = make_uow_factory(policies=store)
     received: list = []
@@ -190,6 +197,8 @@ def test_ingest_dedupes_new_policies_by_source_url() -> None:
 
     summary = asyncio.run(service.ingest("wnd"))
 
+    assert summary["crawled"] == 1
+    assert summary["upserted"] == 1
     assert summary["new"] == 1
     assert received == [["wnd-1"]]
 
@@ -226,3 +235,61 @@ def test_registry_lists_sources_and_builds_crawlers() -> None:
     # 每个来源都构造出一个可调用 crawl 的爬虫
     for crawler in crawlers.values():
         assert hasattr(crawler, "crawl")
+
+
+def _expired_deadline_llm() -> FakeLLM:
+    return FakeLLM(json.dumps(
+        {"found": True, "deadline": "2020-01-01", "rolling": False, "window": "已截止"}
+    ))
+
+
+def test_ingest_skips_expired_contest_for_competition_sources() -> None:
+    """赛事来源抽出申报截止且已过期：不入库、不向量化、不推送(比赛过期即失效)。"""
+    store: dict = {}
+    received: list = []
+
+    async def hook(source, policies):
+        received.append([p.source_url for p in policies])
+
+    crawler = FakeCrawler([_policy("c-1", "关于举办大赛的通知", "江苏省")])
+    service = _service({"gxt-contest": crawler}, llm=_expired_deadline_llm(),
+                       uow_factory=make_uow_factory(policies=store),
+                       on_new_policies=hook, skip_expired_sources={"gxt-contest"})
+
+    summary = asyncio.run(service.ingest("gxt-contest"))
+
+    assert summary["upserted"] == 0
+    assert summary["new"] == 0
+    assert summary["skipped_expired"] == 1
+    assert store == {}
+    assert received == []
+
+
+def test_ingest_keeps_expired_deadline_for_policy_sources() -> None:
+    """非赛事来源不受过期跳过影响：政策长期有效，历史截止仅供展示。"""
+    store: dict = {}
+    crawler = FakeCrawler([_policy("p-1", "申报通知", "江苏省")])
+    service = _service({"wnd-apply": crawler}, llm=_expired_deadline_llm(),
+                       uow_factory=make_uow_factory(policies=store),
+                       skip_expired_sources={"gxt-contest", "wnd-contest"})
+
+    summary = asyncio.run(service.ingest("wnd-apply"))
+
+    assert summary["upserted"] == 1
+    assert summary["skipped_expired"] == 0
+    assert "p-1" in store
+
+
+def test_ingest_keeps_contest_with_unknown_deadline() -> None:
+    """赛事条目抽不出截止(unknown)时保留：不误杀，时效窗口在爬虫层兜底。"""
+    store: dict = {}
+    crawler = FakeCrawler([_policy("c-1", "关于举办大赛的通知", "江苏省")])
+    service = _service({"wnd-contest": crawler}, llm=None,
+                       uow_factory=make_uow_factory(policies=store),
+                       skip_expired_sources={"wnd-contest"})
+
+    summary = asyncio.run(service.ingest("wnd-contest"))
+
+    assert summary["upserted"] == 1
+    assert summary["skipped_expired"] == 0
+    assert "c-1" in store

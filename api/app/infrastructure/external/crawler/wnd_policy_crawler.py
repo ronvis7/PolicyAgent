@@ -9,13 +9,18 @@ robots 仅全禁 GPTBot、禁索引 /uploadfiles/ 附件 → 用普通浏览器 
 import asyncio
 import logging
 from datetime import date, datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import httpx
 from bs4 import BeautifulSoup
 
 from app.domain.external.policy_crawler import PolicyCrawler
 from app.domain.models.policy import Policy
+from app.infrastructure.external.crawler.list_filter import (
+    filter_list_items,
+    freshness_cutoff,
+    page_all_stale,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,11 +69,17 @@ class WndPolicyCrawler(PolicyCrawler):
         request_delay: float = _REQUEST_DELAY,
         title_keyword: Optional[str] = None,
         source: str = _SOURCE,
+        max_age_days: Optional[int] = None,
+        title_exclude: Sequence[str] = (),
     ) -> None:
         self._page_size = page_size
         self._request_delay = request_delay
         self._title_keyword = title_keyword
         self._source = source
+        # 赛事子源的列表级保鲜过滤(见 list_filter)：时效窗口 + 标题排除词。
+        # 缺省(None/空)零行为变化，政策来源不接线。
+        self._max_age_days = max_age_days
+        self._title_exclude = title_exclude
 
     @staticmethod
     def _parse_list_payload(payload: dict, source: str = _SOURCE) -> List[Policy]:
@@ -120,6 +131,7 @@ class WndPolicyCrawler(PolicyCrawler):
     async def crawl(self, max_pages: int = 1) -> List[Policy]:
         """抓取最多 max_pages 页政策(含详情正文)，限速且对失败条目容错跳过"""
         collected: List[Policy] = []
+        cutoff = freshness_cutoff(self._max_age_days)
         async with httpx.AsyncClient(
             headers={"User-Agent": _UA}, timeout=25, follow_redirects=True
         ) as client:
@@ -130,10 +142,13 @@ class WndPolicyCrawler(PolicyCrawler):
                 page_policies = self._parse_list_payload(payload, self._source)
                 if not page_policies:
                     break
-                for policy in page_policies:
+                for policy in filter_list_items(page_policies, cutoff, self._title_exclude):
                     await self._enrich_detail(client, policy)
                     collected.append(policy)
                     await asyncio.sleep(self._request_delay)
+                # 列表按 writeTime 倒序：整页过旧说明后页只会更旧，提前收工
+                if page_all_stale(page_policies, cutoff):
+                    break
                 if page >= self._total_pages(payload):
                     break
         logger.info(f"wnd 政策爬虫抓取完成，共 {len(collected)} 条")
