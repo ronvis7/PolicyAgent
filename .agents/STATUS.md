@@ -1,6 +1,16 @@
 # 当前状态
 
-最后更新：2026-07-06（**赛事机会重启三连全部合并 + 飞书改前端配置**：PR #64 赛事子源+Feed 赛事分栏、PR #65 飞书新赛事即推、PR #66 参赛关注地区多选**均已合并 main**（#65 恢复后 CI 未跑，空提交补跑三绿后合入）。随后按用户决定"webhook 前端配置、不走 env"开 **PR #67 `feat/feishu-tenant-webhook`**：租户级 webhook 设置页(tenant_settings.feishu_config，迁移 `e2f3a4b5c6d7` **现 head**)+新赛事按租户扇出、按参赛关注地区过滤(顺带解决交接风险3)+测试推送端点；已过 8 角度代码评审并修复(JSONB none_as_null、换 URL 不沿用旧 secret、webhook 域名白名单防 SSRF、URL 留空=保留支持轮换 secret)。**飞书联调改为在设置页完成，不再进服务器 .env**。重庆门户已探活待逆向(PR3)。详见 handoff `2026-07-06-contest-opportunities-feishu`。服务器 .222 未部署本轮改动）
+最后更新：2026-07-07（**赛事动线真机联调通 + 保鲜/去重(#68) + 重庆爬虫(#69)，两 PR 待合并**：
+飞书 webhook 设置页联调✅；"选江苏省零比赛"排查=共享库从未抓过赛事源(非匹配 bug)。真机首抓暴露
+**入库同批去重 bug**(gxt dataproxy 跨页重复条目同事务双 INSERT 撞唯一约束整批回滚)已修；按用户
+"过期比赛不抓不推"诉求做**赛事三层保鲜**(列表级 `CONTEST_MAX_AGE_DAYS` 180 天+获奖/公示等排除词+
+整页过旧早停 / 入库级截止已过不入库不推送 / Feed 级截止已过不物化)=PR #68。存量 17 条全为已结束
+比赛(经用户确认)已连向量切片删净——**两江苏源当前无在报名期比赛，赛事分栏空=正常态**。
+**PR #69(stacked 于 #68)重庆爬虫**：kjj/jjxxw 同属 TRS WCM 静态站，一个 `CqPolicyCrawler` 参数化
+通吃，登记 `cqkjj-contest`/`cqjjw-contest`(重庆市)；真机 **cqkjj 5 条在报名期比赛已入共享库**
+(渝创星火/中国创新创业大赛重庆赛区"高新杯"，报名延至 7/17)。**平台 LLM key 余额不足(402)**：
+截止抽取全 unknown，充值后重抓可补。服务器 .222 仍旧代码(#64~#69 均未部署)。
+详见 handoff `2026-07-07-contest-live-freshness-cq`）
 
 ## 仓库状态
 
@@ -12,6 +22,16 @@
 
 > 细节以 `git log` 为准，本节只记里程碑。
 
+- **赛事保鲜 + 入库去重修复（PR #68，待合并）+ 重庆赛事爬虫（PR #69，stacked，待合并）（2026-07-07）**：
+  真机联调打通赛事全动线（webhook 设置页✅/抓取✅/Feed 赛事分栏✅/飞书卡片✅）。**fix**：入库同批按
+  source_url 去重(gxt dataproxy 跨页重复条目曾致整批回滚)。**feat #68 三层保鲜**（仅赛事子源）：列表级
+  时效窗口 `CONTEST_MAX_AGE_DAYS`(默认180天)+标题排除词(获奖/公示/公布/名单/结果)+整页过旧早停(新增
+  `crawler/list_filter.py` 纯函数)；入库级截止已过期不入库不推送(`skip_expired_sources`，summary 加
+  `skipped_expired`)；Feed 级截止已过不物化。存量 17 条已结束比赛(含向量切片)经用户确认删净。
+  **feat #69 重庆爬虫**：`CqPolicyCrawler`(TRS WCM 静态分页/createPage 总页数/URL 自带日期/正文
+  trs_editor_view，base_url+column_path 参数化) + `cqkjj-contest`(科技局通知公告)/`cqjjw-contest`
+  (经信委公示公告)，重庆市选项自动出现在参赛地区。真机 cqkjj 5 条在报名期比赛入库。零迁移零依赖；
+  #68 离线 351 passed、#69 362 passed。详见 handoff `2026-07-07-contest-live-freshness-cq`。
 - **赛事机会重启·门户"大赛"子源 + Feed 赛事分栏（PR #64，2026-07-06 合并；#65/#66 待合并）**：比赛机会类型按新路线落地——创业类大赛(创客中国/i创杯)赛区通知本来就发省市门户，复用既有爬虫 `title_keyword="大赛"` 加 `wnd-contest`/`gxt-contest` 子源绕开公众号；`CrawlerSource.item_type` 分类 + Feed 按来源打 `type=competition`(④预留列启用，**零迁移**)；⑤截止抽取自动覆盖报名截止、随 04:00 定时重爬保鲜；前端工作台「赛事机会」分栏+紫罗兰徽章。**顺手修真 bug**：gxt 爬虫关键词滤空页误判"到底"提前停翻页(赛事子源恒 0 条的根因)。真机冒烟 wnd-contest 20 条(含「飞凤杯」创新创业大赛)、gxt-contest 修后 8 页 10 条。**PR #65(待合并)飞书即推**：ingest 识别首次入库(new 计数+去重)+`on_new_policies` best-effort 回调；`notify/feishu_webhook.py`(签名/富文本卡片/单条上限10/仅赛事来源触发)；env `FEISHU_WEBHOOK_URL/SECRET` 留空零行为变化。**PR #66(待合并)参赛关注地区**：档案 `contest_regions`(JSONB 零迁移)+`contest_region_matches` 层级前缀双向匹配(选省含区县、选区县含省级赛事)+Feed 赛事按关注地区过滤+`/policies/sources` 透出 `item_type`+档案页徽章多选(选项动态取自赛事来源，**重庆等新来源接入后选项自动出现**)。**甄别**：全国赛事平台(创客中国官网等)连不上、放弃；重庆 kjj/jjxxw 已探活 200 待逆向(PR3)。详见 handoff `2026-07-06-contest-opportunities-feishu`。
 - **核心能力效果评测工程（比赛第3项·可复现测试结果，已合并 main + push `d8b09fb`）**：补"AI 效果有多好"的量化证据（区别于既有 292 功能单测）。新增 `api/tests/eval/`：四项核心能力各带**标注数据集 + 量化指标 + 离线确定性门禁**——⑥资质差距 `analyze_gap`（14 用例/26 条件，状态准确率 1.0、缺字段误报 0）、⑤截止抽取 `parse_extraction_result` 纪律层（12 用例，状态/日期准确率 1.0、编造率 0）、RAG 检索（**冻结真实 text-embedding-v3 向量快照** 1024 维，recall@5/MRR 1.0）、③政策匹配 `structured_score`（受控语料 recall@3/MRR 1.0、干扰项零误命中）。`scripts/run_eval.py` 一键复现 + 生成 `docs/competition/评测报告.md`；`record_rag_vectors.py` 重录向量。**真实 LLM/Embedding 仅录快照时调用，平时跑快照，clone 后无需密钥/网络即可复现**。零运行时改动、零迁移、零依赖；`pytest tests/eval` 4 passed、全量离线 292 passed、随 CI `pytest tests` 自动跑门禁。另把 `docker-compose.server.yml`（.222 部署 override，无密钥）纳入跟踪。**服务器 .222 核对**：后端(208)+前端(112)源码与 main 逐文件零差异、运行时已最新，按用户决定保持现状不重新部署（本次为测试/文档/部署配置、零运行时影响）。详见 handoff `2026-06-20-eval-harness`。
 
@@ -74,7 +94,7 @@
 - **⑥ 资质后续**：目录结构化条件已逐条 triage（PR #26）：`high-tech-enterprise` + `tech-sme`（职工≤500/营收≤2亿 LTE）可结构化。**banded（分档）条件模型已就绪（PR #53）**——支持门槛随营收/行业等落档而变，高企「研发费用占比」已接入为首个 banded 条件（按营收三档）。要再扩：为其余资质逐条配 `banded_conditions`/`structured_conditions`，**数值须业务方按当年官方办法核对**；行业分档需新增"行业档"落档指标（当前 band_metric 仅营收/规模类数值字段）。
 - 报告生成流水线；GitHub Actions 与分支保护。
 - ①b AI 联网补全暂停中，待搜索/企业数据 API 接入后复活。
-- **公开政策库多区域**：通用框架已就绪（来源注册表 + 按 source 抓取 + 地区筛选 + 来源选择器，见 handoff `2026-06-15-multi-region-policies`）。现有来源：无锡新吴区（`wnd`/`wnd-apply`）+ **上海杨浦区（`shyp`，PR #37）** + **江苏省工信厅（大汉 CMS dataproxy 逆向，真机 1 页冒烟通过、真机走查待做）：`gxt`=文件通知/含项目申报(PR #54)、`gxt-policy`=政策文件/规范性文件(PR #55)**。再扩地区仍需为其门户单独逆向做爬虫（先确认可逆向抓取，①b 教训：科技厅 `kjt` 已甄别被 WAF 挡死、放弃）。
+- **公开政策库多区域**：通用框架已就绪（来源注册表 + 按 source 抓取 + 地区筛选 + 来源选择器，见 handoff `2026-06-15-multi-region-policies`）。现有来源：无锡新吴区（`wnd`/`wnd-apply`/`wnd-contest`）+ **上海杨浦区（`shyp`，PR #37）** + **江苏省工信厅（大汉 CMS dataproxy 逆向）：`gxt`/`gxt-policy`/`gxt-contest`** + **重庆市（TRS WCM 逆向，PR #69 待合并）：`cqkjj-contest`(科技局)/`cqjjw-contest`(经信委)，同一 `CqPolicyCrawler` 按栏目参数化，可低成本再扩重庆其他委办局栏目或派生政策/申报子源**。再扩地区仍需为其门户单独逆向做爬虫（先确认可逆向抓取，①b 教训：科技厅 `kjt` 已甄别被 WAF 挡死、放弃）。
 
 ## 当前最高优先级
 
@@ -103,14 +123,16 @@
 > **定时重爬**：应用内 APScheduler 调度器每天 04:00 CST 重爬 `wnd-apply` 保鲜（env 全可调），真机验证 job 注册/next_run 正确。**PR #34 已合并 main**。详见 handoff `2026-06-17-scheduled-apply-recrawl`。
 > **前端视觉统一 + 品牌收尾（PR #35，已合并）**：采纳同事 `ui` 分支（政策库/知识库页刷新，知识库 Neo4j 图谱/文件夹/KB 类型卡等预留功能保留作路线图展示），把工作台 Feed/资质/企业档案/登录注册拉齐到同一套视觉语言；修复企业档案分区标题(legend 跳出 fieldset padding)；品牌收尾（落地页问候改真实 display_name、logo 占位与助手字标统一 PolicyManus、推荐问题换成贴合产品文案）。纯前端、无接口/迁移。详见 handoff `2026-06-17-ui-refresh-and-brand`。
 
-## 分支/PR 状态（2026-07-06 收尾）
+## 分支/PR 状态（2026-07-07 收尾）
 
-- **#64 赛事子源+Feed 赛事分栏 / #65 飞书新赛事即推 / #66 参赛关注地区多选：均已合并 main**。
-- **#67 `feat/feishu-tenant-webhook`（飞书 webhook 前端配置·租户级+按关注地区扇出）：已合并 main**
-  （首版 CI 三绿后按 8 角度代码评审修复一轮：none_as_null/换URL丢旧secret/域名白名单/URL留空保留，复绿合入）。
-- 待办：**部署 .222**(`up -d --build`，迁移 `e2f3a4b5c6d7` 随 api 启动自动升级)→**飞书联调走设置页**
-  （owner/admin 打开设置→「飞书推送」→贴 webhook+secret→「发送测试消息」→手动抓 wnd-contest 验证群收卡片，
-  **不再需要动服务器 .env**）；真机走查赛事动线；PR3 重庆爬虫（kjj/jjxxw 已探活）。
+- **#64/#65/#66/#67：均已合并 main**（赛事子源+Feed 分栏 / 飞书即推 / 参赛关注地区 / 租户级 webhook 设置页）。
+- **#68 `feat/contest-freshness-filter`（赛事三层保鲜 + 入库同批去重修复）：待合并**（已 push 待 CI）。
+- **#69 `feat/cq-contest-crawler`（重庆两子源 cqkjj/cqjjw-contest）：待合并，stacked 于 #68**
+  （base=#68 分支，#68 合并后 GitHub 自动 retarget main，再走 CI 合并）。
+- **飞书联调已通**（设置页配置+测试消息✅、抓取推送卡片✅、赛事分栏✅、关注地区过滤✅）。
+- 明日(2026-07-08)清单：①合并 #68→#69；②**部署 .222**(`up -d --build`，一次带上 #64~#69，无新迁移)；
+  ③档案勾"重庆市"→重新匹配(已入库的 5 条重庆比赛**不会补发**飞书卡片，验证推送用测试消息或等新增)；
+  ④**平台 LLM key 充值**(现 402)→重抓 cqkjj-contest 补截止抽取。详见 handoff `2026-07-07-contest-live-freshness-cq`。
 
 ## 分支/PR 状态（2026-06-19 收尾，历史）
 - `main`：①~⑥ 主线 + 私有政策库(ADR003 A+B, PR #42/#43) + 文件下载 401 修复(#44) + 私有库收尾(#45)
