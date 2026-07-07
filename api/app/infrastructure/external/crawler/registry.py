@@ -11,6 +11,7 @@ from core.config import get_settings
 
 from app.domain.external.policy_crawler import PolicyCrawler
 from app.domain.models.feed_item import FeedItemType
+from app.infrastructure.external.crawler.cq_policy_crawler import CqPolicyCrawler
 from app.infrastructure.external.crawler.gxt_policy_crawler import GxtPolicyCrawler
 from app.infrastructure.external.crawler.shyp_policy_crawler import ShypPolicyCrawler
 from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCrawler
@@ -105,6 +106,36 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
             title_keyword="大赛", source="gxt-contest", **_contest_filter_kwargs(),
         ),
         home_url="https://gxt.jiangsu.gov.cn",
+        item_type=FeedItemType.COMPETITION,
+    ),
+    # ---- 重庆市级赛事子源(PR3)：科技局办创新创业大赛/高新杯，经信委办创客中国重庆赛区。
+    # 两站同属 TRS WCM 静态站(2026-07-07 逆向)，CqPolicyCrawler 按栏目参数化复用。
+    CrawlerSource(
+        key="cqkjj-contest",
+        name="重庆市科技局门户·大赛通知",
+        region="重庆市",
+        factory=lambda: CqPolicyCrawler(
+            base_url="https://kjj.cq.gov.cn",
+            column_path="/zwxx_176/tzgg/",  # 通知公告栏目
+            source="cqkjj-contest",
+            title_keyword="大赛",
+            **_contest_filter_kwargs(),
+        ),
+        home_url="https://kjj.cq.gov.cn",
+        item_type=FeedItemType.COMPETITION,
+    ),
+    CrawlerSource(
+        key="cqjjw-contest",
+        name="重庆市经信委门户·大赛通知",
+        region="重庆市",
+        factory=lambda: CqPolicyCrawler(
+            base_url="https://jjxxw.cq.gov.cn",
+            column_path="/zwgk_213/gsgg/",  # 公示公告栏目(创客中国重庆赛区通知阵地)
+            source="cqjjw-contest",
+            title_keyword="大赛",
+            **_contest_filter_kwargs(),
+        ),
+        home_url="https://jjxxw.cq.gov.cn",
         item_type=FeedItemType.COMPETITION,
     ),
 ]
