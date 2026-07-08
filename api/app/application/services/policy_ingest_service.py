@@ -8,7 +8,8 @@ RAG 分块/Embedding 流水线写入全局公开知识库(挂系统租户 'publi
 
 import logging
 import uuid
-from typing import Awaitable, Callable, Dict, List, Optional
+from datetime import date
+from typing import Awaitable, Callable, Dict, List, Optional, Set
 
 from app.application.errors.exceptions import BadRequestError
 from app.domain.external.embedding import EmbeddingProvider
@@ -33,6 +34,24 @@ PUBLIC_KB_NAME = "公开政策库"
 _FILE_ID_NAMESPACE = uuid.UUID("6f1c0e2a-0000-4000-8000-000000000001")
 
 
+def _dedupe_by_source_url(policies: List[Policy]) -> List[Policy]:
+    """同批政策按 source_url 去重(保留首见)，返回新列表。"""
+    seen: set = set()
+    unique: List[Policy] = []
+    for policy in policies:
+        if policy.source_url in seen:
+            continue
+        seen.add(policy.source_url)
+        unique.append(policy)
+    return unique
+
+
+def _deadline_passed(policy: Policy, today: Optional[date] = None) -> bool:
+    """申报截止已抽取且已过期(未抽出截止的不判定，交爬虫层时效窗口兜底)。"""
+    deadline = policy.apply_deadline
+    return deadline is not None and deadline < (today or date.today())
+
+
 class PolicyIngestService:
     """公开政策入库编排服务(按来源选择爬虫 + 结构化 upsert + 向量双写)"""
 
@@ -43,6 +62,7 @@ class PolicyIngestService:
         embedding: EmbeddingProvider,
         llm: Optional[LLM] = None,
         on_new_policies: Optional[Callable[[str, List[Policy]], Awaitable[None]]] = None,
+        skip_expired_sources: Optional[Set[str]] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._crawlers = crawlers
@@ -52,6 +72,9 @@ class PolicyIngestService:
         # 新增政策回调(source, 本次首次入库的政策)：供"新赛事即推"等通知接线，
         # best-effort 调用(回调异常不影响入库)；缺省(None)零行为变化。
         self._on_new_policies = on_new_policies
+        # 过期即失效的来源集合(赛事子源，registry.competition_source_keys())：
+        # 抽出申报截止且已过期的条目不入库不推送。缺省空集=不跳过，政策来源不受影响。
+        self._skip_expired_sources = skip_expired_sources or set()
 
     async def ingest(self, source: str, max_pages: int = 1) -> Dict[str, object]:
         """按来源(source)抓取并入库，返回 {source, crawled, upserted, new, indexed} 计数。
@@ -63,10 +86,20 @@ class PolicyIngestService:
         crawler = self._crawlers.get(source)
         if crawler is None:
             raise BadRequestError(f"未知的政策来源：{source}")
-        policies = await crawler.crawl(max_pages)
+        # 同批按 source_url 去重后再进入后续所有环节：gxt dataproxy 分页窗口重叠会跨页
+        # 返回重复条目，重复 save 在同一事务内会双双 INSERT 撞唯一约束导致整批回滚。
+        policies = _dedupe_by_source_url(await crawler.crawl(max_pages))
+        crawled = len(policies)
 
         for policy in policies:
             await self._enrich_deadline(policy)
+
+        # 赛事来源：报名截止已过=机会失效，跳过入库/向量化/推送(省存储、群不收过期比赛)
+        skipped_expired = 0
+        if source in self._skip_expired_sources:
+            fresh = [p for p in policies if not _deadline_passed(p)]
+            skipped_expired = len(policies) - len(fresh)
+            policies = fresh
 
         new_policies = await self._detect_new(policies)
 
@@ -90,8 +123,9 @@ class PolicyIngestService:
                 )
 
         summary = {
-            "source": source, "crawled": len(policies), "upserted": upserted,
+            "source": source, "crawled": crawled, "upserted": upserted,
             "new": len(new_policies), "indexed": indexed,
+            "skipped_expired": skipped_expired,
         }
         logger.info(f"公开政策入库完成: {summary}")
 

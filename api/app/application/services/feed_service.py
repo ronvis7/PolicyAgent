@@ -94,6 +94,7 @@ class FeedService:
             FeedItem.from_policy_match(tenant_id, m, item_type=self._item_type_of(m))
             for m in matches
         ]
+        items = self._drop_expired_contests(items)
         items = await self._filter_contests_by_region(tenant_id, items)
 
         if self._qualification_service is not None:
@@ -101,6 +102,20 @@ class FeedService:
             items.extend(FeedItem.from_qualification_match(tenant_id, qm) for qm in qual_matches)
 
         return items
+
+    @staticmethod
+    def _drop_expired_contests(items: List[FeedItem]) -> List[FeedItem]:
+        """报名截止已过的赛事=失效机会，不再物化(存量比赛过期后自然从工作台消失)。
+
+        无截止(unknown/rolling)的保留；政策/资质条目不受影响(政策长期有效，历史截止仅供展示)。
+        """
+        today = date.today()
+        return [
+            i for i in items
+            if i.type != FeedItemType.COMPETITION
+            or i.apply_deadline is None
+            or i.apply_deadline >= today
+        ]
 
     async def _filter_contests_by_region(
         self, tenant_id: str, items: List[FeedItem],

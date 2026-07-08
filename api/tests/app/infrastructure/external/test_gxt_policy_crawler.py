@@ -242,3 +242,31 @@ def test_parse_publish_date_tolerates_bad_input() -> None:
 def test_clean_dash_strips_placeholder() -> None:
     assert _clean_dash("—  —") == ""
     assert _clean_dash("苏工信〔2026〕1号") == "苏工信〔2026〕1号"
+
+
+def test_crawl_contest_mode_stops_when_page_all_stale() -> None:
+    """赛事模式带时效窗口：整页原始记录过旧即提前收工(列表按日期倒序，后页只会更旧)。"""
+    from datetime import timedelta
+
+    today = date.today()
+    stale = (today - timedelta(days=400)).isoformat()
+    pages = {
+        1: _list_xml(30, ("/art/2023/1/1/art_6278_1.html", "关于举办大赛的通知", stale)),
+        2: _list_xml(30, ("/art/2023/1/1/art_6278_2.html", "不应被抓到的大赛", stale)),
+    }
+    crawler = GxtPolicyCrawler(
+        page_size=15, title_keyword="大赛", source="gxt-contest", request_delay=0,
+        max_age_days=180, title_exclude=("获奖",),
+    )
+    fetched: list = []
+
+    async def fake_fetch_list(client, page):
+        fetched.append(page)
+        return pages.get(page)
+
+    crawler._fetch_list = fake_fetch_list  # type: ignore[method-assign]
+
+    policies = asyncio.run(crawler.crawl(max_pages=2))
+
+    assert policies == []
+    assert fetched == [1]  # 第1页整页过旧 → 不再翻页

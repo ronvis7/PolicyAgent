@@ -398,3 +398,25 @@ def test_unread_count_is_tenant_scoped() -> None:
 
     assert asyncio.run(service.unread_count("t1")) == 1
     assert asyncio.run(service.unread_count("t2")) == 2
+
+
+def test_recompute_drops_expired_competition() -> None:
+    """截止已过的赛事=失效机会，不物化进工作台；无截止/未过期的保留，政策不受影响。"""
+    feed: dict = {}
+    today = date.today()
+
+    expired = _match("c-old", "已截止大赛", source="gxt-contest", region="江苏省")
+    expired.policy.apply_deadline = today - timedelta(days=1)
+    open_ = _match("c-open", "报名中大赛", source="gxt-contest", region="江苏省")
+    open_.policy.apply_deadline = today + timedelta(days=30)
+    undated = _match("c-unknown", "未知截止大赛", source="gxt-contest", region="江苏省")
+    stale_policy = _match("p-old", "历史政策", source="wnd")
+    stale_policy.policy.apply_deadline = today - timedelta(days=1)  # 政策过期仍展示
+
+    service = _contest_service(
+        {"t1": [expired, open_, undated, stale_policy]}, feed, profiles={},
+    )
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert {i.policy_id for i in feed.values()} == {"c-open", "c-unknown", "p-old"}

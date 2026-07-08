@@ -74,6 +74,10 @@ class Settings(BaseSettings):
         """解析逗号分隔的重爬来源为去空白的非空列表。"""
         return [s.strip() for s in self.policy_recrawl_sources.split(",") if s.strip()]
 
+    # 赛事来源时效窗口(天)：比赛通知超过窗口基本已报名截止，列表页阶段即跳过，
+    # 省详情抓取/LLM 截止抽取/向量化开销；0/负值=不限。仅赛事子源生效，政策来源不受影响。
+    contest_max_age_days: int = Field(default=180, alias="CONTEST_MAX_AGE_DAYS")
+
     # 飞书群自定义机器人 webhook(新赛事即推)：配置 URL 后，赛事子源每次入库的新增
     # 通知即推送到群；留空=不推送(零行为变化)。secret 为机器人"签名校验"密钥，可选。
     feishu_webhook_url: str = Field(default="", alias="FEISHU_WEBHOOK_URL")

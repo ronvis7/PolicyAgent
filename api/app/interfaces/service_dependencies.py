@@ -328,6 +328,7 @@ def get_policy_ingest_service() -> PolicyIngestService:
         embedding=embedding,
         llm=llm,
         on_new_policies=_build_contest_push_hook(),
+        skip_expired_sources=competition_source_keys(),
     )
 
 
