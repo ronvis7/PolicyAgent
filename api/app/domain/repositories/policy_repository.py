@@ -41,3 +41,7 @@ class PolicyRepository(Protocol):
     async def stats_by_source(self) -> Dict[str, Tuple[int, Optional[datetime]]]:
         """按来源聚合统计：{source: (收录条数, 最近抓取时间)}，单条 GROUP BY，供「数据来源」页"""
         ...
+
+    async def distinct_contest_regions(self, sources: List[str]) -> List[str]:
+        """给定赛事来源集合，返回其已入库政策的去重地区(供前端参赛地区选项数据驱动)，按地区名排序"""
+        ...

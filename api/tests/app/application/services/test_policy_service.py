@@ -108,6 +108,24 @@ def test_list_sources_with_stats_merges_registry_and_counts() -> None:
     assert by_key["wnd"].item_type == "policy"
 
 
+def test_list_contest_regions_dedupes_from_competition_sources_only() -> None:
+    """参赛地区选项数据驱动：只取赛事来源已入库政策的 region 去重排序，政策来源不计入。"""
+    store = {
+        "c1": Policy(source="cnmaker-contest", source_url="c1", title="深圳大赛",
+                     region="广东省深圳市"),
+        "c2": Policy(source="cnmaker-contest", source_url="c2", title="云南大赛", region="云南省"),
+        "c3": Policy(source="cnmaker-contest", source_url="c3", title="又一深圳大赛",
+                     region="广东省深圳市"),
+        "w1": _policy("w1", "无锡政策", region="江苏省无锡市新吴区"),  # 政策来源(wnd)不计入
+    }
+    service = PolicyService(uow_factory=make_uow_factory(policies=store))
+
+    regions = asyncio.run(service.list_contest_regions())
+
+    assert regions == ["云南省", "广东省深圳市"]  # 去重 + 按地区名排序
+    assert "江苏省无锡市新吴区" not in regions
+
+
 # ---------- PolicyIngestService 写 ----------
 
 class FakeCrawler:

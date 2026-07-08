@@ -103,6 +103,11 @@ export const policyApi = {
     return get<PolicySourceListResponse>("/policies/sources");
   },
 
+  /** 列出实际有赛事入库的参赛地区（数据驱动，供档案「参赛关注地区」多选） */
+  listContestRegions: (): Promise<string[]> => {
+    return get<string[]>("/policies/contest-regions");
+  },
+
   /** 后台触发指定来源抓取入库（仅 owner/admin，立即返回，约 1-2 分钟后数据可见） */
   ingest: (source = "wnd", maxPages = 3): Promise<{ source: string; max_pages: number }> => {
     return post<{ source: string; max_pages: number }>(

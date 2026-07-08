@@ -177,6 +177,12 @@ class FakePolicyRepository:
             stats[p.source] = (cnt + 1, last)
         return stats
 
+    async def distinct_contest_regions(self, sources):
+        """赛事来源已入库政策的去重地区，按地区名排序"""
+        src = set(sources)
+        regions = {p.region for p in self._store.values() if p.source in src and p.region}
+        return sorted(regions)
+
 
 class FakeFeedRepository:
     """内存级工作台 Feed 仓库，按 (tenant_id, policy_id) upsert。"""

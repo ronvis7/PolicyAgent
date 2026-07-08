@@ -11,6 +11,7 @@ from core.config import get_settings
 
 from app.domain.external.policy_crawler import PolicyCrawler
 from app.domain.models.feed_item import FeedItemType
+from app.infrastructure.external.crawler.cnmaker_contest_crawler import CnmakerContestCrawler
 from app.infrastructure.external.crawler.cq_policy_crawler import CqPolicyCrawler
 from app.infrastructure.external.crawler.gxt_policy_crawler import GxtPolicyCrawler
 from app.infrastructure.external.crawler.shyp_policy_crawler import ShypPolicyCrawler
@@ -136,6 +137,18 @@ CRAWLER_SOURCES: List[CrawlerSource] = [
             **_contest_filter_kwargs(),
         ),
         home_url="https://jjxxw.cq.gov.cn",
+        item_type=FeedItemType.COMPETITION,
+    ),
+    # ---- 全国赛事平台(创客中国官网)：一个来源覆盖各省市赛区 + 全国性行业赛(2026-07-08 逆向)。
+    # 首页静态主推当季赛事，产出多地区(policy.region 各自标准化)，前端参赛地区选项由实际
+    # 入库赛事地区去重驱动(见 PolicyService.list_contest_regions)，故 source.region 仅作
+    # 「数据来源」页展示的代表值。
+    CrawlerSource(
+        key="cnmaker-contest",
+        name="创客中国官网·全国中小企业创新创业大赛",
+        region="全国",
+        factory=lambda: CnmakerContestCrawler(**_contest_filter_kwargs()),
+        home_url="https://www.cnmaker.org.cn",
         item_type=FeedItemType.COMPETITION,
     ),
 ]
