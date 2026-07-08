@@ -271,15 +271,11 @@ function ContestRegionPicker({
   const [loadingOptions, setLoadingOptions] = useState(true)
 
   useEffect(() => {
+    // 选项 = 实际有赛事入库的地区去重(数据驱动)；创客中国等来源"一源多地区"，
+    // 且只显示真有赛事的地区更贴合体验。来源下线后已选值仍保留可退选。
     policyApi
-      .listSources()
-      .then((res) => {
-        // 选项 = 赛事来源(item_type=competition)的地区去重；来源下线后已选值仍保留可退选
-        const regions = [
-          ...new Set(res.items.filter((s) => s.item_type === 'competition').map((s) => s.region)),
-        ]
-        setOptions(regions)
-      })
+      .listContestRegions()
+      .then((regions) => setOptions(regions))
       .catch(() => setOptions([]))
       .finally(() => setLoadingOptions(false))
   }, [])

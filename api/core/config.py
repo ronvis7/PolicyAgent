@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # 江苏省工信厅文件通知 gxt(含省级项目申报)、赛事子源 wnd/gxt/重庆两委办局-contest(比赛通知保鲜)。
     policy_recrawl_enabled: bool = Field(default=True, alias="POLICY_RECRAWL_ENABLED")
     policy_recrawl_sources: str = Field(
-        default="wnd-apply,shyp,gxt,wnd-contest,gxt-contest,cqkjj-contest,cqjjw-contest",
+        default="wnd-apply,shyp,gxt,wnd-contest,gxt-contest,cqkjj-contest,cqjjw-contest,cnmaker-contest",
         alias="POLICY_RECRAWL_SOURCES",
     )  # 逗号分隔
     policy_recrawl_hour: int = Field(default=4, alias="POLICY_RECRAWL_HOUR")

@@ -29,7 +29,9 @@ def test_competition_source_keys_returns_only_contest_sources() -> None:
     """机会类型分类：仅赛事子源被归为 competition，政策来源不受影响。"""
     keys = competition_source_keys()
 
-    assert keys == {"wnd-contest", "gxt-contest", "cqkjj-contest", "cqjjw-contest"}
+    assert keys == {
+        "wnd-contest", "gxt-contest", "cqkjj-contest", "cqjjw-contest", "cnmaker-contest",
+    }
 
 
 def test_policy_sources_default_item_type_is_policy() -> None:

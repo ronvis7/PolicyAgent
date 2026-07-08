@@ -12,7 +12,7 @@ from typing import Callable, List, Optional, Tuple
 from app.application.errors.exceptions import NotFoundError
 from app.domain.models.policy import Policy
 from app.domain.repositories.uow import IUnitOfWork
-from app.infrastructure.external.crawler.registry import list_sources
+from app.infrastructure.external.crawler.registry import competition_source_keys, list_sources
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,18 @@ class PolicyService:
                 item_type=s.item_type.value,
             ))
         return result
+
+    async def list_contest_regions(self) -> List[str]:
+        """列出实际有赛事入库的地区(去重、排序)，供前端「参赛关注地区」选项数据驱动。
+
+        选项取自赛事来源(item_type=competition)已入库政策的 region，而非来源注册表的
+        静态 region——因创客中国等来源"一源多地区"，且只展示真有数据的地区更贴合体验。
+        """
+        sources = list(competition_source_keys())
+        if not sources:
+            return []
+        async with self._uow_factory() as uow:
+            return await uow.policy.distinct_contest_regions(sources)
 
     async def get_policy(self, policy_id: str) -> Policy:
         """获取政策详情，不存在则抛 NotFound"""

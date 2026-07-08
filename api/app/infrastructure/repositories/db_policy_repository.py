@@ -96,3 +96,16 @@ class DBPolicyRepository(PolicyRepository):
         ).group_by(PolicyModel.source)
         rows = (await self.db_session.execute(stmt)).all()
         return {row.source: (row.cnt, row.last_crawled_at) for row in rows}
+
+    async def distinct_contest_regions(self, sources: List[str]) -> List[str]:
+        """赛事来源已入库政策的去重地区(供前端参赛地区选项数据驱动)，按地区名排序"""
+        if not sources:
+            return []
+        stmt = (
+            select(PolicyModel.region)
+            .where(PolicyModel.source.in_(sources), PolicyModel.region != "")
+            .distinct()
+            .order_by(PolicyModel.region)
+        )
+        rows = (await self.db_session.execute(stmt)).scalars().all()
+        return [r for r in rows if r]
