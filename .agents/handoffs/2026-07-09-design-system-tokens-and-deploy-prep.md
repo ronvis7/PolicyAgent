@@ -79,7 +79,7 @@ Issue：—
 
 ## 续接：核心三页结构重构（2026-07-09 晚）
 
-分支：`feat/core-ui-restructure`（基于 `main` `00c00a9`，未提交/未开 PR）
+分支：`feat/core-ui-restructure`（提交 `5422fa0`，未 push/未开 PR）
 
 用户确认 #79 肉眼变化不明显后，本轮补做真正的页面结构重构，保持 API 与业务逻辑不变：
 
@@ -100,6 +100,26 @@ Issue：—
 
 未做：
 
-- 尚未提交、推送或开 PR。
-- 尚未部署 `.222`。
+- 尚未 push 或开 PR。
 - “时间筛选默认 24/25 年”仍缺少具体页面/控件定位。
+
+## `.222` 全量部署结果（2026-07-09 20:44）
+
+- **部署提交**：`5422fa0`，服务器 `/root/policy_manus/.deployed_commit` 已确认。
+- **包含范围**：#70/#72/#74~#79 + 核心三页结构重构，一次全量重建。
+- **部署前状态**：数据库已标记 `f3a4b5c6d7e8`，旧服务器代码却缺该 revision 文件，导致旧容器
+  `alembic current` 报 revision not found；新代码解包并重建后恢复一致。
+- **回滚备份**：`/root/deploy-backups/20260709-204413`，含旧代码压缩包、`.env`、`api/config.yaml`
+  与 `docker-compose.server.yml`。
+- **运行时配置**：服务器 `api/config.yaml` 已使用本地验证过的配置（高德 MCP 真 key +
+  `enabled: true`）；`.env` 已补
+  `WEB_BASE_URL=http://118.196.142.222:8088`。
+- **验证结果**：
+  - `policy-api` healthy，`policy-ui` healthy，Sandbox/Redis/Nginx 正常运行。
+  - `docker exec policy-api alembic current` → `f3a4b5c6d7e8 (head)`。
+  - 服务器内部首页/API status：200/200；公网首页/API status：200/200。
+  - API 重启后最近日志无 error/failed/traceback。
+  - 服务器源码确认三页新标识：`POLICY RADAR` / `POLICY ARCHIVE` / `ENTERPRISE PROFILE`。
+  - 容器运行环境确认高德 MCP 为真实 key 且启用；`WEB_BASE_URL` 已生效。
+- **待人工验收**：需要现有账号登录后点一次聊天，确认高德 MCP 初始化不再悬挂；真实赛事入库后观察
+  飞书交互卡片的“打开工作台”按钮。未主动创建生产测试账号、未触发抓取或飞书外发。
