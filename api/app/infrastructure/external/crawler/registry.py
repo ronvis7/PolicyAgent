@@ -159,6 +159,13 @@ def competition_source_keys() -> Set[str]:
     return {s.key for s in CRAWLER_SOURCES if s.item_type == FeedItemType.COMPETITION}
 
 
+# 创客中国常设赛区：官网确有这些城市赛区，但首页当季未主推(动态全量接口被 SiteBuilder
+# 令牌网关挡住、无法稳定抓取)，故 DB 暂无数据。作为"关注偏好"并入「参赛关注地区」选项，
+# 便于用户预选——数据一旦入库(map_region 已输出同一 region 串)即在工作台出现并按此推送。
+# region 串须与 CnmakerContestCrawler.map_region 的输出保持一致。
+CURATED_CONTEST_REGIONS = ("上海市", "湖北省武汉市")
+
+
 def list_sources() -> List[CrawlerSource]:
     """返回全部已登记来源(供前端来源选择器与 /policies/sources)。"""
     return list(CRAWLER_SOURCES)
