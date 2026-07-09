@@ -10,6 +10,7 @@ from .knowledge_base import KnowledgeBaseModel
 from .knowledge_file import KnowledgeFileModel
 from .document_chunk import DocumentChunkModel
 from .policy import PolicyModel
+from .source_crawl_state import SourceCrawlStateModel
 from .feed_item import FeedItemModel
 from .agent_memory import AgentMemoryModel
 from .intel_briefing import IntelBriefingModel
@@ -27,6 +28,7 @@ __all__ = [
     "KnowledgeFileModel",
     "DocumentChunkModel",
     "PolicyModel",
+    "SourceCrawlStateModel",
     "FeedItemModel",
     "AgentMemoryModel",
     "IntelBriefingModel",

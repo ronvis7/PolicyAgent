@@ -65,12 +65,16 @@ class PolicyService:
         """列出已登记来源并附收录统计(条数/最近抓取时间)，供「数据来源」页溯源。
 
         来源元信息取自注册表，统计经单条 GROUP BY 聚合；某来源尚无政策则回落 0 / None。
+        "最近更新"优先取抓取运行记录(抓到 0 条也刷新)，无记录时回落 MAX(policies.crawled_at)，
+        使"跑过但 0 条"不再一直显示"尚未抓取"。
         """
         async with self._uow_factory() as uow:
             stats = await uow.policy.stats_by_source()
+            crawl_run_times = await uow.policy.crawl_run_times()
         result: List[SourceWithStats] = []
         for s in list_sources():
-            count, last_crawled_at = stats.get(s.key, (0, None))
+            count, max_crawled_at = stats.get(s.key, (0, None))
+            last_crawled_at = crawl_run_times.get(s.key) or max_crawled_at
             result.append(SourceWithStats(
                 key=s.key, name=s.name, region=s.region, home_url=s.home_url,
                 policy_count=count, last_crawled_at=last_crawled_at,

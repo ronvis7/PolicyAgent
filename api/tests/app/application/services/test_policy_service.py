@@ -181,3 +181,34 @@ def test_ingest_is_idempotent_on_repeat() -> None:
 
     assert len(policies_store) == 1  # 结构化去重
     assert chunks_after_second == chunks_after_first  # 切片幂等替换，未翻倍
+
+
+def test_crawl_run_time_takes_precedence_over_policy_crawled_at() -> None:
+    """「最近更新」优先取抓取运行记录(比政策 crawled_at 更能反映真实跑过的时刻)。"""
+    store = {"w1": Policy(source="wnd", source_url="w1", title="t",
+                          crawled_at=datetime(2026, 6, 10, 8, 0))}
+    runs = {"wnd": (datetime(2026, 7, 9, 3, 0), 0, 1)}
+    service = PolicyService(
+        uow_factory=make_uow_factory(policies=store, source_crawl_runs=runs)
+    )
+
+    by_key = {s.key: s for s in asyncio.run(service.list_sources_with_stats())}
+
+    assert by_key["wnd"].last_crawled_at == datetime(2026, 7, 9, 3, 0)  # 运行记录优先
+    assert by_key["wnd"].policy_count == 1  # 条数仍走政策统计
+
+
+def test_ingest_records_run_so_zero_result_updates_last_crawled() -> None:
+    """抓取到 0 条(全被过滤/门户无匹配)也记录运行时刻，"最近更新"不再显示"尚未抓取"。"""
+    policies_store, runs = {}, {}
+    factory = make_uow_factory(policies=policies_store, source_crawl_runs=runs)
+    service = PolicyIngestService(factory, {"wnd-contest": FakeCrawler([])}, FakeEmbedding())
+
+    summary = asyncio.run(service.ingest("wnd-contest", max_pages=1))
+    assert summary["crawled"] == 0 and summary["new"] == 0
+
+    read = PolicyService(uow_factory=factory)
+    by_key = {s.key: s for s in asyncio.run(read.list_sources_with_stats())}
+
+    assert by_key["wnd-contest"].policy_count == 0  # 确无入库
+    assert by_key["wnd-contest"].last_crawled_at is not None  # 但已记录抓取运行

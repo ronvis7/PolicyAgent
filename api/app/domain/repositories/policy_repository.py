@@ -42,6 +42,16 @@ class PolicyRepository(Protocol):
         """按来源聚合统计：{source: (收录条数, 最近抓取时间)}，单条 GROUP BY，供「数据来源」页"""
         ...
 
+    async def record_crawl(
+        self, source: str, ran_at: datetime, new_count: int, crawled_count: int,
+    ) -> None:
+        """记录一次抓取运行(按 source upsert 最近运行时刻+结果计数)，供 0 条也刷新"最近更新" """
+        ...
+
+    async def crawl_run_times(self) -> Dict[str, datetime]:
+        """{source: 最近一次抓取运行时刻}——与是否入库无关，供「数据来源」页优先展示"""
+        ...
+
     async def distinct_contest_regions(self, sources: List[str]) -> List[str]:
         """给定赛事来源集合，返回其已入库政策的去重地区(供前端参赛地区选项数据驱动)，按地区名排序"""
         ...
