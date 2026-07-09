@@ -8,7 +8,7 @@ RAG 分块/Embedding 流水线写入全局公开知识库(挂系统租户 'publi
 
 import logging
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Awaitable, Callable, Dict, List, Optional, Set
 
 from app.application.errors.exceptions import BadRequestError
@@ -128,6 +128,10 @@ class PolicyIngestService:
             "skipped_expired": skipped_expired,
         }
         logger.info(f"公开政策入库完成: {summary}")
+
+        # 记录本次抓取运行(即使 0 条入库)，供「数据来源」页"最近更新"如实反映跑过
+        async with self._uow_factory() as uow:
+            await uow.policy.record_crawl(source, datetime.now(), len(new_policies), crawled)
 
         await self._notify_new(source, new_policies)
         return summary

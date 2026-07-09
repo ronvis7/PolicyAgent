@@ -126,8 +126,9 @@ class FakeIntelBriefingRepository:
 class FakePolicyRepository:
     """内存级公开政策仓库，按 source_url upsert，支持简单分页与筛选。"""
 
-    def __init__(self, store: Dict[str, Policy]) -> None:
+    def __init__(self, store: Dict[str, Policy], crawl_runs: Optional[Dict[str, tuple]] = None) -> None:
         self._store = store  # 以 source_url 为键，模拟唯一约束
+        self._crawl_runs = crawl_runs if crawl_runs is not None else {}  # source -> (ran_at, new, crawled)
 
     async def get_by_id(self, policy_id: str) -> Optional[Policy]:
         return next((p for p in self._store.values() if p.id == policy_id), None)
@@ -176,6 +177,12 @@ class FakePolicyRepository:
                 last = crawled
             stats[p.source] = (cnt + 1, last)
         return stats
+
+    async def record_crawl(self, source, ran_at, new_count, crawled_count):
+        self._crawl_runs[source] = (ran_at, new_count, crawled_count)
+
+    async def crawl_run_times(self):
+        return {source: run[0] for source, run in self._crawl_runs.items()}
 
     async def distinct_contest_regions(self, sources):
         """赛事来源已入库政策的去重地区，按地区名排序"""
@@ -361,13 +368,14 @@ class FakeUnitOfWork:
             document_chunks: Dict[str, list],
             agent_memories: Dict[str, AgentMemory],
             intel_briefings: Dict[str, IntelBriefing],
+            source_crawl_runs: Dict[str, tuple],
     ) -> None:
         self.user = FakeUserRepository(users)
         self.membership = FakeMembershipRepository(memberships)
         self.tenant_settings = FakeTenantSettingsRepository(tenant_settings)
         self.tenant = FakeTenantRepository(tenants)
         self.enterprise_profile = FakeEnterpriseProfileRepository(enterprise_profiles)
-        self.policy = FakePolicyRepository(policies)
+        self.policy = FakePolicyRepository(policies, source_crawl_runs)
         self.feed = FakeFeedRepository(feed_items)
         self.knowledge_base = FakeKnowledgeBaseRepository(knowledge_bases)
         self.knowledge_file = FakeKnowledgeFileRepository(knowledge_files)
@@ -399,6 +407,7 @@ def make_uow_factory(
         document_chunks: Optional[Dict[str, list]] = None,
         agent_memories: Optional[Dict[str, AgentMemory]] = None,
         intel_briefings: Optional[Dict[str, IntelBriefing]] = None,
+        source_crawl_runs: Optional[Dict[str, tuple]] = None,
 ) -> Callable[[], FakeUnitOfWork]:
     """构造一个每次返回新 UoW、但共享同一底层 store 的工厂(模拟跨事务持久化)。"""
     users = users if users is not None else {}
@@ -413,12 +422,13 @@ def make_uow_factory(
     document_chunks = document_chunks if document_chunks is not None else {}
     agent_memories = agent_memories if agent_memories is not None else {}
     intel_briefings = intel_briefings if intel_briefings is not None else {}
+    source_crawl_runs = source_crawl_runs if source_crawl_runs is not None else {}
 
     def factory() -> FakeUnitOfWork:
         return FakeUnitOfWork(
             users, memberships, tenant_settings, tenants, enterprise_profiles,
             policies, feed_items, knowledge_bases, knowledge_files, document_chunks,
-            agent_memories, intel_briefings,
+            agent_memories, intel_briefings, source_crawl_runs,
         )
 
     return factory

@@ -36,3 +36,21 @@ def test_stats_by_source_counts_and_latest_crawl(uow_factory):
         assert last_crawled_at.replace(microsecond=0, tzinfo=None) == latest
 
     asyncio.run(body())
+
+
+def test_record_crawl_upserts_and_run_times_reflect_zero_result(uow_factory):
+    """抓取运行记录：按 source upsert，crawl_run_times 反映最近运行时刻(0 条也记录)。"""
+    async def body():
+        src = f"itest-run-{uuid.uuid4().hex[:8]}"
+        async with uow_factory() as uow:
+            await uow.policy.record_crawl(src, datetime(2026, 7, 1, 3, 0), 5, 12)
+        async with uow_factory() as uow:
+            await uow.policy.record_crawl(src, datetime(2026, 7, 9, 3, 0), 0, 0)  # 0 条也更新
+
+        async with uow_factory() as uow:
+            times = await uow.policy.crawl_run_times()
+
+        assert src in times
+        assert times[src].replace(microsecond=0, tzinfo=None) == datetime(2026, 7, 9, 3, 0)
+
+    asyncio.run(body())

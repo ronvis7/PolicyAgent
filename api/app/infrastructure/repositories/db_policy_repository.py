@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.policy import Policy
 from app.domain.repositories.policy_repository import PolicyRepository
-from app.infrastructure.models import PolicyModel
+from app.infrastructure.models import PolicyModel, SourceCrawlStateModel
 
 
 class DBPolicyRepository(PolicyRepository):
@@ -96,6 +96,25 @@ class DBPolicyRepository(PolicyRepository):
         ).group_by(PolicyModel.source)
         rows = (await self.db_session.execute(stmt)).all()
         return {row.source: (row.cnt, row.last_crawled_at) for row in rows}
+
+    async def record_crawl(
+        self, source: str, ran_at: datetime, new_count: int, crawled_count: int,
+    ) -> None:
+        """按 source upsert 最近一次抓取运行状态(抓到 0 条也更新时刻)。"""
+        record = await self.db_session.get(SourceCrawlStateModel, source)
+        if record is None:
+            record = SourceCrawlStateModel(source=source)
+            self.db_session.add(record)
+        record.last_crawled_at = ran_at
+        record.last_new_count = new_count
+        record.last_crawled_count = crawled_count
+
+    async def crawl_run_times(self) -> Dict[str, datetime]:
+        """{source: 最近一次抓取运行时刻}"""
+        rows = (await self.db_session.execute(
+            select(SourceCrawlStateModel.source, SourceCrawlStateModel.last_crawled_at)
+        )).all()
+        return {row.source: row.last_crawled_at for row in rows}
 
     async def distinct_contest_regions(self, sources: List[str]) -> List[str]:
         """赛事来源已入库政策的去重地区(供前端参赛地区选项数据驱动)，按地区名排序"""
