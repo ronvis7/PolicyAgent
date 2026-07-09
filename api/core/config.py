@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     feishu_webhook_url: str = Field(default="", alias="FEISHU_WEBHOOK_URL")
     feishu_webhook_secret: str = Field(default="", alias="FEISHU_WEBHOOK_SECRET")
 
+    # 前端工作台基地址(供飞书赛事卡片「打开工作台」按钮跳转)：如 http://118.196.142.222:8088。
+    # 留空则卡片不出跳转按钮(标题仍可点原文)；不影响推送本身。
+    web_base_url: str = Field(default="", alias="WEB_BASE_URL")
+
     # 主动情报简报定时重算：Agent 在企业"离线"时自主为已建档租户刷新带理由的机会简报。
     # 默认每天 04:30（错开 04:00 重爬，保证基于最新政策/Feed 生成）。
     briefing_refresh_enabled: bool = Field(default=True, alias="BRIEFING_REFRESH_ENABLED")
