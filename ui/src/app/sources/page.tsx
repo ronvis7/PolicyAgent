@@ -1,13 +1,23 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Database, ExternalLink, Globe, ShieldCheck } from 'lucide-react'
+import { Database, DownloadCloud, ExternalLink, Globe, Loader2, ShieldCheck, Trophy } from 'lucide-react'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { policyApi, qualificationApi, QUALIFICATION_LEVEL_LABEL } from '@/lib/api'
 import type { PolicySourceItem, QualificationSourceItem } from '@/lib/api'
+import { useAuth } from '@/providers/auth-provider'
 
 function formatDate(date: string | null) {
   if (!date) return '尚未抓取'
@@ -19,10 +29,25 @@ function formatDate(date: string | null) {
 // 资质来源按级别分组展示的固定顺序
 const LEVEL_ORDER = ['national', 'provincial', 'municipal', 'general']
 
+// 抓取是后端 fire-and-forget 后台任务（约 1-2 分钟），结束后刷新来源统计
+const INGEST_WINDOW_MS = 90_000
+
 export default function SourcesPage() {
+  const { role } = useAuth()
+  const canIngest = role === 'owner' || role === 'admin'
+
   const [policySources, setPolicySources] = useState<PolicySourceItem[]>([])
   const [qualifications, setQualifications] = useState<QualificationSourceItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  // 抓取确认弹窗目标 + 正在抓取的来源 key（禁用对应按钮并转圈）
+  const [confirmSource, setConfirmSource] = useState<PolicySourceItem | null>(null)
+  const [ingestingKey, setIngestingKey] = useState<string | null>(null)
+  const ingestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const loadSources = useCallback(() => {
+    return policyApi.listSources().then((res) => setPolicySources(res.items))
+  }, [])
 
   useEffect(() => {
     // loading 初始即 true，一次性拉取来源 + 资质目录
@@ -36,6 +61,43 @@ export default function SourcesPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  // 卸载时清掉抓取窗口定时器，避免卸载后 setState
+  useEffect(
+    () => () => {
+      if (ingestTimerRef.current) clearTimeout(ingestTimerRef.current)
+    },
+    [],
+  )
+
+  // 政策来源与赛事来源分区展示（赛事来源可手动抓取）
+  const { policyList, contestList } = useMemo(() => {
+    const policyList: PolicySourceItem[] = []
+    const contestList: PolicySourceItem[] = []
+    for (const s of policySources) {
+      ;(s.item_type === 'competition' ? contestList : policyList).push(s)
+    }
+    return { policyList, contestList }
+  }, [policySources])
+
+  const handleIngest = async (source: PolicySourceItem) => {
+    setConfirmSource(null)
+    setIngestingKey(source.key)
+    try {
+      await policyApi.ingest(source.key, 3)
+      toast.success(`已开始后台抓取「${source.name}」，约 1-2 分钟，完成后自动刷新统计`)
+      if (ingestTimerRef.current) clearTimeout(ingestTimerRef.current)
+      ingestTimerRef.current = setTimeout(() => {
+        ingestTimerRef.current = null
+        setIngestingKey(null)
+        loadSources().catch(() => undefined)
+        toast.success(`「${source.name}」抓取窗口结束，已刷新`)
+      }, INGEST_WINDOW_MS)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '触发抓取失败')
+      setIngestingKey(null)
+    }
+  }
 
   // 资质末次核对日期（目录统一核对，取首条即可）+ 全局免责声明
   const catalogReviewedAt = qualifications[0]?.last_reviewed ?? ''
@@ -86,41 +148,48 @@ export default function SourcesPage() {
                   <Skeleton key={i} className="h-28 w-full rounded-2xl" />
                 ))}
               </div>
-            ) : policySources.length === 0 ? (
+            ) : policyList.length === 0 ? (
               <div className="py-10 text-center text-sm text-[#778090]">暂无已登记的政策来源。</div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
-                {policySources.map((source) => (
-                  <div
+                {policyList.map((source) => (
+                  <SourceCard key={source.key} source={source} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* ---------------- 赛事数据来源（可手动抓取） ---------------- */}
+          <section className="rounded-[18px] border border-[#e5e2de] bg-white p-5 shadow-[0_10px_30px_rgba(16,24,40,.04)]">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#202939]">
+              <Trophy className="size-4" />
+              赛事数据来源
+            </div>
+            <p className="mb-4 text-xs leading-6 text-[#778090]">
+              创业大赛/比赛机会来自以下平台与门户。
+              {canIngest
+                ? '可手动触发抓取更新——抓取会写入共享库，并向已配置飞书的组织推送新赛事。'
+                : '如需手动抓取更新，请联系组织管理员（owner/admin）。'}
+            </p>
+
+            {loading ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-32 w-full rounded-2xl" />
+                ))}
+              </div>
+            ) : contestList.length === 0 ? (
+              <div className="py-10 text-center text-sm text-[#778090]">暂无已登记的赛事来源。</div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {contestList.map((source) => (
+                  <SourceCard
                     key={source.key}
-                    className="rounded-2xl border border-[#e7e4df] bg-[#fafafa] p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-white hover:shadow-[var(--shadow-card)]"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-[#202939]">{source.name}</div>
-                        <Badge variant="secondary" className="mt-1 rounded-full text-[11px]">
-                          {source.region}
-                        </Badge>
-                      </div>
-                      {source.home_url && (
-                        <a
-                          href={source.home_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#287174] hover:underline"
-                        >
-                          <ExternalLink className="size-3.5" />
-                          访问官网
-                        </a>
-                      )}
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#667085]">
-                      <span>
-                        已收录 <span className="font-semibold text-[#344054]">{source.policy_count}</span> 条
-                      </span>
-                      <span>最近更新：{formatDate(source.last_crawled_at)}</span>
-                    </div>
-                  </div>
+                    source={source}
+                    canIngest={canIngest}
+                    ingesting={ingestingKey === source.key}
+                    onIngest={() => setConfirmSource(source)}
+                  />
                 ))}
               </div>
             )}
@@ -198,9 +267,91 @@ export default function SourcesPage() {
 
           <p className="flex items-center justify-center gap-1.5 pb-2 text-center text-xs text-[#98a2b3]">
             <Database className="size-3.5" />
-            如需新增其他地区/部门的政策来源，请联系我们评估接入。
+            如需新增其他地区/部门的政策或赛事来源，请联系我们评估接入。
           </p>
         </div>
+      </div>
+
+      {/* 抓取二次确认（写共享库 + 推飞书，属对外副作用） */}
+      <Dialog open={!!confirmSource} onOpenChange={(open) => !open && setConfirmSource(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-left">确认抓取「{confirmSource?.name}」？</DialogTitle>
+            <DialogDescription className="text-left leading-6">
+              将后台抓取该来源最新赛事并入库（约 1-2 分钟）。新入库的赛事会写入共享政策库，
+              并向已配置飞书 webhook 的组织推送提醒卡片。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" className="cursor-pointer" onClick={() => setConfirmSource(null)}>
+              取消
+            </Button>
+            <Button
+              className="cursor-pointer"
+              onClick={() => confirmSource && handleIngest(confirmSource)}
+            >
+              <DownloadCloud className="size-4" />
+              确认抓取
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/** 来源卡片：政策/赛事共用；传入 canIngest+onIngest 时右下角出现「抓取」按钮 */
+function SourceCard({
+  source,
+  canIngest = false,
+  ingesting = false,
+  onIngest,
+}: {
+  source: PolicySourceItem
+  canIngest?: boolean
+  ingesting?: boolean
+  onIngest?: () => void
+}) {
+  return (
+    <div className="flex flex-col rounded-2xl border border-[#e7e4df] bg-[#fafafa] p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-white hover:shadow-[var(--shadow-card)]">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-[#202939]">{source.name}</div>
+          <Badge variant="secondary" className="mt-1 rounded-full text-[11px]">
+            {source.region}
+          </Badge>
+        </div>
+        {source.home_url && (
+          <a
+            href={source.home_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#287174] hover:underline"
+          >
+            <ExternalLink className="size-3.5" />
+            访问官网
+          </a>
+        )}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#667085]">
+          <span>
+            已收录 <span className="font-semibold text-[#344054]">{source.policy_count}</span> 条
+          </span>
+          <span>最近更新：{formatDate(source.last_crawled_at)}</span>
+        </div>
+        {canIngest && onIngest && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 cursor-pointer gap-1 bg-white px-2 text-xs"
+            disabled={ingesting}
+            onClick={onIngest}
+          >
+            {ingesting ? <Loader2 className="size-3.5 animate-spin" /> : <DownloadCloud className="size-3.5" />}
+            {ingesting ? '抓取中…' : '抓取'}
+          </Button>
+        )}
       </div>
     </div>
   )

@@ -1,9 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { AlarmClock, CheckCircle2, ExternalLink, FileDown, Loader2, XCircle } from 'lucide-react'
+import {
+  AlarmClock,
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  DownloadCloud,
+  ExternalLink,
+  FileDown,
+  Loader2,
+  MapPin,
+  XCircle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
@@ -97,6 +108,8 @@ export default function FeedPage() {
 
   const [filter, setFilter] = useState<FeedStatus | ''>('')
   const [typeFilter, setTypeFilter] = useState<OpportunityType | ''>('')
+  // 赛事机会下钻：null=展示地区聚合卡片，非空=展示该地区的比赛列表
+  const [contestRegion, setContestRegion] = useState<string | null>(null)
   const [items, setItems] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [recomputing, setRecomputing] = useState(false)
@@ -226,6 +239,34 @@ export default function FeedPage() {
       )
     : items
 
+  const NO_REGION_LABEL = '其他地区'
+
+  // 赛事机会按地区聚合（数量降序），供两级视图第一级的地区卡片
+  const contestRegionGroups = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const m of items) {
+      if (m.type !== 'competition') continue
+      const region = m.region || NO_REGION_LABEL
+      counts.set(region, (counts.get(region) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .map(([region, count]) => ({ region, count }))
+      .sort((a, b) => b.count - a.count || a.region.localeCompare(b.region, 'zh'))
+  }, [items])
+
+  // 赛事 tab 未选地区时展示地区聚合网格；选了地区则下钻到该地区比赛列表
+  const inContestGrid = typeFilter === 'competition' && contestRegion === null
+  const renderItems =
+    typeFilter === 'competition' && contestRegion !== null
+      ? visibleItems.filter((m) => (m.region || NO_REGION_LABEL) === contestRegion)
+      : visibleItems
+
+  // 切换机会类型时重置赛事下钻状态，避免残留在某地区视图
+  const onTypeTab = (value: OpportunityType | '') => {
+    setTypeFilter(value)
+    setContestRegion(null)
+  }
+
   return (
     <div className="h-full flex flex-col bg-[#f8f8f7]">
       {/* 头部 */}
@@ -276,7 +317,7 @@ export default function FeedPage() {
                     ? 'bg-primary text-white shadow-[var(--shadow-card)]'
                     : 'text-[#667085] hover:bg-[#f2f1ef]',
                 )}
-                onClick={() => setTypeFilter(t.value)}
+                onClick={() => onTypeTab(t.value)}
               >
                 {t.label}
               </button>
@@ -304,12 +345,21 @@ export default function FeedPage() {
                 <Skeleton key={i} className="h-28 w-full" />
               ))}
             </div>
-          ) : visibleItems.length === 0 ? (
-            <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
-              <p>{typeFilter ? '该分类下暂无可申报机会。' : '暂无可申报机会。'}</p>
-              {items.length === 0 && (
+          ) : inContestGrid ? (
+            /* 赛事机会第一级：按参赛地区聚合的卡片，点进去看该地区比赛 */
+            contestRegionGroups.length === 0 ? (
+              <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
+                <p>暂无赛事机会。</p>
                 <p className="mt-2">
-                  请先完善
+                  可到
+                  <Button
+                    variant="link"
+                    className="px-1 cursor-pointer text-[#287174]"
+                    onClick={() => router.push('/sources')}
+                  >
+                    数据来源
+                  </Button>
+                  抓取赛事来源，并在
                   <Button
                     variant="link"
                     className="px-1 cursor-pointer text-[#287174]"
@@ -317,13 +367,85 @@ export default function FeedPage() {
                   >
                     企业档案
                   </Button>
-                  ，并确保公开政策库已抓取入库；或点右上角「重新匹配」。
+                  勾选参赛关注地区。
                 </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm text-[#778090]">按参赛地区查看，点击卡片进入该地区赛事。</p>
+                  <Button
+                    variant="link"
+                    className="h-auto cursor-pointer gap-1 px-0 text-xs text-[#287174]"
+                    onClick={() => router.push('/sources')}
+                  >
+                    <DownloadCloud className="size-3.5" />
+                    抓取更多赛事
+                  </Button>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {contestRegionGroups.map((g) => (
+                    <button
+                      key={g.region}
+                      type="button"
+                      onClick={() => setContestRegion(g.region)}
+                      className="group flex items-center justify-between gap-3 rounded-2xl border border-[#e7e4df] bg-white p-4 text-left shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+                    >
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-500">
+                          <MapPin className="size-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-[#1c2127]">{g.region}</span>
+                          <span className="text-xs text-[#778090]">{g.count} 个可参加比赛</span>
+                        </span>
+                      </span>
+                      <ChevronRight className="size-4 shrink-0 text-[#c0c4cc] transition-colors group-hover:text-violet-400" />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )
           ) : (
-            <ul className="space-y-3">
-              {visibleItems.map((m) => (
+            <>
+              {/* 赛事下钻：返回地区网格的面包屑 */}
+              {typeFilter === 'competition' && contestRegion !== null && (
+                <div className="mb-3 flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="cursor-pointer h-8 gap-1 px-2 text-[#667085]"
+                    onClick={() => setContestRegion(null)}
+                  >
+                    <ArrowLeft className="size-4" />
+                    全部地区
+                  </Button>
+                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1c2127]">
+                    <MapPin className="size-4 text-violet-400" />
+                    {contestRegion}
+                  </span>
+                </div>
+              )}
+              {renderItems.length === 0 ? (
+                <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
+                  <p>{typeFilter ? '该分类下暂无可申报机会。' : '暂无可申报机会。'}</p>
+                  {items.length === 0 && (
+                    <p className="mt-2">
+                      请先完善
+                      <Button
+                        variant="link"
+                        className="px-1 cursor-pointer text-[#287174]"
+                        onClick={() => router.push('/enterprise-profile')}
+                      >
+                        企业档案
+                      </Button>
+                      ，并确保公开政策库已抓取入库；或点右上角「重新匹配」。
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {renderItems.map((m) => (
                 <li
                   key={m.id}
                   className="group relative overflow-hidden rounded-2xl border border-[#e7e4df] bg-white p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
@@ -435,7 +557,9 @@ export default function FeedPage() {
                   </div>
                 </li>
               ))}
-            </ul>
+                </ul>
+              )}
+            </>
           )}
         </div>
       </div>
