@@ -13,7 +13,7 @@ const PUBLIC_ROUTES = ['/login', '/register']
 
 function FullScreenLoader() {
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-[#f8f8f7]">
+    <div className="flex h-screen w-full items-center justify-center bg-background">
       <Loader2 className="size-6 animate-spin text-muted-foreground"/>
     </div>
   )
@@ -71,7 +71,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
         } as React.CSSProperties}
       >
         <LeftPanel/>
-        <div className="flex flex-1 flex-col bg-[#f8f8f7] h-screen overflow-hidden">
+        <div className="flex flex-1 flex-col bg-background h-screen overflow-hidden">
           {showPersonalNotice && (
             <div className="flex items-start gap-2 border-b border-[#f2e6c2] bg-[#fff8e8] px-4 py-2 text-sm text-[#8a6d3b]">
               <Info className="mt-0.5 size-4 shrink-0" />

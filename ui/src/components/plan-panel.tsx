@@ -23,7 +23,7 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
   const totalCount = steps.length
 
   return (
-    <div className={cn('bg-white rounded-xl border', className)}>
+    <div className={cn('bg-card rounded-xl border', className)}>
       {/* 折叠状态 */}
       {!isExpanded && <div
         className="flex flex-row items-start justify-between pr-3 relative clickable cursor-pointer rounded-xl"

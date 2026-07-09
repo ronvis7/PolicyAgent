@@ -268,14 +268,14 @@ export default function FeedPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#f8f8f7]">
+    <div className="h-full flex flex-col bg-background">
       {/* 头部 */}
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
           <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">工作台</h1>
-            <p className="hidden text-xs text-[#778090] sm:block">
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">工作台</h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">
               系统依据企业档案持续盯紧可申报机会，有新增会顶到这里。
             </p>
           </div>
@@ -283,7 +283,7 @@ export default function FeedPage() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="cursor-pointer rounded-xl bg-white"
+            className="cursor-pointer rounded-xl bg-card"
             onClick={onExport}
             disabled={exporting}
             title="把当前匹配政策、资质差距与临期提醒导出为 PDF 简报"
@@ -293,7 +293,7 @@ export default function FeedPage() {
           </Button>
           <Button
             variant="outline"
-            className="cursor-pointer rounded-xl bg-white"
+            className="cursor-pointer rounded-xl bg-card"
             onClick={onRecompute}
             disabled={recomputing}
           >
@@ -306,7 +306,7 @@ export default function FeedPage() {
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         <div className="max-w-[900px] mx-auto">
           {/* 机会类型分栏：政策 / 资质分开看 */}
-          <div className="mb-3 inline-flex rounded-xl border border-[#e5e2de] bg-white p-1">
+          <div className="mb-3 inline-flex rounded-xl border border-border bg-card p-1">
             {TYPE_TABS.map((t) => (
               <button
                 key={t.value || 'all'}
@@ -315,7 +315,7 @@ export default function FeedPage() {
                   'cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                   typeFilter === t.value
                     ? 'bg-primary text-white shadow-[var(--shadow-card)]'
-                    : 'text-[#667085] hover:bg-[#f2f1ef]',
+                    : 'text-muted-foreground hover:bg-muted',
                 )}
                 onClick={() => onTypeTab(t.value)}
               >
@@ -331,7 +331,7 @@ export default function FeedPage() {
                 key={f.value || 'all'}
                 size="sm"
                 variant={filter === f.value ? 'default' : 'outline'}
-                className={cn('cursor-pointer rounded-full', filter !== f.value && 'bg-white')}
+                className={cn('cursor-pointer rounded-full', filter !== f.value && 'bg-card')}
                 onClick={() => onFilter(f.value)}
               >
                 {f.label}
@@ -348,13 +348,13 @@ export default function FeedPage() {
           ) : inContestGrid ? (
             /* 赛事机会第一级：按参赛地区聚合的卡片，点进去看该地区比赛 */
             contestRegionGroups.length === 0 ? (
-              <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
+              <div className="rounded-[18px] border border-border bg-card py-20 text-center text-sm text-muted-foreground shadow-[var(--shadow-card)]">
                 <p>暂无赛事机会。</p>
                 <p className="mt-2">
                   可到
                   <Button
                     variant="link"
-                    className="px-1 cursor-pointer text-[#287174]"
+                    className="px-1 cursor-pointer text-primary"
                     onClick={() => router.push('/sources')}
                   >
                     数据来源
@@ -362,7 +362,7 @@ export default function FeedPage() {
                   抓取赛事来源，并在
                   <Button
                     variant="link"
-                    className="px-1 cursor-pointer text-[#287174]"
+                    className="px-1 cursor-pointer text-primary"
                     onClick={() => router.push('/enterprise-profile')}
                   >
                     企业档案
@@ -373,10 +373,10 @@ export default function FeedPage() {
             ) : (
               <>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-[#778090]">按参赛地区查看，点击卡片进入该地区赛事。</p>
+                  <p className="text-sm text-muted-foreground">按参赛地区查看，点击卡片进入该地区赛事。</p>
                   <Button
                     variant="link"
-                    className="h-auto cursor-pointer gap-1 px-0 text-xs text-[#287174]"
+                    className="h-auto cursor-pointer gap-1 px-0 text-xs text-primary"
                     onClick={() => router.push('/sources')}
                   >
                     <DownloadCloud className="size-3.5" />
@@ -389,18 +389,18 @@ export default function FeedPage() {
                       key={g.region}
                       type="button"
                       onClick={() => setContestRegion(g.region)}
-                      className="group flex items-center justify-between gap-3 rounded-2xl border border-[#e7e4df] bg-white p-4 text-left shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+                      className="group flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                     >
                       <span className="flex min-w-0 items-center gap-2.5">
                         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-500">
                           <MapPin className="size-4" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-[#1c2127]">{g.region}</span>
-                          <span className="text-xs text-[#778090]">{g.count} 个可参加比赛</span>
+                          <span className="block truncate font-semibold text-foreground">{g.region}</span>
+                          <span className="text-xs text-muted-foreground">{g.count} 个可参加比赛</span>
                         </span>
                       </span>
-                      <ChevronRight className="size-4 shrink-0 text-[#c0c4cc] transition-colors group-hover:text-violet-400" />
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-violet-400" />
                     </button>
                   ))}
                 </div>
@@ -414,27 +414,27 @@ export default function FeedPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="cursor-pointer h-8 gap-1 px-2 text-[#667085]"
+                    className="cursor-pointer h-8 gap-1 px-2 text-muted-foreground"
                     onClick={() => setContestRegion(null)}
                   >
                     <ArrowLeft className="size-4" />
                     全部地区
                   </Button>
-                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1c2127]">
+                  <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <MapPin className="size-4 text-violet-400" />
                     {contestRegion}
                   </span>
                 </div>
               )}
               {renderItems.length === 0 ? (
-                <div className="rounded-[18px] border border-[#e5e2de] bg-white py-20 text-center text-sm text-[#778090] shadow-[0_10px_30px_rgba(16,24,40,.04)]">
+                <div className="rounded-[18px] border border-border bg-card py-20 text-center text-sm text-muted-foreground shadow-[var(--shadow-card)]">
                   <p>{typeFilter ? '该分类下暂无可申报机会。' : '暂无可申报机会。'}</p>
                   {items.length === 0 && (
                     <p className="mt-2">
                       请先完善
                       <Button
                         variant="link"
-                        className="px-1 cursor-pointer text-[#287174]"
+                        className="px-1 cursor-pointer text-primary"
                         onClick={() => router.push('/enterprise-profile')}
                       >
                         企业档案
@@ -448,7 +448,7 @@ export default function FeedPage() {
                   {renderItems.map((m) => (
                 <li
                   key={m.id}
-                  className="group relative overflow-hidden rounded-2xl border border-[#e7e4df] bg-white p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+                  className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                 >
                   {/* 机会类型左侧彩条：资质=翠绿、赛事=紫罗兰、政策=品牌青绿 */}
                   <span
@@ -492,7 +492,7 @@ export default function FeedPage() {
                     <DeadlineBadge item={m} />
                     <button
                       type="button"
-                      className="text-left font-semibold leading-snug text-[#287174] line-clamp-2 cursor-pointer hover:underline"
+                      className="text-left font-semibold leading-snug text-primary line-clamp-2 cursor-pointer hover:underline"
                       onClick={() => openDetail(m)}
                     >
                       {m.title}
@@ -517,7 +517,7 @@ export default function FeedPage() {
                       {m.structured_score > 0 && (
                         <span className="inline-flex items-center gap-1.5" title="结构化命中归一化分">
                           命中度
-                          <span className="h-1.5 w-12 overflow-hidden rounded-full bg-[#eceae6]">
+                          <span className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
                             <span
                               className="block h-full rounded-full bg-primary"
                               style={{ width: `${Math.min(100, m.structured_score * 100)}%` }}

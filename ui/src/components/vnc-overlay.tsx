@@ -89,7 +89,7 @@ export function VNCOverlay({ sessionId, onClose }: VNCOverlayProps) {
               <Button
                 variant="secondary"
                 onClick={onClose}
-                className="mt-2 gap-2 rounded-full px-6 bg-white/10 hover:bg-white/20 text-white border border-gray-600 cursor-pointer"
+                className="mt-2 gap-2 rounded-full px-6 bg-card/10 hover:bg-card/20 text-white border border-gray-600 cursor-pointer"
               >
                 <X size={14} />
                 退出远程桌面

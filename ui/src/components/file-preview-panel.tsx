@@ -130,7 +130,7 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-gray-200">
+    <div className="flex flex-col h-full bg-card border-l border-gray-200">
       {/* 头部：文件名 + 操作按钮 - 添加背景色区分 */}
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">

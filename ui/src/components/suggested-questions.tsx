@@ -25,7 +25,7 @@ export function SuggestedQuestions({className, onQuestionClick}: SuggestedQuesti
           <button
             key={index}
             type="button"
-            className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-[#e7e4df] bg-white px-4 py-3 text-left text-sm text-[#3d4350] shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+            className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left text-sm text-muted-foreground shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
             onClick={() => handleClick(question)}
           >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-primary transition-colors group-hover:bg-primary group-hover:text-white">

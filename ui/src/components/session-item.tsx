@@ -47,7 +47,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
 
   return (
     <Item
-      className={`p-2 hover:bg-white cursor-pointer gap-2 items-start ${isActive ? 'bg-white' : ''}`}
+      className={`p-2 hover:bg-card cursor-pointer gap-2 items-start ${isActive ? 'bg-card' : ''}`}
       onClick={handleClick}
     >
       {/* 左侧图标 */}

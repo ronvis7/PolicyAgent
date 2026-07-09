@@ -124,9 +124,9 @@ export function SessionHeader({
   }, [])
 
   return (
-    <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
+    <header className="bg-background flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
       {(!open || isMobile) && <SidebarTrigger className="cursor-pointer flex-shrink-0" />}
-      <div className="font-serif text-[#1c2127] text-lg font-semibold tracking-tight whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
+      <div className="font-serif text-foreground text-lg font-semibold tracking-tight whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
         {title || '未命名任务'}
       </div>
       {mounted ? (

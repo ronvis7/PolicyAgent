@@ -103,15 +103,15 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-b from-[#f4f3f1] via-[#f8f8f7] to-[#eaf3f2] px-4 py-8">
-      <div className="w-full max-w-sm rounded-[20px] border border-[#e7e4df] bg-white p-8 shadow-[var(--shadow-pop)]">
+    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-b from-muted via-background to-accent px-4 py-8">
+      <div className="w-full max-w-sm rounded-[20px] border border-border bg-card p-8 shadow-[var(--shadow-pop)]">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#e7e4df] bg-[#f8f8f7] px-3 py-1 text-xs font-semibold text-[#2f3747]">
+          <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
             <span className="size-2 rounded-full bg-primary"/>
             PolicyManus
           </div>
-          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#1c2127]">注册 PolicyManus</h1>
-          <p className="mt-1 text-sm text-[#778090]">创建新组织，或申请加入已有组织</p>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground">注册 PolicyManus</h1>
+          <p className="mt-1 text-sm text-muted-foreground">创建新组织，或申请加入已有组织</p>
         </div>
 
         {/* 模式切换 */}
@@ -122,7 +122,7 @@ export default function RegisterPage() {
               type="button"
               onClick={() => setMode(m)}
               className={`rounded-md py-1.5 text-sm font-medium transition-colors cursor-pointer ${
-                mode === m ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground'
+                mode === m ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
               }`}
             >
               {m === 'create' ? '创建新组织' : '加入已有组织'}
@@ -131,16 +131,16 @@ export default function RegisterPage() {
         </div>
 
         {/* 场景化说明：帮助用户区分"自己建"还是"加入同事的" */}
-        <div className="mb-5 rounded-lg border border-[#e5e2de] bg-[#f8f8f7] px-3 py-2 text-xs leading-5 text-[#667085]">
+        <div className="mb-5 rounded-lg border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">
           {mode === 'create' ? (
             <>
-              <span className="font-medium text-[#344054]">适合：你为自己的公司/单位首次建立工作区。</span>
+              <span className="font-medium text-foreground">适合：你为自己的公司/单位首次建立工作区。</span>
               <br />
               你将成为所有者，立即拥有完整工作区并开始填写企业档案。
             </>
           ) : (
             <>
-              <span className="font-medium text-[#344054]">适合：你的同事已建好公司工作区，你想加入它。</span>
+              <span className="font-medium text-foreground">适合：你的同事已建好公司工作区，你想加入它。</span>
               <br />
               提交后需等待该组织管理员<span className="font-medium text-[#b54708]">批准</span>；批准前你会先进入一个临时的个人工作区。
             </>
@@ -279,9 +279,9 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-[#778090]">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           已有账号？{' '}
-          <Link href="/login" className="font-medium text-[#287174] underline-offset-4 hover:underline">
+          <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
             去登录
           </Link>
         </p>

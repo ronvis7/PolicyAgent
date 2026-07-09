@@ -222,7 +222,7 @@ export function MembersSetting() {
                 {requests.map((req) => {
                   const busy = busyId === req.membership_id
                   return (
-                    <Item key={req.membership_id} variant="outline" className="bg-white">
+                    <Item key={req.membership_id} variant="outline" className="bg-card">
                       <ItemContent>
                         <ItemTitle className="w-full flex justify-between items-center text-sm font-medium text-gray-700">
                           <div className="flex flex-col">

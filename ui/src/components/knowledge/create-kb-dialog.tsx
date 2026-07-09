@@ -96,18 +96,18 @@ export function CreateKbDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[92vh] overflow-auto rounded-2xl p-0 sm:max-w-[960px]">
-        <DialogHeader className="border-b border-[#ececec] px-7 py-5 text-left">
-          <DialogTitle className="text-lg font-semibold text-[#1f2937]">
+        <DialogHeader className="border-b border-border px-7 py-5 text-left">
+          <DialogTitle className="text-lg font-semibold text-foreground">
             新建知识库
           </DialogTitle>
-          <DialogDescription className="text-sm text-[#737373]">
+          <DialogDescription className="text-sm text-muted-foreground">
             创建后即可上传政策文件、企业材料或案例文档。
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 px-7 py-5">
           <section className="space-y-3">
-            <Label className="text-sm font-semibold text-[#202939]">知识库类型</Label>
+            <Label className="text-sm font-semibold text-foreground">知识库类型</Label>
             <div className="grid gap-3 md:grid-cols-2">
               {KNOWLEDGE_TYPES.map((item) => {
                 const Icon = item.icon
@@ -120,20 +120,20 @@ export function CreateKbDialog({
                       'rounded-2xl border p-5 text-left transition',
                       active
                         ? 'border-[#c9a7e8] bg-[#fbf6ff] shadow-[0_0_0_1px_rgba(201,167,232,.32)]'
-                        : 'border-[#ececec] bg-white hover:border-[#d6d6d6]',
+                        : 'border-border bg-card hover:border-border',
                     )}
                     onClick={() => setSelectedType(item.key)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={cn('grid size-10 place-items-center rounded-xl', active ? 'bg-[#f0e6fb] text-[#7c3aed]' : 'bg-[#f5f5f5] text-[#4b5563]')}>
+                      <div className={cn('grid size-10 place-items-center rounded-xl', active ? 'bg-[#f0e6fb] text-[#7c3aed]' : 'bg-muted text-muted-foreground')}>
                         <Icon className="size-5" />
                       </div>
                       <div>
-                        <div className="font-semibold text-[#202939]">{item.title}</div>
-                        <div className="mt-1 text-sm text-[#737373]">{item.description}</div>
+                        <div className="font-semibold text-foreground">{item.title}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">{item.description}</div>
                       </div>
                     </div>
-                    <span className={cn('mt-4 inline-flex rounded-lg px-2.5 py-1 text-xs font-medium', active ? 'bg-[#efe0ff] text-[#7c3aed]' : 'bg-[#eef6f8] text-[#287174]')}>
+                    <span className={cn('mt-4 inline-flex rounded-lg px-2.5 py-1 text-xs font-medium', active ? 'bg-[#efe0ff] text-[#7c3aed]' : 'bg-accent text-primary')}>
                       {item.tag}
                     </span>
                   </button>
@@ -143,7 +143,7 @@ export function CreateKbDialog({
           </section>
 
           <section className="space-y-2">
-            <Label htmlFor="kb-name" className="text-sm font-semibold text-[#202939]">知识库名称</Label>
+            <Label htmlFor="kb-name" className="text-sm font-semibold text-foreground">知识库名称</Label>
             <Input
               id="kb-name"
               value={name}
@@ -156,23 +156,23 @@ export function CreateKbDialog({
           </section>
 
           <section className="space-y-2">
-            <Label htmlFor="kb-model" className="text-sm font-semibold text-[#202939]">嵌入模型</Label>
+            <Label htmlFor="kb-model" className="text-sm font-semibold text-foreground">嵌入模型</Label>
             <div
               id="kb-model"
-              className="flex h-12 items-center justify-between rounded-xl border border-[#e5e7eb] bg-[#fafafa] px-4 text-sm text-[#202939]"
+              className="flex h-12 items-center justify-between rounded-xl border border-border bg-card px-4 text-sm text-foreground"
             >
               <span>组织 Embedding 模型 · 1024 维（统一锁定）</span>
-              <Network className="size-4 text-[#9ca3af]" />
+              <Network className="size-4 text-muted-foreground" />
             </div>
-            <p className="text-xs leading-5 text-[#9ca3af]">
+            <p className="text-xs leading-5 text-muted-foreground">
               向量维度统一锁定为 1024 以保证检索一致；模型由平台设定，可在「设置 · 向量模型」中配置组织自有密钥。
             </p>
           </section>
 
           <section className="space-y-3">
             <div>
-              <Label htmlFor="kb-desc" className="text-sm font-semibold text-[#202939]">知识库描述</Label>
-              <p className="mt-2 text-sm leading-6 text-[#737373]">
+              <Label htmlFor="kb-desc" className="text-sm font-semibold text-foreground">知识库描述</Label>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 描述会帮助智能体判断何时使用该知识库，建议说明资料范围、适用场景和业务目标。
               </p>
             </div>
@@ -187,15 +187,15 @@ export function CreateKbDialog({
             />
           </section>
 
-          <section className="flex items-start gap-3 rounded-xl border border-[#ececec] bg-[#fafafa] px-4 py-3">
-            <Lock className="mt-0.5 size-4 shrink-0 text-[#9ca3af]" />
+          <section className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
+            <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <span className="text-sm leading-6 text-[#525252]">
               知识库仅本组织可见，文档与切片按组织隔离存储，其他组织无法访问。
             </span>
           </section>
         </div>
 
-        <DialogFooter className="border-t border-[#ececec] px-7 py-4">
+        <DialogFooter className="border-t border-border px-7 py-4">
           <Button
             variant="outline"
             className="cursor-pointer rounded-xl"
@@ -205,7 +205,7 @@ export function CreateKbDialog({
             取消
           </Button>
           <Button
-            className="cursor-pointer rounded-xl bg-[#287174] hover:bg-[#1f5f62]"
+            className="cursor-pointer rounded-xl bg-primary hover:bg-primary"
             onClick={handleSubmit}
             disabled={submitting}
           >

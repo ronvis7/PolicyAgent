@@ -19,14 +19,14 @@ function formatDateTime(value: string | null) {
 // 类别 → 徽章配色
 const CATEGORY_STYLE: Record<string, string> = {
   临期申报: 'bg-[#fef3f2] text-[#b42318] border-[#fecdca]',
-  政策机会: 'bg-brand-50 text-[#287174] border-brand-200',
+  政策机会: 'bg-brand-50 text-primary border-brand-200',
   资质机会: 'bg-[#fff8e8] text-[#8a6d3b] border-[#f2e6c2]',
 }
 
 const URGENCY_DOT: Record<BriefingUrgency, string> = {
   high: 'bg-[#d92d20]',
-  normal: 'bg-[#287174]',
-  low: 'bg-[#98a2b3]',
+  normal: 'bg-primary',
+  low: 'bg-muted-foreground',
 }
 
 export default function BriefingPage() {
@@ -58,12 +58,12 @@ export default function BriefingPage() {
   const hasBriefing = briefing?.has_briefing && briefing.items.length > 0
 
   return (
-    <div className="h-full overflow-hidden bg-[#f8f8f7]">
-      <header className="flex min-h-16 items-center gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
-        <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+    <div className="h-full overflow-hidden bg-background">
+      <header className="flex min-h-16 items-center gap-3 border-b border-border bg-background/95 px-4 py-3">
+        <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">情报简报</h1>
-          <p className="hidden text-xs text-[#778090] sm:block">
+          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">情报简报</h1>
+          <p className="hidden text-xs text-muted-foreground sm:block">
             助手会定时主动扫描与你匹配的政策、资质与临期申报，归纳成带理由的机会简报。
           </p>
         </div>
@@ -71,7 +71,7 @@ export default function BriefingPage() {
           type="button"
           onClick={handleGenerate}
           disabled={generating}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#287174] px-3.5 py-2 text-sm font-medium text-white shadow-[var(--shadow-card)] transition-colors hover:bg-[#1f5a5c] disabled:opacity-60"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-sm font-medium text-white shadow-[var(--shadow-card)] transition-colors hover:bg-primary disabled:opacity-60"
         >
           <RefreshCw className={`size-4 ${generating ? 'animate-spin' : ''}`} />
           {generating ? '生成中…' : '立即生成'}
@@ -88,12 +88,12 @@ export default function BriefingPage() {
               ))}
             </div>
           ) : !hasBriefing ? (
-            <div className="flex flex-col items-center gap-3 rounded-[18px] border border-[#e5e2de] bg-white py-16 text-center shadow-[0_10px_30px_rgba(16,24,40,.04)]">
-              <div className="flex size-12 items-center justify-center rounded-full bg-brand-50 text-[#287174]">
+            <div className="flex flex-col items-center gap-3 rounded-[18px] border border-border bg-card py-16 text-center shadow-[var(--shadow-card)]">
+              <div className="flex size-12 items-center justify-center rounded-full bg-brand-50 text-primary">
                 <Radar className="size-5" />
               </div>
-              <div className="text-sm font-medium text-[#344054]">还没有情报简报</div>
-              <p className="max-w-sm text-xs leading-6 text-[#778090]">
+              <div className="text-sm font-medium text-foreground">还没有情报简报</div>
+              <p className="max-w-sm text-xs leading-6 text-muted-foreground">
                 完善企业档案、抓取一些公开政策后，点右上角「立即生成」，助手会为你筛出最值得关注的机会；
                 之后它也会每天自动刷新。
               </p>
@@ -101,13 +101,13 @@ export default function BriefingPage() {
           ) : (
             <>
               {/* 总览卡 */}
-              <section className="rounded-[18px] border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-5 shadow-[0_10px_30px_rgba(16,24,40,.04)]">
-                <div className="flex items-center gap-2 text-xs font-medium text-[#287174]">
+              <section className="rounded-[18px] border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-5 shadow-[var(--shadow-card)]">
+                <div className="flex items-center gap-2 text-xs font-medium text-primary">
                   <Sparkles className="size-3.5" />
                   {briefing!.generated_by === 'llm' ? 'AI 归纳' : '规则归纳'}
-                  {briefing!.generated_at && <span className="text-[#98a2b3]">· {formatDateTime(briefing!.generated_at)}</span>}
+                  {briefing!.generated_at && <span className="text-muted-foreground">· {formatDateTime(briefing!.generated_at)}</span>}
                 </div>
-                <p className="mt-1.5 font-serif text-lg font-semibold leading-7 text-[#1c2127]">
+                <p className="mt-1.5 font-serif text-lg font-semibold leading-7 text-foreground">
                   {briefing!.headline}
                 </p>
               </section>
@@ -117,13 +117,13 @@ export default function BriefingPage() {
                 {briefing!.items.map((item, idx) => (
                   <li
                     key={`${item.title}-${idx}`}
-                    className="rounded-2xl border border-[#e7e4df] bg-white p-4 shadow-[0_6px_18px_rgba(16,24,40,.03)] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
+                    className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
                   >
                     <div className="flex items-start gap-2.5">
                       <span className={`mt-1.5 size-2 shrink-0 rounded-full ${URGENCY_DOT[item.urgency]}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-[#202939]">{item.title}</span>
+                          <span className="text-sm font-semibold text-foreground">{item.title}</span>
                           {item.category && (
                             <Badge
                               variant="outline"
@@ -133,9 +133,9 @@ export default function BriefingPage() {
                             </Badge>
                           )}
                         </div>
-                        {item.reason && <p className="mt-1.5 text-xs leading-6 text-[#566070]">{item.reason}</p>}
+                        {item.reason && <p className="mt-1.5 text-xs leading-6 text-muted-foreground">{item.reason}</p>}
                         {item.action && (
-                          <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-[#287174]">
+                          <p className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary">
                             <ArrowRight className="size-3.5" />
                             {item.action}
                           </p>
