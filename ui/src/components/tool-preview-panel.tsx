@@ -98,7 +98,7 @@ function JumpToLatestButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur text-sm text-gray-700 hover:bg-white shadow-md border border-gray-200 transition-colors cursor-pointer"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/90 backdrop-blur text-sm text-gray-700 hover:bg-card shadow-md border border-gray-200 transition-colors cursor-pointer"
     >
       <Play size={12} className="fill-current" />
       <span>跳转实时</span>
@@ -463,7 +463,7 @@ export function ToolPreviewPanel({
   const toolDesc = getToolDescription(kind)
 
   return (
-    <div className="flex flex-col h-full rounded-xl bg-white shadow-xl overflow-hidden">
+    <div className="flex flex-col h-full rounded-xl bg-card shadow-xl overflow-hidden">
       {/* Header */}
       <div className="flex flex-col gap-2 px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
         <div className="flex items-center justify-between">

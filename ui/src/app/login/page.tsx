@@ -37,15 +37,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-gradient-to-b from-[#f4f3f1] via-[#f8f8f7] to-[#eaf3f2] px-4">
-      <div className="w-full max-w-sm rounded-[20px] border border-[#e7e4df] bg-white p-8 shadow-[var(--shadow-pop)]">
+    <div className="flex h-screen w-full items-center justify-center bg-gradient-to-b from-muted via-background to-accent px-4">
+      <div className="w-full max-w-sm rounded-[20px] border border-border bg-card p-8 shadow-[var(--shadow-pop)]">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-[#e7e4df] bg-[#f8f8f7] px-3 py-1 text-xs font-semibold text-[#2f3747]">
+          <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
             <span className="size-2 rounded-full bg-primary"/>
             PolicyManus
           </div>
-          <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#1c2127]">登录 PolicyManus</h1>
-          <p className="mt-1 text-sm text-[#778090]">企业政策咨询智能体</p>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground">登录 PolicyManus</h1>
+          <p className="mt-1 text-sm text-muted-foreground">企业政策咨询智能体</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -81,9 +81,9 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-[#778090]">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           还没有账号？{' '}
-          <Link href="/register" className="font-medium text-[#287174] underline-offset-4 hover:underline">
+          <Link href="/register" className="font-medium text-primary underline-offset-4 hover:underline">
             注册新组织
           </Link>
         </p>

@@ -143,7 +143,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     return (
-    <div className={cn('flex flex-col bg-white w-full rounded-2xl py-3 border border-[#e7e4df] shadow-[var(--shadow-card)] transition-all focus-within:border-brand-200 focus-within:shadow-[var(--shadow-hover)]', className)}>
+    <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border border-border shadow-[var(--shadow-card)] transition-all focus-within:border-brand-200 focus-within:shadow-[var(--shadow-hover)]', className)}>
       {/* 顶部的文件列表 */}
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">

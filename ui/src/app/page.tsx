@@ -56,10 +56,10 @@ export default function Page() {
         <div className="w-full max-w-full sm:max-w-[768px] sm:min-w-[390px] mx-auto">
           {/* 对话提示内容 */}
           <div className="font-serif text-[26px] sm:text-[36px] font-semibold tracking-tight leading-tight mb-4 sm:mb-6 text-center sm:text-left">
-            <div className="text-[#1c2127]">
+            <div className="text-foreground">
               您好，<span className="text-primary">{user?.display_name ?? '欢迎回来'}</span>
             </div>
-            <div className="text-[#8b92a0]">需要我帮您做什么？</div>
+            <div className="text-muted-foreground">需要我帮您做什么？</div>
           </div>
           {/* 对话框 */}
           <ChatInput

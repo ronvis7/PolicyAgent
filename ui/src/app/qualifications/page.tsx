@@ -59,13 +59,13 @@ export default function QualificationsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#f8f8f7]">
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
+    <div className="h-full flex flex-col bg-background">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
           <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">资质机会</h1>
-            <p className="hidden text-xs text-[#778090] sm:block">
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">资质机会</h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">
               依据企业档案匹配可申报资质，按「可申报优先」排序；条件为概要，具体以官方最新办法为准。
             </p>
           </div>
@@ -81,13 +81,13 @@ export default function QualificationsPage() {
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="rounded-[18px] border border-[#e7e4df] bg-white py-20 text-center text-sm text-[#778090] shadow-[var(--shadow-card)]">
+            <div className="rounded-[18px] border border-border bg-card py-20 text-center text-sm text-muted-foreground shadow-[var(--shadow-card)]">
               <p>暂无匹配的资质。</p>
               <p className="mt-2">
                 请先完善
                 <Button
                   variant="link"
-                  className="px-1 cursor-pointer text-[#287174]"
+                  className="px-1 cursor-pointer text-primary"
                   onClick={() => router.push('/enterprise-profile')}
                 >
                   企业档案
@@ -97,16 +97,16 @@ export default function QualificationsPage() {
             </div>
           ) : (
             <>
-              <p className="mb-3 text-sm text-[#778090]">
+              <p className="mb-3 text-sm text-muted-foreground">
                 共 {items.length} 项适用，其中
-                <span className="mx-1 font-semibold text-[#202939]">{eligibleCount}</span>
+                <span className="mx-1 font-semibold text-foreground">{eligibleCount}</span>
                 项可申报。
               </p>
               <ul className="space-y-3">
                 {items.map((q) => (
                   <li
                     key={q.key}
-                    className="group relative overflow-hidden rounded-2xl border border-[#e7e4df] bg-white p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+                    className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                   >
                     {/* 资格状态左侧彩条：可申报=翠绿、接近=琥珀 */}
                     <span
@@ -124,7 +124,7 @@ export default function QualificationsPage() {
                       )}
                       <button
                         type="button"
-                        className="text-left font-semibold leading-snug text-[#287174] line-clamp-2 cursor-pointer hover:underline"
+                        className="text-left font-semibold leading-snug text-primary line-clamp-2 cursor-pointer hover:underline"
                         onClick={() => openDetail(q.key)}
                       >
                         {q.name}

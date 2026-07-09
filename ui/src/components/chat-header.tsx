@@ -19,7 +19,7 @@ export function ChatHeader() {
         {/* 品牌字标 */}
         <Link
           href="/"
-          className="flex items-center gap-1.5 rounded-full border border-[#e7e4df] bg-white px-3 py-1 text-xs font-semibold text-[#2f3747] shadow-sm transition-colors hover:border-brand-200"
+          className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-brand-200"
         >
           <span className="size-2 rounded-full bg-primary"/>
           PolicyManus

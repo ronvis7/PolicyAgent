@@ -296,7 +296,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
               </div>
             </div>
 
-            <div className="flex-shrink-0 bg-[#f8f8f7] py-4">
+            <div className="flex-shrink-0 bg-background py-4">
               <PlanPanel className="mb-2" steps={planSteps} />
               <div className="mb-2 flex items-center">
                 <KnowledgeScopeSelector

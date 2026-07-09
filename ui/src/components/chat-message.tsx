@@ -66,7 +66,7 @@ export function ChatMessage({
         )}
       >
         <div className="flex max-w-[90%] relative flex-col gap-2 items-end">
-          <div className="text-[#1c2127] relative flex items-center rounded-2xl overflow-hidden bg-brand-50 border border-brand-100 p-3 shadow-[var(--shadow-card)]">
+          <div className="text-foreground relative flex items-center rounded-2xl overflow-hidden bg-brand-50 border border-brand-100 p-3 shadow-[var(--shadow-card)]">
             {item.data.message ?? ''}
           </div>
         </div>
@@ -85,7 +85,7 @@ export function ChatMessage({
             <ManusIcon />
           </div>
         </div>
-        <div className="max-w-none p-0 m-0 text-[#3d4350]">
+        <div className="max-w-none p-0 m-0 text-muted-foreground">
           <MarkdownContent content={item.data.message ?? ''} />
         </div>
       </div>
@@ -168,7 +168,7 @@ function StepBlock({
             setExpanded((prev) => !prev)
           }
         }}
-        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header truncate text-[#3d4350] rounded-md hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header truncate text-muted-foreground rounded-md hover:bg-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <div className="flex flex-row gap-2 justify-start items-center truncate min-w-0 flex-1">
           <div
@@ -190,7 +190,7 @@ function StepBlock({
       {expanded && tools.length > 0 && (
         <div className="flex">
           <div className="w-6 relative flex-shrink-0">
-            <div className="absolute left-[7px] top-2 bottom-0 w-[1px] border-l border-dashed border-[#d9d5ce]" />
+            <div className="absolute left-[7px] top-2 bottom-0 w-[1px] border-l border-dashed border-border" />
           </div>
           <div className="flex flex-col gap-3 flex-1 min-w-0 overflow-hidden pt-2 transition-[max-height,opacity] duration-150 ease-in-out">
             {tools.map((tool, idx) => (

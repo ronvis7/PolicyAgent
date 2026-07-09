@@ -34,7 +34,7 @@ import { useAuth } from '@/providers/auth-provider'
 
 /** 分区卡片样式（与政策库/工作台等页面视觉一致） */
 const CARD_CLASS =
-  'rounded-[18px] border border-[#e7e4df] bg-white p-6 shadow-[var(--shadow-card)]'
+  'rounded-[18px] border border-border bg-card p-6 shadow-[var(--shadow-card)]'
 
 /** 企业规模选项 */
 const SCALE_OPTIONS: { value: EnterpriseScale; label: string }[] = [
@@ -321,7 +321,7 @@ function ContestRegionPicker({
 /** 查看态：只读标签云（空时弱化提示） */
 function TagCloud({ values }: { values: string[] }) {
   if (values.length === 0) {
-    return <span className="text-sm text-[#98a2b3]">未填写</span>
+    return <span className="text-sm text-muted-foreground">未填写</span>
   }
   return (
     <div className="flex flex-wrap gap-2">
@@ -338,11 +338,11 @@ function TagCloud({ values }: { values: string[] }) {
 function MetricCard({ label, value, unit }: { label: string; value: string; unit?: string }) {
   const empty = value === '—'
   return (
-    <div className="rounded-2xl border border-[#eceae6] bg-[#fafafa] px-4 py-3">
-      <div className="text-xs text-[#8b92a0]">{label}</div>
-      <div className={`mt-1 text-lg font-semibold ${empty ? 'text-[#cbd0d8]' : 'text-[#202939]'}`}>
+    <div className="rounded-2xl border border-muted bg-card px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`mt-1 text-lg font-semibold ${empty ? 'text-muted-foreground' : 'text-foreground'}`}>
         {value}
-        {!empty && unit && <span className="ml-1 text-xs font-normal text-[#8b92a0]">{unit}</span>}
+        {!empty && unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span>}
       </div>
     </div>
   )
@@ -417,14 +417,14 @@ export default function EnterpriseProfilePage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#f8f8f7]">
+    <div className="h-full flex flex-col bg-background">
       {/* 头部 */}
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
           <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">企业档案</h1>
-            <p className="hidden text-xs text-[#778090] sm:block">
+            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">企业档案</h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">
               {canEdit
                 ? '完善企业档案，作为后续政策匹配与主动推送的依据。'
                 : '仅组织所有者 / 管理员可编辑企业档案。'}
@@ -446,7 +446,7 @@ export default function EnterpriseProfilePage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                className="cursor-pointer rounded-xl bg-white"
+                className="cursor-pointer rounded-xl bg-card"
                 onClick={cancelEdit}
                 disabled={saving}
               >
@@ -462,7 +462,7 @@ export default function EnterpriseProfilePage() {
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-[#778090]">
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : mode === 'edit' ? (
@@ -482,12 +482,12 @@ function EmptyState({ canEdit, onStart }: { canEdit: boolean; onStart: () => voi
   return (
     <div className="mx-auto max-w-[760px]">
       <div className={`${CARD_CLASS} flex flex-col items-center gap-4 py-16 text-center`}>
-        <div className="grid size-14 place-items-center rounded-2xl bg-[#eef8f8] text-[#287174]">
+        <div className="grid size-14 place-items-center rounded-2xl bg-accent text-primary">
           <Building2 className="size-7" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-[#202939]">尚未填写企业档案</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#778090]">
+          <h2 className="text-lg font-bold text-foreground">尚未填写企业档案</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
             企业档案是政策匹配、资质差距分析和工作台主动推送的依据。
             {canEdit ? '完善后即可在工作台看到为你筛选的政策与资质机会。' : '请联系组织所有者 / 管理员填写。'}
           </p>
@@ -513,16 +513,16 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
       <div className={CARD_CLASS}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-[#eef8f8] text-[#287174]">
+            <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-accent text-primary">
               <Building2 className="size-7" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-serif text-2xl font-semibold leading-tight tracking-tight text-[#1c2127]">
+              <h2 className="font-serif text-2xl font-semibold leading-tight tracking-tight text-foreground">
                 {profile.company_name}
               </h2>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-[#667085]">
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
-                  <MapPin className="size-4 text-[#98a2b3]" />
+                  <MapPin className="size-4 text-muted-foreground" />
                   {region || '未填写'}
                 </span>
                 {profile.industry && <span>· {profile.industry}</span>}
@@ -535,30 +535,30 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
             </div>
           </div>
           {profile.updated_at && (
-            <div className="text-right text-xs text-[#98a2b3]">
+            <div className="text-right text-xs text-muted-foreground">
               最后更新
-              <div className="mt-0.5 text-[#778090]">{formatDateLabel(profile.updated_at)}</div>
+              <div className="mt-0.5 text-muted-foreground">{formatDateLabel(profile.updated_at)}</div>
             </div>
           )}
         </div>
 
         {/* 完整度 */}
-        <div className="mt-5 rounded-2xl border border-[#eceae6] bg-[#fafafa] px-4 py-3">
+        <div className="mt-5 rounded-2xl border border-muted bg-card px-4 py-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="inline-flex items-center gap-1 font-medium text-[#566070]">
-              <Sparkles className="size-3.5 text-[#287174]" />
+            <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
+              <Sparkles className="size-3.5 text-primary" />
               档案完整度
             </span>
-            <span className="font-semibold text-[#202939]">{score}%</span>
+            <span className="font-semibold text-foreground">{score}%</span>
           </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8e6e2]">
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-border">
             <div
               className="h-full rounded-full bg-primary transition-all"
               style={{ width: `${score}%` }}
             />
           </div>
           {score < 100 && (
-            <p className="mt-2 text-xs text-[#98a2b3]">
+            <p className="mt-2 text-xs text-muted-foreground">
               补全经营与研发指标，可启用更精准的资质申报差距分析。
             </p>
           )}
@@ -566,8 +566,8 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
 
         {profile.main_business && (
           <div className="mt-5">
-            <div className="text-xs font-semibold text-[#8b92a0]">主营业务</div>
-            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-7 text-[#475467]">
+            <div className="text-xs font-semibold text-muted-foreground">主营业务</div>
+            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
               {profile.main_business}
             </p>
           </div>
@@ -576,33 +576,33 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
 
       {/* 资质与领域 */}
       <div className={CARD_CLASS}>
-        <div className="mb-4 flex items-center gap-2 text-base font-bold text-[#202939]">
-          <Award className="size-5 text-[#287174]" />
+        <div className="mb-4 flex items-center gap-2 text-base font-bold text-foreground">
+          <Award className="size-5 text-primary" />
           资质与领域
         </div>
         <div className="flex flex-col gap-4">
           <div>
-            <div className="mb-2 text-xs font-semibold text-[#8b92a0]">已有资质</div>
+            <div className="mb-2 text-xs font-semibold text-muted-foreground">已有资质</div>
             <TagCloud values={profile.qualifications} />
           </div>
           <div>
-            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-[#8b92a0]">
+            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
               <Tags className="size-3.5" />
               技术 / 产品领域
             </div>
             <TagCloud values={profile.tech_domains} />
           </div>
           <div>
-            <div className="mb-2 text-xs font-semibold text-[#8b92a0]">关键词标签</div>
+            <div className="mb-2 text-xs font-semibold text-muted-foreground">关键词标签</div>
             <TagCloud values={profile.keywords} />
           </div>
           <div>
-            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-[#8b92a0]">
+            <div className="mb-2 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
               <Trophy className="size-3.5" />
               参赛关注地区
             </div>
             {profile.contest_regions.length === 0 ? (
-              <span className="text-sm text-[#98a2b3]">不限地区（未选择）</span>
+              <span className="text-sm text-muted-foreground">不限地区（未选择）</span>
             ) : (
               <TagCloud values={profile.contest_regions} />
             )}
@@ -612,11 +612,11 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
 
       {/* 经营与研发指标 */}
       <div className={CARD_CLASS}>
-        <div className="mb-1 flex items-center gap-2 text-base font-bold text-[#202939]">
-          <TrendingUp className="size-5 text-[#287174]" />
+        <div className="mb-1 flex items-center gap-2 text-base font-bold text-foreground">
+          <TrendingUp className="size-5 text-primary" />
           经营与研发指标
         </div>
-        <p className="mb-4 text-xs text-[#98a2b3]">用于资质申报机会的条件差距分析（成立年限、研发占比、研发投入强度、知识产权等）。</p>
+        <p className="mb-4 text-xs text-muted-foreground">用于资质申报机会的条件差距分析（成立年限、研发占比、研发投入强度、知识产权等）。</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <MetricCard label="成立 / 注册日期" value={formatDateLabel(profile.established_date)} />
           <MetricCard label="员工总数" value={formatNumber(profile.total_staff)} unit="人" />
@@ -682,7 +682,7 @@ function EditForm({
       <FieldGroup className="gap-4">
         <div className={CARD_CLASS}>
           <FieldSet>
-            <FieldLegend className="text-base font-bold text-[#202939]">基本信息</FieldLegend>
+            <FieldLegend className="text-base font-bold text-foreground">基本信息</FieldLegend>
 
             <Field>
               <FieldLabel htmlFor="company_name">企业名称</FieldLabel>
@@ -760,7 +760,7 @@ function EditForm({
 
         <div className={CARD_CLASS}>
           <FieldSet>
-            <FieldLegend className="text-base font-bold text-[#202939]">资质与领域</FieldLegend>
+            <FieldLegend className="text-base font-bold text-foreground">资质与领域</FieldLegend>
 
             <TagInput
               label="已有资质"
@@ -808,7 +808,7 @@ function EditForm({
 
         <div className={CARD_CLASS}>
           <FieldSet>
-            <FieldLegend className="text-base font-bold text-[#202939]">参赛关注地区</FieldLegend>
+            <FieldLegend className="text-base font-bold text-foreground">参赛关注地区</FieldLegend>
             <p className="-mt-1 mb-1 text-xs text-muted-foreground">
               工作台「赛事机会」按此过滤大赛/比赛通知。
             </p>
@@ -821,7 +821,7 @@ function EditForm({
 
         <div className={CARD_CLASS}>
           <FieldSet>
-            <FieldLegend className="text-base font-bold text-[#202939]">经营与研发指标</FieldLegend>
+            <FieldLegend className="text-base font-bold text-foreground">经营与研发指标</FieldLegend>
             <p className="-mt-1 mb-1 text-xs text-muted-foreground">
               用于资质申报机会的条件差距分析（如成立年限、研发人员占比、研发投入强度、知识产权数量）。按企业实际据实填写，留空表示暂未提供。
             </p>

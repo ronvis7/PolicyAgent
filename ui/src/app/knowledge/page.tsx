@@ -38,14 +38,14 @@ const KB_STYLES: Record<KbStyle['kind'], KbStyle> = {
     label: '通用文档库',
     icon: FileText,
     tint: 'bg-[#eef5ff] text-[#3867d6]',
-    badge: 'bg-[#f7f7f6] text-[#525252]',
+    badge: 'bg-background text-[#525252]',
   },
   policy: {
     kind: 'policy',
     label: '私有政策库',
     icon: Landmark,
-    tint: 'bg-[#eef8f8] text-[#287174]',
-    badge: 'bg-[#eef8f8] text-[#287174]',
+    tint: 'bg-accent text-primary',
+    badge: 'bg-accent text-primary',
   },
 }
 
@@ -93,11 +93,11 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div className="h-full overflow-hidden bg-[#f7f7f6]">
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-[#e7e5e2] bg-[#fbfbfa] px-4 py-3">
+    <div className="h-full overflow-hidden bg-background">
+      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
         <div className="flex min-w-0 items-center gap-3">
-          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
-          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">文档知识库</h1>
+          <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
+          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">文档知识库</h1>
         </div>
         <Button className="cursor-pointer rounded-xl" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" />
@@ -108,12 +108,12 @@ export default function KnowledgePage() {
       <main className="h-[calc(100vh-4rem)] overflow-auto p-6">
         <div className="mx-auto max-w-[1480px] space-y-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2 text-sm text-[#737373]">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Database className="size-4" />
               <span>导入企业材料、政策文件或案例资料，作为咨询智能体的检索依据。</span>
             </div>
-            <div className="flex w-full items-center gap-2 rounded-xl border border-[#e5e5e5] bg-white px-3 shadow-sm md:w-[360px]">
-              <Search className="size-4 text-[#a3a3a3]" />
+            <div className="flex w-full items-center gap-2 rounded-xl border border-border bg-card px-3 shadow-sm md:w-[360px]">
+              <Search className="size-4 text-muted-foreground" />
               <Input
                 value={query}
                 placeholder="搜索知识库..."
@@ -124,15 +124,15 @@ export default function KnowledgePage() {
           </div>
 
           {loading ? (
-            <div className="flex min-h-[420px] items-center justify-center text-[#737373]">
+            <div className="flex min-h-[420px] items-center justify-center text-muted-foreground">
               <Loader2 className="size-5 animate-spin" />
             </div>
           ) : knowledgeBases.length === 0 ? (
             <div className="grid min-h-[520px] place-items-center">
               <div className="text-center">
-                <Database className="mx-auto mb-4 size-11 text-[#c7c7c7]" />
-                <p className="mb-4 text-sm text-[#737373]">还没有知识库，先创建一个吧</p>
-                <Button variant="outline" className="cursor-pointer rounded-xl bg-white" onClick={() => setCreateOpen(true)}>
+                <Database className="mx-auto mb-4 size-11 text-muted-foreground" />
+                <p className="mb-4 text-sm text-muted-foreground">还没有知识库，先创建一个吧</p>
+                <Button variant="outline" className="cursor-pointer rounded-xl bg-card" onClick={() => setCreateOpen(true)}>
                   <Plus className="size-4" />
                   新建知识库
                 </Button>
@@ -142,14 +142,14 @@ export default function KnowledgePage() {
             <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               <button
                 type="button"
-                className="min-h-[220px] rounded-2xl border border-[#e5e5e5] bg-white p-6 text-left shadow-sm transition hover:border-[#d0d0d0] hover:shadow-md"
+                className="min-h-[220px] rounded-2xl border border-border bg-card p-6 text-left shadow-sm transition hover:border-border hover:shadow-md"
                 onClick={() => setCreateOpen(true)}
               >
-                <div className="grid size-12 place-items-center rounded-2xl bg-[#eef8f8] text-[#287174]">
+                <div className="grid size-12 place-items-center rounded-2xl bg-accent text-primary">
                   <Plus className="size-6" />
                 </div>
-                <h2 className="mt-5 text-lg font-semibold text-[#202124]">新建知识库</h2>
-                <p className="mt-4 max-w-sm text-sm leading-6 text-[#737373]">
+                <h2 className="mt-5 text-lg font-semibold text-foreground">新建知识库</h2>
+                <p className="mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
                   导入自己的文本数据，或通过后续接口实时写入数据，以增强智能体的上下文。
                 </p>
               </button>
@@ -161,7 +161,7 @@ export default function KnowledgePage() {
                 return (
                   <article
                     key={kb.id}
-                    className="group min-h-[220px] rounded-2xl border border-[#e5e5e5] bg-white p-6 shadow-sm transition hover:border-[#d0d0d0] hover:shadow-md"
+                    className="group min-h-[220px] rounded-2xl border border-border bg-card p-6 shadow-sm transition hover:border-border hover:shadow-md"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button
@@ -173,14 +173,14 @@ export default function KnowledgePage() {
                           <Icon className="size-6" />
                         </div>
                         <div className="min-w-0">
-                          <h2 className="truncate text-lg font-semibold text-[#202124]">{kb.name}</h2>
-                          <p className="mt-1 text-sm text-[#737373]">{fileCount} 文件 · {formatRelativeDate(kb.created_at)}</p>
+                          <h2 className="truncate text-lg font-semibold text-foreground">{kb.name}</h2>
+                          <p className="mt-1 text-sm text-muted-foreground">{fileCount} 文件 · {formatRelativeDate(kb.created_at)}</p>
                         </div>
                       </button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="cursor-pointer rounded-lg text-[#a3a3a3] opacity-0 hover:text-destructive group-hover:opacity-100"
+                        className="cursor-pointer rounded-lg text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
                         onClick={() => setPendingDelete(kb)}
                         aria-label="删除知识库"
                       >
@@ -200,7 +200,7 @@ export default function KnowledgePage() {
                       <Badge variant="outline" className={cn('rounded-lg', style.badge)}>
                         {style.label}
                       </Badge>
-                      <Badge variant="outline" className="rounded-lg bg-[#f7f7f6] text-[#525252]">1024 维</Badge>
+                      <Badge variant="outline" className="rounded-lg bg-background text-[#525252]">1024 维</Badge>
                     </div>
                   </article>
                 )
@@ -209,7 +209,7 @@ export default function KnowledgePage() {
           )}
 
           {!loading && knowledgeBases.length > 0 && filteredKnowledgeBases.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[#d7d7d7] bg-white py-16 text-center text-sm text-[#737373]">
+            <div className="rounded-2xl border border-dashed border-border bg-card py-16 text-center text-sm text-muted-foreground">
               没有找到匹配的知识库
             </div>
           ) : null}

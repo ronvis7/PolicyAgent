@@ -44,12 +44,12 @@ export default function AgentMemoryPage() {
   }
 
   return (
-    <div className="h-full overflow-hidden bg-[#f8f8f7]">
-      <header className="flex min-h-16 items-center gap-3 border-b border-[#e5e2de] bg-[#f8f8f7]/95 px-4 py-3">
-        <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-white" />
+    <div className="h-full overflow-hidden bg-background">
+      <header className="flex min-h-16 items-center gap-3 border-b border-border bg-background/95 px-4 py-3">
+        <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
         <div className="min-w-0">
-          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-[#1c2127]">Agent 记忆</h1>
-          <p className="hidden text-xs text-[#778090] sm:block">
+          <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">Agent 记忆</h1>
+          <p className="hidden text-xs text-muted-foreground sm:block">
             智能助手在历次对话中为本企业记下的长期记忆，会在新会话里被自动想起。
           </p>
         </div>
@@ -57,12 +57,12 @@ export default function AgentMemoryPage() {
 
       <div className="h-[calc(100vh-4rem)] overflow-auto p-4">
         <div className="mx-auto max-w-3xl space-y-6">
-          <section className="rounded-[18px] border border-[#e5e2de] bg-white p-5 shadow-[0_10px_30px_rgba(16,24,40,.04)]">
-            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#202939]">
-              <BrainCircuit className="size-4 text-[#287174]" />
+          <section className="rounded-[18px] border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+            <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+              <BrainCircuit className="size-4 text-primary" />
               长期记忆
             </div>
-            <p className="mb-4 text-xs leading-6 text-[#778090]">
+            <p className="mb-4 text-xs leading-6 text-muted-foreground">
               当你在对话中告诉助手值得长期记住的信息（如经营数据变化、申报意向、答复偏好），
               助手会主动把要点记入这里；下次开启新会话时它会自动想起这些内容，无需你重复说明。
               你可以随时删除不再需要的记忆。
@@ -76,11 +76,11 @@ export default function AgentMemoryPage() {
               </div>
             ) : memories.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
-                <div className="flex size-12 items-center justify-center rounded-full bg-brand-50 text-[#287174]">
+                <div className="flex size-12 items-center justify-center rounded-full bg-brand-50 text-primary">
                   <Sparkles className="size-5" />
                 </div>
-                <div className="text-sm font-medium text-[#344054]">还没有任何长期记忆</div>
-                <p className="max-w-sm text-xs leading-6 text-[#778090]">
+                <div className="text-sm font-medium text-foreground">还没有任何长期记忆</div>
+                <p className="max-w-sm text-xs leading-6 text-muted-foreground">
                   在对话中向助手介绍你的企业近况或偏好，例如“我们今年新增了 3 项发明专利”、
                   “以后回答请简洁些”，助手会自动把要点记下来。
                 </p>
@@ -90,14 +90,14 @@ export default function AgentMemoryPage() {
                 {memories.map((memory) => (
                   <li
                     key={memory.id}
-                    className="group flex items-start gap-3 rounded-2xl border border-[#e7e4df] bg-[#fafafa] p-4 transition-all hover:border-brand-200 hover:bg-white hover:shadow-[var(--shadow-card)]"
+                    className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 transition-all hover:border-brand-200 hover:bg-card hover:shadow-[var(--shadow-card)]"
                   >
-                    <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[#287174]">
+                    <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-primary">
                       <MessageSquareText className="size-3.5" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-6 text-[#202939]">{memory.content}</p>
-                      <p className="mt-1 text-[11px] text-[#98a2b3]">记于 {formatDate(memory.created_at)}</p>
+                      <p className="text-sm leading-6 text-foreground">{memory.content}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">记于 {formatDate(memory.created_at)}</p>
                     </div>
                     {confirmingId === memory.id ? (
                       <div className="flex shrink-0 items-center gap-2 text-xs">
@@ -112,7 +112,7 @@ export default function AgentMemoryPage() {
                         <button
                           type="button"
                           onClick={() => setConfirmingId(null)}
-                          className="rounded-lg px-2 py-1 text-[#667085] hover:bg-[#f2f4f7]"
+                          className="rounded-lg px-2 py-1 text-muted-foreground hover:bg-[#f2f4f7]"
                         >
                           取消
                         </button>
@@ -122,7 +122,7 @@ export default function AgentMemoryPage() {
                         type="button"
                         aria-label="删除记忆"
                         onClick={() => setConfirmingId(memory.id)}
-                        className="shrink-0 rounded-lg p-1.5 text-[#98a2b3] opacity-0 transition-opacity hover:bg-[#fef3f2] hover:text-[#d92d20] group-hover:opacity-100"
+                        className="shrink-0 rounded-lg p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-[#fef3f2] hover:text-[#d92d20] group-hover:opacity-100"
                       >
                         <Trash2 className="size-4" />
                       </button>
