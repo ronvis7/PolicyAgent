@@ -290,13 +290,18 @@ def _build_contest_push_hook():
     contest_source_names = {
         s.key: s.name for s in list_sources() if s.key in contest_keys
     }
-    hooks = [make_tenant_contest_push_hook(get_uow, contest_source_names)]
+    web_base_url = settings.web_base_url
+    hooks = [make_tenant_contest_push_hook(
+        get_uow, contest_source_names, web_base_url=web_base_url,
+    )]
     if settings.feishu_webhook_url:
         notifier = FeishuWebhookNotifier(
             webhook_url=settings.feishu_webhook_url,
             secret=settings.feishu_webhook_secret,
         )
-        hooks.append(make_contest_push_hook(notifier, contest_source_names))
+        hooks.append(make_contest_push_hook(
+            notifier, contest_source_names, web_base_url=web_base_url,
+        ))
 
     async def push_all(source: str, new_policies: List[Policy]) -> None:
         for hook in hooks:

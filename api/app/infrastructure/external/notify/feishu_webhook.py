@@ -5,8 +5,8 @@
 地区过滤) + 部署级(env `FEISHU_WEBHOOK_URL`/`FEISHU_WEBHOOK_SECRET`，全量不过滤，兜底)。
 
 组成：
-- `feishu_sign` / `build_contest_message` / `mask_webhook_url`：纯函数(签名、赛事富文本
-  消息构造、URL 脱敏回显)；
+- `feishu_sign` / `build_contest_message` / `mask_webhook_url`：纯函数(签名、赛事交互卡片
+  构造[临期变色+报名倒计时+打开工作台按钮]、URL 脱敏回显)；
 - `FeishuWebhookNotifier.send`：httpx POST，best-effort(任何失败只记 warning 返回 False)；
 - `make_contest_push_hook`：单 webhook(部署级 env)回调，仅赛事来源触发；
 - `make_tenant_contest_push_hook`：租户级扇出回调——遍历配置了 webhook 的租户，
@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import logging
 import time
+from datetime import date
 from typing import Awaitable, Callable, Dict, List, Optional
 
 import httpx
@@ -33,6 +34,10 @@ logger = logging.getLogger(__name__)
 # 单条消息最多列出的赛事数：首次全量入库可能一次新增几十条，只推最新一批避免刷屏
 _MAX_ITEMS_PER_MESSAGE = 10
 _REQUEST_TIMEOUT = 10  # 秒
+
+# 报名临期阈值(天)：任一赛事 ≤3 天卡片头转红、≤14 天转橙，与工作台 Feed 徽章口径一致
+_URGENT_DAYS = 3
+_SOON_DAYS = 14
 
 
 def feishu_sign(secret: str, timestamp: str) -> str:
@@ -61,39 +66,116 @@ def mask_webhook_url(url: str) -> str:
     return f"{base}/{token}" if base else token
 
 
-def build_contest_message(policies: List[Policy], source_name: str = "") -> dict:
-    """把一批新入库的赛事通知组装成飞书富文本(post)消息。
+def _escape_md(text: str) -> str:
+    """转义 lark_md 链接文字里的方括号，避免标题含 [] 时截断链接。"""
+    return text.replace("[", "\\[").replace("]", "\\]")
 
-    每条一行：标题(带原文链接) + 地区/发布日期/报名截止(⑤抽取到才带，以原文为准)。
-    超过上限只列前 N 条，标题仍报真实总数。
+
+def _days_left(policy: Policy, today: date) -> Optional[int]:
+    """抽取到明确截止日期时返回剩余天数(可为负=已过期)，否则 None。"""
+    if policy.deadline_status == "extracted" and policy.apply_deadline:
+        return (policy.apply_deadline - today).days
+    return None
+
+
+def _deadline_hint(policy: Policy, today: date) -> str:
+    """一条赛事的时间线提示：优先报名截止倒计时，否则常年受理/发布日期。"""
+    days = _days_left(policy, today)
+    if days is not None:
+        md = policy.apply_deadline.strftime("%m-%d")
+        if days < 0:
+            return f"⏰ 报名已截止（{md}）"
+        if days == 0:
+            return f"⏰ 今天截止（{md}）"
+        return f"⏰ 报名截止 {md}（还剩 {days} 天）"
+    if policy.deadline_status == "rolling":
+        return "⏰ 常年受理"
+    if policy.publish_date:
+        return f"🗓 发布 {policy.publish_date.strftime('%m-%d')}"
+    return ""
+
+
+def _header_template(policies: List[Policy], today: date) -> str:
+    """按最紧迫的报名截止决定卡片头颜色：≤3天红、≤14天橙、否则蓝(常规新机会)。"""
+    urgent = soon = False
+    for p in policies:
+        days = _days_left(p, today)
+        if days is None or days < 0:
+            continue
+        if days <= _URGENT_DAYS:
+            urgent = True
+        elif days <= _SOON_DAYS:
+            soon = True
+    if urgent:
+        return "red"
+    if soon:
+        return "orange"
+    return "blue"
+
+
+def _feed_url(web_base_url: str) -> str:
+    """工作台赛事页地址(卡片按钮跳转)。"""
+    return web_base_url.rstrip("/") + "/feed"
+
+
+def build_contest_message(
+    policies: List[Policy],
+    source_name: str = "",
+    web_base_url: str = "",
+    today: Optional[date] = None,
+) -> dict:
+    """把一批新入库的赛事通知组装成飞书交互卡片(interactive)。
+
+    卡片头按最紧迫的报名截止变色(临期红/橙)；每条一块：加粗可点标题 + 📍地区 +
+    报名截止倒计时(⑤抽取到才有，"还剩 N 天")。配了 web_base_url 时底部加「打开工作台」
+    按钮直达赛事页。超过上限只列前 N 条，标题仍报真实总数；截止以原文为准(note 声明)。
     """
-    lines: List[List[dict]] = []
-    for p in policies[:_MAX_ITEMS_PER_MESSAGE]:
-        meta_parts = [part for part in (
-            p.region,
-            f"发布 {p.publish_date}" if p.publish_date else "",
-            f"报名截止 {p.apply_deadline}(以原文为准)"
-            if p.deadline_status == "extracted" and p.apply_deadline else "",
+    today = today or date.today()
+    shown = policies[:_MAX_ITEMS_PER_MESSAGE]
+
+    elements: List[dict] = []
+    for i, p in enumerate(shown):
+        title = _escape_md(p.title)
+        title_line = f"**[{title}]({p.source_url})**" if p.source_url else f"**{title}**"
+        meta = [part for part in (
+            f"📍 {p.region}" if p.region else "",
+            _deadline_hint(p, today),
         ) if part]
-        line: List[dict] = [{"tag": "a", "text": p.title, "href": p.source_url}]
-        if meta_parts:
-            line.append({"tag": "text", "text": f"（{' | '.join(meta_parts)}）"})
-        lines.append(line)
+        content = title_line + (f"\n{'  ·  '.join(meta)}" if meta else "")
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": content}})
+        if i < len(shown) - 1:
+            elements.append({"tag": "hr"})
 
     if len(policies) > _MAX_ITEMS_PER_MESSAGE:
-        lines.append([{
-            "tag": "text",
-            "text": f"…共 {len(policies)} 条，其余请到工作台「赛事机会」查看",
-        }])
+        elements.append({"tag": "hr"})
+        elements.append({"tag": "div", "text": {"tag": "lark_md",
+            "content": f"…共 **{len(policies)}** 条，其余请到工作台「赛事机会」查看"}})
+
+    if web_base_url:
+        elements.append({"tag": "action", "actions": [{
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "打开工作台查看全部"},
+            "url": _feed_url(web_base_url),
+            "type": "primary",
+        }]})
+
+    note_parts = ["报名信息以官方原文为准"]
     if source_name:
-        lines.append([{"tag": "text", "text": f"来源：{source_name}"}])
+        note_parts.append(f"来源 {source_name}")
+    note_parts.append("依你的参赛关注地区筛选")
+    elements.append({"tag": "note", "elements": [
+        {"tag": "plain_text", "content": " · ".join(note_parts)}]})
 
     return {
-        "msg_type": "post",
-        "content": {"post": {"zh_cn": {
-            "title": f"🏆 新赛事机会 {len(policies)} 条",
-            "content": lines,
-        }}},
+        "msg_type": "interactive",
+        "card": {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "template": _header_template(shown, today),
+                "title": {"tag": "plain_text", "content": f"🏆 新赛事机会 · {len(policies)} 条"},
+            },
+            "elements": elements,
+        },
     }
 
 
@@ -149,17 +231,21 @@ class FeishuWebhookNotifier:
 def make_contest_push_hook(
     notifier: FeishuWebhookNotifier,
     contest_source_names: Dict[str, str],
+    web_base_url: str = "",
 ) -> Callable[[str, List[Policy]], Awaitable[None]]:
     """包装成 PolicyIngestService.on_new_policies 回调：仅赛事来源的新增触发推送。
 
     contest_source_names: 赛事来源 key → 展示名(registry 登记名，进消息尾部溯源)。
+    web_base_url: 前端基地址，非空时卡片带「打开工作台」按钮。
     """
 
     async def push_new_contests(source: str, new_policies: List[Policy]) -> None:
         source_name = contest_source_names.get(source)
         if source_name is None:  # 非赛事来源(普通政策入库)不打扰群
             return
-        message = build_contest_message(new_policies, source_name=source_name)
+        message = build_contest_message(
+            new_policies, source_name=source_name, web_base_url=web_base_url,
+        )
         await notifier.send(message)
 
     return push_new_contests
@@ -169,6 +255,7 @@ def make_tenant_contest_push_hook(
     uow_factory: Callable[[], IUnitOfWork],
     contest_source_names: Dict[str, str],
     transport: Optional[httpx.AsyncBaseTransport] = None,
+    web_base_url: str = "",
 ) -> Callable[[str, List[Policy]], Awaitable[None]]:
     """租户级扇出版 on_new_policies 回调：新赛事按各组织配置的 webhook 分别推送。
 
@@ -204,7 +291,9 @@ def make_tenant_contest_push_hook(
                     secret=config.secret,
                     transport=transport,
                 )
-                await notifier.send(build_contest_message(matched, source_name=source_name))
+                await notifier.send(build_contest_message(
+                    matched, source_name=source_name, web_base_url=web_base_url,
+                ))
             except Exception as e:  # noqa: BLE001 — 单租户失败不拖累其他租户
                 logger.warning(
                     "租户 %s 飞书推送异常: %s: %s", ts.tenant_id, type(e).__name__, e,

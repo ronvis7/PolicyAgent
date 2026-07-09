@@ -53,28 +53,58 @@ def test_feishu_sign_matches_official_algorithm() -> None:
     assert feishu_sign(secret, timestamp) == expected
 
 
-# ---------- 消息构造 ----------
+# ---------- 消息构造(交互卡片) ----------
 
-def test_build_contest_message_is_post_with_title_link_and_deadline() -> None:
+def test_build_contest_message_is_interactive_card_with_link_and_countdown() -> None:
     msg = build_contest_message(
-        [_policy(deadline=date(2026, 7, 31))], source_name="无锡新吴区·大赛通知",
+        [_policy(deadline=date(2026, 7, 31))],
+        source_name="无锡新吴区·大赛通知",
+        today=date(2026, 7, 1),
     )
 
-    assert msg["msg_type"] == "post"
-    post = msg["content"]["post"]["zh_cn"]
-    assert "1" in post["title"]  # 标题含条数
-    flat = json.dumps(post["content"], ensure_ascii=False)
+    assert msg["msg_type"] == "interactive"
+    card = msg["card"]
+    assert "1" in card["header"]["title"]["content"]  # 标题含条数
+    flat = json.dumps(card["elements"], ensure_ascii=False)
     assert "创新创业大赛" in flat
-    assert "https://www.wnd.gov.cn/doc/1.shtml" in flat
-    assert "2026-07-31" in flat  # 报名截止
-    assert "无锡新吴区·大赛通知" in flat  # 来源名
+    assert "https://www.wnd.gov.cn/doc/1.shtml" in flat  # 标题带原文链接
+    assert "07-31" in flat  # 报名截止(MM-DD)
+    assert "还剩 30 天" in flat  # 倒计时 = 7/31 - 7/1
+    assert "无锡新吴区·大赛通知" in flat  # 来源名(note)
 
 
-def test_build_contest_message_without_deadline_omits_deadline_text() -> None:
-    msg = build_contest_message([_policy()], source_name="src")
-    flat = json.dumps(msg["content"]["post"]["zh_cn"]["content"], ensure_ascii=False)
+def test_build_contest_message_without_deadline_shows_no_countdown() -> None:
+    msg = build_contest_message([_policy()], source_name="src", today=date(2026, 7, 1))
+    flat = json.dumps(msg["card"]["elements"], ensure_ascii=False)
 
-    assert "截止" not in flat
+    assert "还剩" not in flat  # 无截止不编造倒计时
+    assert "报名截止" not in flat
+    assert "🗓 发布 07-01" in flat  # 回落展示发布日期
+
+
+def test_build_contest_message_urgent_deadline_reddens_header() -> None:
+    """任一赛事临近(≤3天)截止→卡片头转红；较缓(≤14天)转橙。"""
+    urgent = build_contest_message(
+        [_policy(deadline=date(2026, 7, 3))], today=date(2026, 7, 1),  # 2 天
+    )
+    soon = build_contest_message(
+        [_policy(deadline=date(2026, 7, 10))], today=date(2026, 7, 1),  # 9 天
+    )
+    normal = build_contest_message([_policy()], today=date(2026, 7, 1))  # 无截止
+
+    assert urgent["card"]["header"]["template"] == "red"
+    assert soon["card"]["header"]["template"] == "orange"
+    assert normal["card"]["header"]["template"] == "blue"
+
+
+def test_build_contest_message_button_links_to_workbench_when_base_url_set() -> None:
+    with_btn = build_contest_message([_policy()], web_base_url="http://host:8088/")
+    without = build_contest_message([_policy()])
+
+    flat = json.dumps(with_btn["card"]["elements"], ensure_ascii=False)
+    assert "打开工作台查看全部" in flat
+    assert "http://host:8088/feed" in flat  # 去重斜杠后拼 /feed
+    assert "打开工作台" not in json.dumps(without["card"]["elements"], ensure_ascii=False)
 
 
 def test_build_contest_message_caps_items() -> None:
@@ -82,9 +112,9 @@ def test_build_contest_message_caps_items() -> None:
     policies = [_policy(url=f"https://x/{i}.html", title=f"大赛{i}") for i in range(15)]
     msg = build_contest_message(policies, source_name="src")
 
-    post = msg["content"]["post"]["zh_cn"]
-    assert "15" in post["title"]  # 标题仍报真实总数
-    flat = json.dumps(post["content"], ensure_ascii=False)
+    card = msg["card"]
+    assert "15" in card["header"]["title"]["content"]  # 标题仍报真实总数
+    flat = json.dumps(card["elements"], ensure_ascii=False)
     assert flat.count("https://x/") == 10
 
 
