@@ -109,7 +109,7 @@ def test_list_sources_with_stats_merges_registry_and_counts() -> None:
 
 
 def test_list_contest_regions_dedupes_from_competition_sources_only() -> None:
-    """参赛地区选项数据驱动：只取赛事来源已入库政策的 region 去重排序，政策来源不计入。"""
+    """参赛地区选项：数据驱动(赛事来源去重) ∪ 常设赛区；政策来源不计入。"""
     store = {
         "c1": Policy(source="cnmaker-contest", source_url="c1", title="深圳大赛",
                      region="广东省深圳市"),
@@ -122,8 +122,18 @@ def test_list_contest_regions_dedupes_from_competition_sources_only() -> None:
 
     regions = asyncio.run(service.list_contest_regions())
 
-    assert regions == ["云南省", "广东省深圳市"]  # 去重 + 按地区名排序
-    assert "江苏省无锡市新吴区" not in regions
+    # 数据驱动地区(去重) + 常设赛区(上海/武汉)，按地区名排序、无重复
+    assert regions == ["上海市", "云南省", "广东省深圳市", "湖北省武汉市"]
+    assert "江苏省无锡市新吴区" not in regions  # 政策来源不计入
+
+
+def test_list_contest_regions_includes_curated_when_no_data() -> None:
+    """无任何赛事入库时，常设赛区(上海/武汉)仍可选，作为关注偏好预选。"""
+    service = PolicyService(uow_factory=make_uow_factory(policies={}))
+
+    regions = asyncio.run(service.list_contest_regions())
+
+    assert regions == ["上海市", "湖北省武汉市"]
 
 
 # ---------- PolicyIngestService 写 ----------

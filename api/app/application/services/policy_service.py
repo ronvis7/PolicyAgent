@@ -12,7 +12,11 @@ from typing import Callable, List, Optional, Tuple
 from app.application.errors.exceptions import NotFoundError
 from app.domain.models.policy import Policy
 from app.domain.repositories.uow import IUnitOfWork
-from app.infrastructure.external.crawler.registry import competition_source_keys, list_sources
+from app.infrastructure.external.crawler.registry import (
+    CURATED_CONTEST_REGIONS,
+    competition_source_keys,
+    list_sources,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,16 +87,16 @@ class PolicyService:
         return result
 
     async def list_contest_regions(self) -> List[str]:
-        """列出实际有赛事入库的地区(去重、排序)，供前端「参赛关注地区」选项数据驱动。
+        """列出可选的「参赛关注地区」(去重、排序)，供前端多选。
 
-        选项取自赛事来源(item_type=competition)已入库政策的 region，而非来源注册表的
-        静态 region——因创客中国等来源"一源多地区"，且只展示真有数据的地区更贴合体验。
+        = 数据驱动地区(赛事来源 item_type=competition 已入库政策的 region 去重，因创客中国
+        等"一源多地区"、只显示真有数据的更贴合体验) ∪ 常设赛区(CURATED_CONTEST_REGIONS，
+        创客中国确有但首页当季未主推、DB 暂无数据的城市赛区，作关注偏好预选)。
         """
         sources = list(competition_source_keys())
-        if not sources:
-            return []
         async with self._uow_factory() as uow:
-            return await uow.policy.distinct_contest_regions(sources)
+            data_regions = await uow.policy.distinct_contest_regions(sources) if sources else []
+        return sorted(set(data_regions) | set(CURATED_CONTEST_REGIONS))
 
     async def get_policy(self, policy_id: str) -> Policy:
         """获取政策详情，不存在则抛 NotFound"""
