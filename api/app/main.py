@@ -15,7 +15,12 @@ from app.infrastructure.storage.postgres import get_postgres
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
-from app.interfaces.service_dependencies import get_default_agent_service, get_policy_ingest_service, get_briefing_service
+from app.interfaces.service_dependencies import (
+    build_contest_daily_summary_hook,
+    get_briefing_service,
+    get_default_agent_service,
+    get_policy_ingest_service,
+)
 from core.config import get_settings
 
 
@@ -61,6 +66,7 @@ async def lifespan(app: FastAPI):
             minute=settings.policy_recrawl_minute,
             max_pages=settings.policy_recrawl_max_pages,
             ingest=lambda source, max_pages: get_policy_ingest_service().ingest(source, max_pages),
+            after_run=build_contest_daily_summary_hook(),
             timezone=settings.policy_recrawl_timezone,
         )
         recrawl_scheduler.start()

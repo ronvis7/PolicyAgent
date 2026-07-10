@@ -19,6 +19,10 @@ class PolicyRepository(Protocol):
         """按一组 source_url 批量查询（③语义召回聚合后批量回查，避免 N+1）"""
         ...
 
+    async def list_by_sources(self, sources: List[str], limit: int = 200) -> List[Policy]:
+        """按来源批量查询，按发布日期/创建时间倒序返回，用于赛事摘要等批量只读场景"""
+        ...
+
     async def save(self, policy: Policy) -> None:
         """按 source_url upsert：存在则更新业务字段，否则新建"""
         ...

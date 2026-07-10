@@ -36,6 +36,22 @@ class DBPolicyRepository(PolicyRepository):
         records = (await self.db_session.execute(stmt)).scalars().all()
         return [r.to_domain() for r in records]
 
+    async def list_by_sources(self, sources: List[str], limit: int = 200) -> List[Policy]:
+        """按来源批量查询，按发布日期/创建时间倒序返回。"""
+        if not sources:
+            return []
+        stmt = (
+            select(PolicyModel)
+            .where(PolicyModel.source.in_(sources))
+            .order_by(
+                PolicyModel.publish_date.desc().nullslast(),
+                PolicyModel.created_at.desc(),
+            )
+            .limit(limit)
+        )
+        records = (await self.db_session.execute(stmt)).scalars().all()
+        return [r.to_domain() for r in records]
+
     async def save(self, policy: Policy) -> None:
         """按 source_url upsert：存在则更新业务字段，否则新建"""
         stmt = select(PolicyModel).where(PolicyModel.source_url == policy.source_url)

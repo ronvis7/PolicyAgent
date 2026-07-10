@@ -56,17 +56,17 @@ class Settings(BaseSettings):
 
     # 公开政策定时重爬配置（主线⑤：保鲜申报通知的申报截止日期）
     # 应用内调度器在 api 进程内按 cron 触发 ingest，复用进程内 DB/Embedding/LLM 连接。
-    # 默认每天 04:00（错开备份 cron 03:30）重爬：项目申报通知源 wnd-apply、上海杨浦区政府文件 shyp、
+    # 默认每天 10:00（工作日上午心跳）重爬：项目申报通知源 wnd-apply、上海杨浦区政府文件 shyp、
     # 江苏省工信厅文件通知 gxt(含省级项目申报)、赛事子源 wnd/gxt/重庆两委办局-contest(比赛通知保鲜)。
     policy_recrawl_enabled: bool = Field(default=True, alias="POLICY_RECRAWL_ENABLED")
     policy_recrawl_sources: str = Field(
         default="wnd-apply,shyp,gxt,wnd-contest,gxt-contest,cqkjj-contest,cqjjw-contest,cnmaker-contest",
         alias="POLICY_RECRAWL_SOURCES",
     )  # 逗号分隔
-    policy_recrawl_hour: int = Field(default=4, alias="POLICY_RECRAWL_HOUR")
+    policy_recrawl_hour: int = Field(default=10, alias="POLICY_RECRAWL_HOUR")
     policy_recrawl_minute: int = Field(default=0, alias="POLICY_RECRAWL_MINUTE")
     policy_recrawl_max_pages: int = Field(default=3, alias="POLICY_RECRAWL_MAX_PAGES")
-    # 触发时区：默认按数据源所在地(无锡)的北京时间解释 hour，避免容器 UTC 下 04:00 实跑成中午。
+    # 触发时区：默认按数据源所在地(无锡)的北京时间解释 hour，避免容器 UTC 下定时偏移。
     policy_recrawl_timezone: str = Field(default="Asia/Shanghai", alias="POLICY_RECRAWL_TIMEZONE")
 
     @property
@@ -78,8 +78,8 @@ class Settings(BaseSettings):
     # 省详情抓取/LLM 截止抽取/向量化开销；0/负值=不限。仅赛事子源生效，政策来源不受影响。
     contest_max_age_days: int = Field(default=180, alias="CONTEST_MAX_AGE_DAYS")
 
-    # 飞书群自定义机器人 webhook(新赛事即推)：配置 URL 后，赛事子源每次入库的新增
-    # 通知即推送到群；留空=不推送(零行为变化)。secret 为机器人"签名校验"密钥，可选。
+    # 飞书群自定义机器人 webhook：赛事子源每次入库新增会即推；每天重爬完成后也会发赛事摘要。
+    # 留空=部署级兜底不推送；租户级 webhook 仍由组织设置页配置。secret 为机器人"签名校验"密钥，可选。
     feishu_webhook_url: str = Field(default="", alias="FEISHU_WEBHOOK_URL")
     feishu_webhook_secret: str = Field(default="", alias="FEISHU_WEBHOOK_SECRET")
 

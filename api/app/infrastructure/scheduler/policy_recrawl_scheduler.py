@@ -10,7 +10,7 @@ best-effort：单次抓取失败只记 warning，不影响应用运行；幂等(
 """
 
 import logging
-from typing import Awaitable, Callable, List
+from typing import Awaitable, Callable, List, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -28,6 +28,7 @@ class PolicyRecrawlScheduler:
         minute: int,
         max_pages: int,
         ingest: Callable[[str, int], Awaitable[dict]],
+        after_run: Optional[Callable[[List[dict]], Awaitable[None]]] = None,
         timezone: str = "Asia/Shanghai",
     ) -> None:
         self._sources = sources
@@ -35,6 +36,7 @@ class PolicyRecrawlScheduler:
         self._minute = minute
         self._max_pages = max_pages
         self._ingest = ingest
+        self._after_run = after_run
         self._timezone = timezone
         self._scheduler: AsyncIOScheduler | None = None
 
@@ -60,14 +62,21 @@ class PolicyRecrawlScheduler:
 
     async def _run(self) -> None:
         """逐来源 best-effort 重爬；单源失败不影响其他源。"""
+        summaries: List[dict] = []
         for source in self._sources:
             try:
                 summary = await self._ingest(source, self._max_pages)
+                summaries.append(summary)
                 logger.info("公开政策定时重爬完成 source=%s summary=%s", source, summary)
             except Exception as e:  # noqa: BLE001 — 定时任务 best-effort，不冒泡
                 logger.warning(
                     "公开政策定时重爬失败 source=%s: %s: %s", source, type(e).__name__, e,
                 )
+        if self._after_run is not None:
+            try:
+                await self._after_run(summaries)
+            except Exception as e:  # noqa: BLE001 — 摘要通知 best-effort，不影响调度器
+                logger.warning("公开政策定时重爬后置回调失败: %s: %s", type(e).__name__, e)
 
     def shutdown(self) -> None:
         """停止调度器(应用关闭时调用)；不等待在跑任务，避免阻塞关闭。"""
