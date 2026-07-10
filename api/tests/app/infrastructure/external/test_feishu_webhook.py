@@ -19,9 +19,12 @@ from app.domain.models.policy import Policy
 from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
 from app.infrastructure.external.notify.feishu_webhook import (
     FeishuWebhookNotifier,
+    build_contest_daily_summary_message,
     build_contest_message,
     feishu_sign,
+    make_contest_daily_summary_hook,
     make_contest_push_hook,
+    make_tenant_contest_daily_summary_hook,
     make_tenant_contest_push_hook,
     mask_webhook_url,
 )
@@ -32,9 +35,10 @@ def _policy(
     url: str = "https://www.wnd.gov.cn/doc/1.shtml",
     title: str = "关于举办创新创业大赛的通知",
     deadline: date | None = None,
+    source: str = "wnd-contest",
 ) -> Policy:
     return Policy(
-        source_url=url, title=title, region="江苏省无锡市新吴区",
+        source=source, source_url=url, title=title, region="江苏省无锡市新吴区",
         publish_date=date(2026, 7, 1),
         apply_deadline=deadline,
         deadline_status="extracted" if deadline else "unknown",
@@ -116,6 +120,40 @@ def test_build_contest_message_caps_items() -> None:
     assert "15" in card["header"]["title"]["content"]  # 标题仍报真实总数
     flat = json.dumps(card["elements"], ensure_ascii=False)
     assert flat.count("https://x/") == 10
+
+
+def test_build_daily_summary_sends_heartbeat_when_no_matches() -> None:
+    msg = build_contest_daily_summary_message(
+        [],
+        new_count=0,
+        web_base_url="http://host:8088",
+        today=date(2026, 7, 10),
+    )
+
+    assert msg["msg_type"] == "interactive"
+    card = msg["card"]
+    assert "0 条可参赛" in card["header"]["title"]["content"]
+    flat = json.dumps(card["elements"], ensure_ascii=False)
+    assert "今日新增 **0** 条" in flat
+    assert "今天没有发现匹配你关注地区的可参赛赛事" in flat
+    assert "http://host:8088/feed" in flat
+
+
+def test_build_daily_summary_counts_active_and_urgent_only() -> None:
+    active = _policy(url="https://x/a", deadline=date(2026, 7, 20))
+    expired = _policy(url="https://x/e", title="已过期大赛", deadline=date(2026, 7, 1))
+
+    msg = build_contest_daily_summary_message(
+        [active, expired],
+        new_count=1,
+        today=date(2026, 7, 10),
+    )
+
+    flat = json.dumps(msg["card"]["elements"], ensure_ascii=False)
+    assert "今日新增 **1** 条" in flat
+    assert "当前匹配 **1** 条可参赛赛事" in flat
+    assert "14 天内截止" in flat
+    assert "已过期大赛" not in flat
 
 
 # ---------- 发送 ----------
@@ -287,6 +325,106 @@ def test_tenant_fanout_one_failure_does_not_block_others() -> None:
     asyncio.run(hook("wnd-contest", policies))
 
     assert sent == ["https://hook/b"]
+
+
+# ---------- 每日赛事摘要(重爬后固定心跳) ----------
+
+def test_tenant_daily_summary_pushes_even_when_region_has_no_matches() -> None:
+    """每日摘要是心跳：关注地区无赛事的租户也会收到"0条"摘要。"""
+    sent: List[tuple] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append((str(request.url), json.loads(request.content)))
+        return httpx.Response(200, json={"code": 0})
+
+    uow_factory = make_uow_factory(
+        tenant_settings={
+            "tenant-a": _tenant_settings("tenant-a", "https://hook/a"),
+            "tenant-b": _tenant_settings("tenant-b", "https://hook/b"),
+        },
+        enterprise_profiles={
+            "tenant-a": EnterpriseProfile(tenant_id="tenant-a", contest_regions=["江苏省"]),
+            "tenant-b": EnterpriseProfile(tenant_id="tenant-b", contest_regions=["重庆市"]),
+        },
+        policies={
+            "https://js/1": _policy(url="https://js/1", title="江苏创新创业大赛"),
+        },
+    )
+    hook = make_tenant_contest_daily_summary_hook(
+        uow_factory,
+        contest_source_names={"wnd-contest": "无锡新吴区·大赛通知"},
+        transport=httpx.MockTransport(handler),
+        web_base_url="http://host:8088",
+    )
+
+    asyncio.run(hook([{"source": "wnd-contest", "new": 0}]))
+
+    assert [url for url, _ in sent] == ["https://hook/a", "https://hook/b"]
+    flat_a = json.dumps(sent[0][1], ensure_ascii=False)
+    flat_b = json.dumps(sent[1][1], ensure_ascii=False)
+    assert "江苏创新创业大赛" in flat_a
+    assert "1 条可参赛" in flat_a
+    assert "0 条可参赛" in flat_b
+    assert "今天没有发现匹配你关注地区的可参赛赛事" in flat_b
+
+
+def test_tenant_daily_summary_one_failure_does_not_block_others() -> None:
+    sent: List[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "https://hook/a":
+            raise httpx.ConnectError("boom")
+        sent.append(str(request.url))
+        return httpx.Response(200, json={"code": 0})
+
+    uow_factory = make_uow_factory(
+        tenant_settings={
+            "tenant-a": _tenant_settings("tenant-a", "https://hook/a"),
+            "tenant-b": _tenant_settings("tenant-b", "https://hook/b"),
+        },
+        policies={
+            "https://js/1": _policy(url="https://js/1", title="江苏创新创业大赛"),
+        },
+    )
+    hook = make_tenant_contest_daily_summary_hook(
+        uow_factory,
+        contest_source_names={"wnd-contest": "无锡新吴区·大赛通知"},
+        transport=httpx.MockTransport(handler),
+    )
+
+    asyncio.run(hook([{"source": "wnd-contest", "new": 2}]))
+
+    assert sent == ["https://hook/b"]
+
+
+def test_deploy_level_daily_summary_uses_all_contests() -> None:
+    sent: List[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json={"code": 0})
+
+    uow_factory = make_uow_factory(
+        policies={
+            "https://js/1": _policy(url="https://js/1", title="江苏创新创业大赛"),
+            "https://normal/1": _policy(
+                url="https://normal/1", title="普通政策", source="wnd",
+            ),
+        },
+    )
+    hook = make_contest_daily_summary_hook(
+        _notifier(handler),
+        uow_factory,
+        contest_source_names={"wnd-contest": "无锡新吴区·大赛通知"},
+    )
+
+    asyncio.run(hook([{"source": "wnd-contest", "new": 1}, {"source": "wnd", "new": 9}]))
+
+    assert len(sent) == 1
+    flat = json.dumps(sent[0], ensure_ascii=False)
+    assert "今日新增 **1** 条" in flat
+    assert "江苏创新创业大赛" in flat
+    assert "普通政策" not in flat
 
 
 # ---------- webhook URL 脱敏 ----------

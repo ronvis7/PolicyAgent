@@ -11,6 +11,7 @@ import {
   DownloadCloud,
   ExternalLink,
   FileText,
+  LibraryBig,
   Loader2,
   RefreshCcw,
   Search,
@@ -239,19 +240,17 @@ export default function PoliciesPage() {
 
   return (
     <div className="h-full overflow-hidden bg-background">
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
-          <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">公开政策库</h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">搜索、筛选和审阅已入库的公开政策，结果来自现有政策库接口。</p>
-          </div>
+          <span className="h-4 w-px bg-border" />
+          <span className="text-xs font-medium tracking-wide text-muted-foreground">公开政策资料馆</span>
         </div>
         <div className="flex items-center gap-2">
           {canIngest && sources.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild disabled={ingesting}>
-                <Button variant="outline" className="cursor-pointer rounded-xl bg-card" title="选择来源后台抓取最新政策入库">
+                <Button variant="outline" size="sm" className="cursor-pointer rounded-lg bg-card" title="选择来源后台抓取最新政策入库">
                   {ingesting ? <Loader2 className="size-4 animate-spin" /> : <DownloadCloud className="size-4" />}
                   {ingesting ? '抓取中…' : '抓取政策'}
                 </Button>
@@ -268,7 +267,7 @@ export default function PoliciesPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="outline" className="cursor-pointer rounded-xl bg-card" onClick={fetchList} disabled={loading}>
+          <Button variant="outline" size="sm" className="cursor-pointer rounded-lg bg-card" onClick={fetchList} disabled={loading}>
             <RefreshCcw className={cn('size-4', loading && 'animate-spin')} />
             刷新
           </Button>
@@ -282,23 +281,40 @@ export default function PoliciesPage() {
         </div>
       )}
 
-      <div className="grid h-[calc(100vh-4rem)] grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_390px]">
-        <main className="min-w-0 overflow-auto pr-0 xl:pr-1">
-          <section className="mb-4 rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Sparkles className="size-4" />
-                  政策检索
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">地区、发布部门和关键词会直接传给公开政策库列表接口。</p>
+      <div className="grid h-[calc(100vh-3.5rem)] grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
+        <main className="min-w-0 overflow-auto border-r border-border">
+          <div className="mx-auto max-w-[980px] px-4 py-6 sm:px-7 sm:py-8">
+          <section className="mb-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary">
+                <LibraryBig className="size-4" />
+                POLICY ARCHIVE
               </div>
-              <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+              <h1 className="font-serif text-3xl font-medium leading-tight tracking-tight text-foreground sm:text-4xl">
+                从原文出发，找到可执行的政策依据
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
+                检索公开政策原文、核对发文机关与有效状态，并将关键材料收藏进企业私有政策库。
+              </p>
+            </div>
+            <div className="border-l-2 border-primary pl-4">
+              <div className="font-serif text-3xl font-medium tabular-nums text-foreground">{total}</div>
+              <div className="mt-1 text-xs text-muted-foreground">当前条件下的政策原文</div>
+            </div>
+          </section>
+
+          <section className="mb-5 rounded-xl border border-border bg-card p-3 shadow-[var(--shadow-card)] sm:p-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <Search className="size-4 text-primary" />
+                缩小检索范围
+              </div>
+              <div className="flex flex-1 flex-wrap items-center gap-2">
                 {regionOptions.length > 0 && (
                   <select
                     value={region}
                     onChange={(event) => { setPage(1); setRegion(event.target.value) }}
-                    className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none"
+                    className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
                     title="按地区筛选"
                   >
                     <option value="">全部地区</option>
@@ -310,7 +326,7 @@ export default function PoliciesPage() {
                 <select
                   value={issuer}
                   onChange={(event) => { setPage(1); setIssuer(event.target.value) }}
-                  className="h-10 rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none"
+                  className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
                   title="按发布部门筛选"
                 >
                   <option value="">全部部门</option>
@@ -318,7 +334,7 @@ export default function PoliciesPage() {
                     <option key={option} value={option}>{option}</option>
                   ))}
                 </select>
-                <div className="flex min-w-[260px] flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3">
+                <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-border bg-background px-3 focus-within:border-primary">
                   <Search className="size-4 text-muted-foreground" />
                   <Input
                     value={keyword}
@@ -328,35 +344,26 @@ export default function PoliciesPage() {
                     onKeyDown={(event) => event.key === 'Enter' && submitSearch()}
                   />
                 </div>
-                <Button className="cursor-pointer rounded-xl" onClick={submitSearch}>
+                <Button className="cursor-pointer rounded-lg px-5" onClick={submitSearch}>
                   搜索
                 </Button>
               </div>
             </div>
           </section>
 
-          <section className="mb-4 rounded-[18px] border border-border bg-accent p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-card text-foreground">
-                  <Bot className="size-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold text-foreground">结果概览</div>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
-                    当前条件下共找到 {total} 条政策。优先查看状态、地区、发文机关和正文证据；需要进入企业适配判断时，请回到工作台重新匹配。
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="rounded-full bg-card">地区：{region || '全部'}</Badge>
-                <Badge variant="outline" className="rounded-full bg-card">部门：{issuer || '全部'}</Badge>
-                <Badge variant="outline" className="rounded-full bg-card">已选：{selectedCount}</Badge>
-              </div>
+          <section className="mb-3 flex flex-wrap items-end justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">检索结果</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {region || '全部地区'} · {issuer || '全部部门'} · 第 {page} / {totalPages} 页
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span>{selectedCount ? `已选 ${selectedCount} 条` : '可勾选后批量收藏'}</span>
             </div>
           </section>
 
-          <section className="rounded-[18px] border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+          <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
                 <input
@@ -409,13 +416,13 @@ export default function PoliciesPage() {
                 暂无政策数据{search ? `（无匹配「${search}」的结果）` : ''}。
               </div>
             ) : (
-              <ul className="space-y-3">
+              <ul className="divide-y divide-border border-y border-border">
                 {items.map((policy) => (
                   <li
                     key={policy.id}
                     className={cn(
-                      'rounded-2xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:bg-card hover:shadow-[var(--shadow-card)]',
-                      detail?.id === policy.id && 'border-primary bg-card shadow-[var(--shadow-card)]',
+                      'group bg-background px-1 py-5 transition-colors hover:bg-muted/60 sm:px-3',
+                      detail?.id === policy.id && 'bg-accent',
                     )}
                   >
                     <div className="flex gap-3">
@@ -426,16 +433,18 @@ export default function PoliciesPage() {
                         className="mt-1 size-4 shrink-0 rounded border-border"
                         aria-label={`选择 ${policy.title}`}
                       />
-                      <FileText className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                      <div className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card text-primary">
+                        <FileText className="size-4" />
+                      </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium tracking-wide text-muted-foreground">
                           <span>{policy.source || '公开来源'}</span>
                           {policy.region && <span>· {policy.region}</span>}
                           {policy.issuer && <span>· {policy.issuer}</span>}
                         </div>
                         <button
                           type="button"
-                          className="mt-2 text-left text-lg font-semibold leading-snug text-primary hover:underline"
+                          className="mt-2 text-left font-serif text-lg font-medium leading-snug text-foreground transition-colors hover:text-primary"
                           onClick={() => openDetail(policy.id)}
                         >
                           {policy.title}
@@ -449,8 +458,8 @@ export default function PoliciesPage() {
                           {policy.index_number && <span>索引号：{policy.index_number}</span>}
                         </div>
                       </div>
-                      <Button variant="ghost" className="shrink-0 cursor-pointer rounded-xl" onClick={() => openDetail(policy.id)}>
-                        查看详情
+                      <Button variant="ghost" size="icon" className="shrink-0 cursor-pointer rounded-lg text-muted-foreground group-hover:text-primary" onClick={() => openDetail(policy.id)} aria-label="查看详情">
+                        <ChevronRight className="size-4" />
                       </Button>
                     </div>
                   </li>
@@ -472,25 +481,27 @@ export default function PoliciesPage() {
               </div>
             )}
           </section>
+          </div>
         </main>
 
-        <aside className="hidden min-h-0 flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-[var(--shadow-card)] xl:flex">
-          <div className="border-b border-border bg-gradient-to-r from-brand-50 to-accent px-4 py-3">
-            <div className="flex items-center gap-2 text-base font-serif font-semibold tracking-tight text-brand-700">
+        <aside className="hidden min-h-0 flex-col overflow-hidden bg-card xl:flex">
+          <div className="border-b border-border bg-accent px-5 py-4">
+            <div className="flex items-center gap-2 font-serif text-lg font-medium tracking-tight text-foreground">
               <Sparkles className="size-5 text-primary" />
-              政策助手
+              政策阅读台
             </div>
+            <p className="mt-1 text-xs text-muted-foreground">核对原文证据、元数据与收藏入口</p>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-4">
+          <div className="min-h-0 flex-1 overflow-auto p-5">
             {detailLoading ? (
               <div className="flex items-center justify-center py-20 text-muted-foreground">
                 <Loader2 className="size-5 animate-spin" />
               </div>
             ) : selectedItem ? (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-border bg-card p-4">
-                  <div className="mb-2 text-xs font-semibold text-muted-foreground">当前审阅</div>
-                  <h2 className="text-base font-semibold leading-relaxed text-foreground">{selectedItem.title}</h2>
+                <div className="border-b border-border pb-5">
+                  <div className="mb-2 text-[11px] font-semibold tracking-[0.12em] text-primary">CURRENT DOCUMENT</div>
+                  <h2 className="font-serif text-xl font-medium leading-relaxed text-foreground">{selectedItem.title}</h2>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {'status' in selectedItem && selectedItem.status && (
                       <Badge variant="outline" className={cn('rounded-full', statusClass(selectedItem.status))}>
@@ -501,7 +512,7 @@ export default function PoliciesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-border p-4">
+                <div className="rounded-xl bg-muted p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Bot className="size-4" />
                     阅读摘要
@@ -513,7 +524,7 @@ export default function PoliciesPage() {
 
                 {detail && (
                   <>
-                    <div className="rounded-2xl border border-border p-4">
+                    <div className="border-y border-border py-4">
                       <div className="mb-2 text-sm font-semibold text-foreground">政策元数据</div>
                       <dl className="grid grid-cols-[72px_1fr] gap-2 text-sm">
                         <dt className="text-muted-foreground">发文机关</dt>
@@ -526,7 +537,7 @@ export default function PoliciesPage() {
                         <dd className="font-medium text-foreground">{formatDate(detail.crawled_at)}</dd>
                       </dl>
                     </div>
-                    <div className="rounded-2xl border border-border p-4">
+                    <div className="rounded-xl border border-border bg-background p-4">
                       <div className="mb-2 text-sm font-semibold text-foreground">正文预览</div>
                       <div className="max-h-72 overflow-auto whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
                         {detail.body_text || '暂无正文，请查看原文链接。'}

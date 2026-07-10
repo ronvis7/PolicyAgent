@@ -3,6 +3,8 @@
 轻量推送通道：建群 → 添加"自定义机器人" → 得 webhook URL(可选开启签名校验得 secret)。
 配置两级：组织级(设置页配置，存 tenant_settings.feishu_config，按租户扇出+按参赛关注
 地区过滤) + 部署级(env `FEISHU_WEBHOOK_URL`/`FEISHU_WEBHOOK_SECRET`，全量不过滤，兜底)。
+通知分两类：新赛事首次入库即推；每日重爬后固定推一条赛事摘要，哪怕无新增也给用户一个
+"今天已盯过"的心跳。
 
 组成：
 - `feishu_sign` / `build_contest_message` / `mask_webhook_url`：纯函数(签名、赛事交互卡片
@@ -11,6 +13,7 @@
 - `make_contest_push_hook`：单 webhook(部署级 env)回调，仅赛事来源触发；
 - `make_tenant_contest_push_hook`：租户级扇出回调——遍历配置了 webhook 的租户，
   按各租户企业档案的参赛关注地区过滤新赛事后分别推送。
+- `make_contest_daily_summary_hook` / `make_tenant_contest_daily_summary_hook`：重爬后每日摘要。
 """
 
 import asyncio
@@ -93,6 +96,26 @@ def _deadline_hint(policy: Policy, today: date) -> str:
     if policy.publish_date:
         return f"🗓 发布 {policy.publish_date.strftime('%m-%d')}"
     return ""
+
+
+def _is_active_contest(policy: Policy, today: date) -> bool:
+    """赛事是否仍可作为机会展示：明确截止且已过期则排除；未知/常年保留。"""
+    days = _days_left(policy, today)
+    return days is None or days >= 0
+
+
+def _sort_contests_for_summary(policies: List[Policy], today: date) -> List[Policy]:
+    """摘要优先展示临期，其次按发布日期/创建时间新旧排序。"""
+    def key(policy: Policy):
+        days = _days_left(policy, today)
+        deadline_rank = days if days is not None and days >= 0 else 9999
+        return (
+            deadline_rank,
+            -(policy.publish_date.toordinal() if policy.publish_date else 0),
+            -policy.created_at.timestamp(),
+        )
+
+    return sorted(policies, key=key)
 
 
 def _header_template(policies: List[Policy], today: date) -> str:
@@ -179,6 +202,86 @@ def build_contest_message(
     }
 
 
+def build_contest_daily_summary_message(
+    policies: List[Policy],
+    new_count: int = 0,
+    web_base_url: str = "",
+    today: Optional[date] = None,
+) -> dict:
+    """每日赛事摘要卡片：固定心跳，展示新增数、当前可参赛数、临期数与重点条目。
+
+    与"新赛事即推"不同，摘要即便无新增也发送，避免用户误以为定时任务没跑。policies
+    应传入已按租户关注地区过滤后的候选；函数内部再排除明确已过期赛事。
+    """
+    today = today or date.today()
+    active = [p for p in policies if _is_active_contest(p, today)]
+    sorted_active = _sort_contests_for_summary(active, today)
+    urgent_count = sum(
+        1
+        for p in active
+        if (days := _days_left(p, today)) is not None and 0 <= days <= _SOON_DAYS
+    )
+    shown = sorted_active[:_MAX_ITEMS_PER_MESSAGE]
+
+    elements: List[dict] = [{
+        "tag": "div",
+        "text": {
+            "tag": "lark_md",
+            "content": (
+                f"今日新增 **{new_count}** 条；当前匹配 **{len(active)}** 条可参赛赛事；"
+                f"其中 **{urgent_count}** 条 14 天内截止。"
+            ),
+        },
+    }]
+
+    if shown:
+        elements.append({"tag": "hr"})
+        for i, p in enumerate(shown):
+            title = _escape_md(p.title)
+            title_line = f"**[{title}]({p.source_url})**" if p.source_url else f"**{title}**"
+            meta = [part for part in (
+                f"📍 {p.region}" if p.region else "",
+                _deadline_hint(p, today),
+            ) if part]
+            content = title_line + (f"\n{'  ·  '.join(meta)}" if meta else "")
+            elements.append({"tag": "div", "text": {"tag": "lark_md", "content": content}})
+            if i < len(shown) - 1:
+                elements.append({"tag": "hr"})
+        if len(active) > _MAX_ITEMS_PER_MESSAGE:
+            elements.append({"tag": "hr"})
+            elements.append({"tag": "div", "text": {"tag": "lark_md",
+                "content": f"…还有 **{len(active) - _MAX_ITEMS_PER_MESSAGE}** 条，请到工作台查看"}})
+    else:
+        elements.append({"tag": "div", "text": {"tag": "lark_md",
+            "content": "今天没有发现匹配你关注地区的可参赛赛事，我会明天继续盯。"}})
+
+    if web_base_url:
+        elements.append({"tag": "action", "actions": [{
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "打开工作台查看赛事"},
+            "url": _feed_url(web_base_url),
+            "type": "primary",
+        }]})
+
+    elements.append({"tag": "note", "elements": [
+        {"tag": "plain_text", "content": "每日自动摘要 · 报名信息以官方原文为准 · 依你的参赛关注地区筛选"}]})
+
+    return {
+        "msg_type": "interactive",
+        "card": {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "template": _header_template(active, today),
+                "title": {
+                    "tag": "plain_text",
+                    "content": f"📬 每日赛事摘要 · {len(active)} 条可参赛",
+                },
+            },
+            "elements": elements,
+        },
+    }
+
+
 def build_test_message() -> dict:
     """联调用测试消息(设置页"发送测试"按钮)：验证 webhook 地址与签名配置是否正确。"""
     return {
@@ -251,6 +354,43 @@ def make_contest_push_hook(
     return push_new_contests
 
 
+def _daily_new_count(summaries: Optional[List[dict]], contest_sources: set[str]) -> int:
+    """从本轮重爬 summary 中汇总赛事来源新增数。"""
+    if not summaries:
+        return 0
+    total = 0
+    for summary in summaries:
+        if summary.get("source") not in contest_sources:
+            continue
+        try:
+            total += int(summary.get("new", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
+def make_contest_daily_summary_hook(
+    notifier: FeishuWebhookNotifier,
+    uow_factory: Callable[[], IUnitOfWork],
+    contest_source_names: Dict[str, str],
+    web_base_url: str = "",
+) -> Callable[[List[dict]], Awaitable[None]]:
+    """部署级每日赛事摘要：发送全量赛事视角，不按租户地区过滤。"""
+    contest_sources = set(contest_source_names)
+
+    async def push_daily_summary(summaries: List[dict]) -> None:
+        async with uow_factory() as uow:
+            policies = await uow.policy.list_by_sources(list(contest_sources), limit=200)
+        message = build_contest_daily_summary_message(
+            policies,
+            new_count=_daily_new_count(summaries, contest_sources),
+            web_base_url=web_base_url,
+        )
+        await notifier.send(message)
+
+    return push_daily_summary
+
+
 def make_tenant_contest_push_hook(
     uow_factory: Callable[[], IUnitOfWork],
     contest_source_names: Dict[str, str],
@@ -303,3 +443,50 @@ def make_tenant_contest_push_hook(
         await asyncio.gather(*(push_one(ts) for ts in configured))
 
     return push_new_contests
+
+
+def make_tenant_contest_daily_summary_hook(
+    uow_factory: Callable[[], IUnitOfWork],
+    contest_source_names: Dict[str, str],
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+    web_base_url: str = "",
+) -> Callable[[List[dict]], Awaitable[None]]:
+    """租户级每日赛事摘要：固定发送，按企业档案参赛关注地区过滤当前可参赛赛事。"""
+    contest_sources = set(contest_source_names)
+
+    async def push_daily_summary(summaries: List[dict]) -> None:
+        async with uow_factory() as uow:
+            configured = await uow.tenant_settings.list_feishu_configured()
+            policies = await uow.policy.list_by_sources(list(contest_sources), limit=200)
+            profiles = {
+                ts.tenant_id: await uow.enterprise_profile.get_by_tenant(ts.tenant_id)
+                for ts in configured
+            }
+
+        new_count = _daily_new_count(summaries, contest_sources)
+
+        async def push_one(ts: TenantSettings) -> None:
+            config = ts.feishu_config
+            if config is None or not config.webhook_url.strip():
+                return
+            profile = profiles.get(ts.tenant_id)
+            regions = profile.contest_regions if profile else []
+            matched = [p for p in policies if contest_region_matches(p.region, regions)]
+            try:
+                notifier = FeishuWebhookNotifier(
+                    webhook_url=config.webhook_url,
+                    secret=config.secret,
+                    transport=transport,
+                )
+                await notifier.send(build_contest_daily_summary_message(
+                    matched, new_count=new_count, web_base_url=web_base_url,
+                ))
+            except Exception as e:  # noqa: BLE001 — 单租户失败不拖累其他租户
+                logger.warning(
+                    "租户 %s 飞书每日赛事摘要异常: %s: %s",
+                    ts.tenant_id, type(e).__name__, e,
+                )
+
+        await asyncio.gather(*(push_one(ts) for ts in configured))
+
+    return push_daily_summary

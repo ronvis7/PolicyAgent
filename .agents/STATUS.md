@@ -1,5 +1,24 @@
 # 当前状态
 
+最后更新：2026-07-10（**飞书赛事通知改为两类 + 上午 10 点重爬后发每日摘要，已部署 `.222`**）：
+分支 `feat/core-ui-restructure` 提交 `c44e9b7` 已部署到 `/root/policy_manus`。赛事飞书现在分两条：
+① 新赛事首次入库仍即推；② 每天公开政策/赛事源重爬全部结束后固定发送“每日赛事摘要”，即使无新增也会
+发“今日新增 0 / 当前匹配可参赛 / 14 天内截止”心跳卡片，按组织企业档案 `contest_regions` 过滤；
+部署级 webhook（若配置）走全量赛事摘要。默认重爬时间从 04:00 改为 10:00 CST，并在 `.222` `.env`
+显式写入 `POLICY_RECRAWL_HOUR=10`、`POLICY_RECRAWL_MINUTE=0`。线上验证：`policy-api`/`policy-ui`
+healthy，`/api/status` 200，Alembic `f3a4b5c6d7e8 (head)`，容器内 settings 下一次触发为
+`2026-07-11 10:00:00+08:00`。未手动触发生产飞书摘要，避免额外打扰；将于下一次 10:00 自动发送。
+部署备份：`/root/deploy-backups/20260710-101144`。本地针对性验证：飞书通知 22 passed，政策服务/入库
+25 passed，`py_compile` 通过。详见 handoff `2026-07-10-contest-daily-summary-feishu`。
+
+最后更新：2026-07-09 晚（**核心三页结构重构已全量部署 `.222`**）：功能分支
+`feat/core-ui-restructure` 提交 `5422fa0` 已部署到 `/root/policy_manus`，一次带上此前未部署的
+#70/#72/#74~#79 与迁移 `f3a4b5c6d7e8`。工作台改“机会雷达”，公开政策库改“资料馆 + 阅读台”，
+企业档案改企业身份页；桌面/暗色/390px/编辑态均已走查。服务器 `policy-api`/`policy-ui` healthy，
+Alembic `f3a4b5c6d7e8 (head)`，内外网首页与 `/api/status` 均 200；高德 MCP 真 key 已启用，
+`.env` 已配 `WEB_BASE_URL=http://118.196.142.222:8088`。部署前备份：
+`/root/deploy-backups/20260709-204413`。尚未 push/开 PR；登录态聊天与飞书真实发送留用户验收。
+
 最后更新：2026-07-09（**赛事体验打磨四连击（PR #74~#77 均合并 main）**：①工作台「赛事机会」
 改地区聚合两级视图（地区卡片带比赛数量→下钻到该地区比赛）+ 数据来源页拆「赛事数据来源」分区、
 owner/admin 可手动抓取（二次确认，明示写共享库+推飞书）；②飞书新赛事推送 `post`→`interactive`

@@ -46,7 +46,9 @@ from app.infrastructure.external.crawler.registry import (
 )
 from app.infrastructure.external.notify.feishu_webhook import (
     FeishuWebhookNotifier,
+    make_contest_daily_summary_hook,
     make_contest_push_hook,
+    make_tenant_contest_daily_summary_hook,
     make_tenant_contest_push_hook,
 )
 from app.infrastructure.external.search.bing_search import BingSearchEngine
@@ -309,6 +311,35 @@ def _build_contest_push_hook():
                 await hook(source, new_policies)
             except Exception as e:  # noqa: BLE001 — 单级失败不影响另一级
                 logger.warning("新赛事推送回调失败: %s: %s", type(e).__name__, e)
+
+    return push_all
+
+
+def build_contest_daily_summary_hook():
+    """构造"每日赛事摘要"飞书回调：10:00 重爬全部结束后固定发送。"""
+    contest_keys = competition_source_keys()
+    contest_source_names = {
+        s.key: s.name for s in list_sources() if s.key in contest_keys
+    }
+    web_base_url = settings.web_base_url
+    hooks = [make_tenant_contest_daily_summary_hook(
+        get_uow, contest_source_names, web_base_url=web_base_url,
+    )]
+    if settings.feishu_webhook_url:
+        notifier = FeishuWebhookNotifier(
+            webhook_url=settings.feishu_webhook_url,
+            secret=settings.feishu_webhook_secret,
+        )
+        hooks.append(make_contest_daily_summary_hook(
+            notifier, get_uow, contest_source_names, web_base_url=web_base_url,
+        ))
+
+    async def push_all(summaries: List[dict]) -> None:
+        for hook in hooks:
+            try:
+                await hook(summaries)
+            except Exception as e:  # noqa: BLE001 — 单级失败不影响另一级
+                logger.warning("每日赛事摘要推送回调失败: %s: %s", type(e).__name__, e)
 
     return push_all
 

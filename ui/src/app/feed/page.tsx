@@ -6,13 +6,17 @@ import { useRouter } from 'next/navigation'
 import {
   AlarmClock,
   ArrowLeft,
+  Award,
   CheckCircle2,
   ChevronRight,
   DownloadCloud,
   ExternalLink,
   FileDown,
+  FileText,
   Loader2,
   MapPin,
+  Radar,
+  Trophy,
   XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -267,23 +271,29 @@ export default function FeedPage() {
     setContestRegion(null)
   }
 
+  const unreadCount = items.filter((item) => item.status === 'unread').length
+  const urgentCount = items.filter(
+    (item) =>
+      item.deadline_status === 'extracted' &&
+      item.days_left !== null &&
+      item.days_left >= 0 &&
+      item.days_left <= DEADLINE_SOON_DAYS,
+  ).length
+  const competitionCount = items.filter((item) => item.type === 'competition').length
+
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* 头部 */}
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="flex h-full flex-col bg-background">
+      <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
-          <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">工作台</h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">
-              系统依据企业档案持续盯紧可申报机会，有新增会顶到这里。
-            </p>
-          </div>
+          <span className="h-4 w-px bg-border" />
+          <span className="text-xs font-medium tracking-wide text-muted-foreground">机会工作台</span>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="cursor-pointer rounded-xl bg-card"
+            size="sm"
+            className="cursor-pointer rounded-lg bg-card"
             onClick={onExport}
             disabled={exporting}
             title="把当前匹配政策、资质差距与临期提醒导出为 PDF 简报"
@@ -292,8 +302,8 @@ export default function FeedPage() {
             导出简报
           </Button>
           <Button
-            variant="outline"
-            className="cursor-pointer rounded-xl bg-card"
+            size="sm"
+            className="cursor-pointer rounded-lg"
             onClick={onRecompute}
             disabled={recomputing}
           >
@@ -303,40 +313,96 @@ export default function FeedPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="max-w-[900px] mx-auto">
-          {/* 机会类型分栏：政策 / 资质分开看 */}
-          <div className="mb-3 inline-flex rounded-xl border border-border bg-card p-1">
-            {TYPE_TABS.map((t) => (
-              <button
-                key={t.value || 'all'}
-                type="button"
-                className={cn(
-                  'cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  typeFilter === t.value
-                    ? 'bg-primary text-white shadow-[var(--shadow-card)]'
-                    : 'text-muted-foreground hover:bg-muted',
-                )}
-                onClick={() => onTypeTab(t.value)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8">
+          <section className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-end">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary">
+                <Radar className="size-4" />
+                POLICY RADAR
+              </div>
+              <h1 className="max-w-2xl font-serif text-3xl font-medium leading-tight tracking-tight text-foreground sm:text-4xl">
+                今天值得你关注的政策机会
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
+                系统依据企业档案持续筛选政策、资质与赛事。先处理临近截止，再查看新匹配。
+              </p>
+            </div>
+            <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
+              {[
+                { label: '全部机会', value: items.length, icon: FileText },
+                { label: '新匹配', value: unreadCount, icon: Award },
+                { label: '14 天内截止', value: urgentCount, icon: AlarmClock },
+                { label: '赛事机会', value: competitionCount, icon: Trophy },
+              ].map((stat, index) => (
+                <div
+                  key={stat.label}
+                  className={cn(
+                    'flex min-h-24 items-center gap-3 p-4',
+                    index % 2 === 0 && 'border-r border-border',
+                    index < 2 && 'border-b border-border',
+                  )}
+                >
+                  <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-primary">
+                    <stat.icon className="size-4" />
+                  </div>
+                  <div>
+                    <div className="font-serif text-2xl font-medium tabular-nums text-foreground">{stat.value}</div>
+                    <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
 
-          {/* 状态筛选 */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {FILTERS.map((f) => (
-              <Button
-                key={f.value || 'all'}
-                size="sm"
-                variant={filter === f.value ? 'default' : 'outline'}
-                className={cn('cursor-pointer rounded-full', filter !== f.value && 'bg-card')}
-                onClick={() => onFilter(f.value)}
-              >
-                {f.label}
-              </Button>
-            ))}
+          <section className="mb-5 rounded-xl border border-border bg-card p-2 shadow-[var(--shadow-card)]">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex gap-1 overflow-x-auto">
+                {TYPE_TABS.map((t) => (
+                  <button
+                    key={t.value || 'all'}
+                    type="button"
+                    className={cn(
+                      'min-h-9 shrink-0 cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors',
+                      typeFilter === t.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                    )}
+                    onClick={() => onTypeTab(t.value)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 border-t border-border pt-2 lg:border-l lg:border-t-0 lg:pl-2 lg:pt-0">
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.value || 'all'}
+                    type="button"
+                    className={cn(
+                      'min-h-8 cursor-pointer rounded-md px-2.5 text-xs font-medium transition-colors',
+                      filter === f.value
+                        ? 'bg-muted text-foreground'
+                        : 'text-muted-foreground hover:bg-muted',
+                    )}
+                    onClick={() => onFilter(f.value)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                {typeFilter ? TYPE_TABS.find((tab) => tab.value === typeFilter)?.label : '全部机会'}
+              </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {renderItems.length} 条结果 · 按匹配与更新时间排序
+              </p>
+            </div>
           </div>
 
           {loading ? (
@@ -348,7 +414,7 @@ export default function FeedPage() {
           ) : inContestGrid ? (
             /* 赛事机会第一级：按参赛地区聚合的卡片，点进去看该地区比赛 */
             contestRegionGroups.length === 0 ? (
-              <div className="rounded-[18px] border border-border bg-card py-20 text-center text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+              <div className="rounded-xl border border-dashed border-border bg-card py-20 text-center text-sm text-muted-foreground">
                 <p>暂无赛事机会。</p>
                 <p className="mt-2">
                   可到
@@ -389,18 +455,18 @@ export default function FeedPage() {
                       key={g.region}
                       type="button"
                       onClick={() => setContestRegion(g.region)}
-                      className="group flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+                      className="group flex min-h-28 items-end justify-between gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                     >
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-500">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-primary">
                           <MapPin className="size-4" />
                         </span>
                         <span className="min-w-0">
-                          <span className="block truncate font-semibold text-foreground">{g.region}</span>
+                          <span className="block truncate font-serif text-lg font-medium text-foreground">{g.region}</span>
                           <span className="text-xs text-muted-foreground">{g.count} 个可参加比赛</span>
                         </span>
                       </span>
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-violet-400" />
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
                     </button>
                   ))}
                 </div>
@@ -421,13 +487,13 @@ export default function FeedPage() {
                     全部地区
                   </Button>
                   <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
-                    <MapPin className="size-4 text-violet-400" />
+                    <MapPin className="size-4 text-primary" />
                     {contestRegion}
                   </span>
                 </div>
               )}
               {renderItems.length === 0 ? (
-                <div className="rounded-[18px] border border-border bg-card py-20 text-center text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+                <div className="rounded-xl border border-dashed border-border bg-card py-20 text-center text-sm text-muted-foreground">
                   <p>{typeFilter ? '该分类下暂无可申报机会。' : '暂无可申报机会。'}</p>
                   {items.length === 0 && (
                     <p className="mt-2">
@@ -448,16 +514,16 @@ export default function FeedPage() {
                   {renderItems.map((m) => (
                 <li
                   key={m.id}
-                  className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 pl-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
+                  className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 pl-6 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-[var(--shadow-hover)]"
                 >
                   {/* 机会类型左侧彩条：资质=翠绿、赛事=紫罗兰、政策=品牌青绿 */}
                   <span
                     className={cn(
                       'absolute left-0 top-0 h-full w-1',
                       m.type === 'qualification'
-                        ? 'bg-emerald-400'
-                        : m.type === 'competition'
-                          ? 'bg-violet-400'
+                          ? 'bg-brand-400'
+                          : m.type === 'competition'
+                            ? 'bg-amber-400'
                           : 'bg-primary',
                     )}
                   />
@@ -482,7 +548,7 @@ export default function FeedPage() {
                         m.type === 'qualification'
                           ? 'border-emerald-300 text-emerald-700 dark:text-emerald-400'
                           : m.type === 'competition'
-                            ? 'border-violet-300 text-violet-700 dark:text-violet-400'
+                            ? 'border-amber-300 text-amber-700 dark:text-amber-400'
                             : 'text-muted-foreground'
                       }`}
                     >

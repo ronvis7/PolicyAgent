@@ -139,6 +139,15 @@ class FakePolicyRepository:
     async def list_by_source_urls(self, source_urls: List[str]) -> List[Policy]:
         return [self._store[u] for u in source_urls if u in self._store]
 
+    async def list_by_sources(self, sources: List[str], limit: int = 200) -> List[Policy]:
+        src = set(sources)
+        items = [p for p in self._store.values() if p.source in src]
+        items.sort(
+            key=lambda p: (p.publish_date or date.min, p.created_at),
+            reverse=True,
+        )
+        return items[:limit]
+
     async def save(self, policy: Policy) -> None:
         existing = self._store.get(policy.source_url)
         if existing:

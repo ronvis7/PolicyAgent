@@ -326,7 +326,7 @@ function TagCloud({ values }: { values: string[] }) {
   return (
     <div className="flex flex-wrap gap-2">
       {values.map((tag) => (
-        <Badge key={tag} variant="secondary" className="rounded-full px-3 py-1 text-sm font-normal">
+        <Badge key={tag} variant="secondary" className="rounded-md px-2.5 py-1 text-sm font-normal">
           {tag}
         </Badge>
       ))}
@@ -338,9 +338,9 @@ function TagCloud({ values }: { values: string[] }) {
 function MetricCard({ label, value, unit }: { label: string; value: string; unit?: string }) {
   const empty = value === '—'
   return (
-    <div className="rounded-2xl border border-muted bg-card px-4 py-3">
+    <div className="min-h-24 bg-card px-4 py-4">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-lg font-semibold ${empty ? 'text-muted-foreground' : 'text-foreground'}`}>
+      <div className={`mt-2 font-serif text-xl font-medium ${empty ? 'text-muted-foreground' : 'text-foreground'}`}>
         {value}
         {!empty && unit && <span className="ml-1 text-xs font-normal text-muted-foreground">{unit}</span>}
       </div>
@@ -417,24 +417,17 @@ export default function EnterpriseProfilePage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* 头部 */}
-      <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="flex h-full flex-col bg-background">
+      <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card" />
-          <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-semibold tracking-tight text-foreground">企业档案</h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">
-              {canEdit
-                ? '完善企业档案，作为后续政策匹配与主动推送的依据。'
-                : '仅组织所有者 / 管理员可编辑企业档案。'}
-            </p>
-          </div>
+          <span className="h-4 w-px bg-border" />
+          <span className="text-xs font-medium tracking-wide text-muted-foreground">企业政策画像</span>
         </div>
         {canEdit &&
           (mode === 'view' ? (
             <Button
-              className="cursor-pointer rounded-xl"
+              className="cursor-pointer rounded-lg"
               variant="outline"
               onClick={startEdit}
               disabled={loading}
@@ -446,13 +439,13 @@ export default function EnterpriseProfilePage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                className="cursor-pointer rounded-xl bg-card"
+                className="cursor-pointer rounded-lg bg-card"
                 onClick={cancelEdit}
                 disabled={saving}
               >
                 取消
               </Button>
-              <Button className="cursor-pointer rounded-xl" onClick={handleSave} disabled={saving}>
+              <Button className="cursor-pointer rounded-lg" onClick={handleSave} disabled={saving}>
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 保存
               </Button>
@@ -460,7 +453,20 @@ export default function EnterpriseProfilePage() {
           ))}
       </header>
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8">
+        <section className="mb-7">
+          <div className="mb-3 inline-flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-primary">
+            <Building2 className="size-4" />
+            ENTERPRISE PROFILE
+          </div>
+          <h1 className="font-serif text-3xl font-medium leading-tight tracking-tight text-foreground sm:text-4xl">
+            让每一次政策匹配，都更懂你的企业
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
+            企业位置、业务方向、已有资质与研发数据，共同决定政策推荐、资质差距分析和赛事提醒。
+          </p>
+        </section>
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="size-5 animate-spin" />
@@ -472,6 +478,7 @@ export default function EnterpriseProfilePage() {
         ) : (
           <ProfileView profile={profile} score={score} />
         )}
+        </div>
       </div>
     </div>
   )
@@ -508,16 +515,18 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
   const region = [profile.province, profile.city, profile.district].filter(Boolean).join(' / ')
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-4">
+    <div className="flex flex-col gap-5">
       {/* Hero 名片 */}
-      <div className={CARD_CLASS}>
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="p-6 sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">
-            <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-accent text-primary">
-              <Building2 className="size-7" />
+            <div className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
+              <Building2 className="size-6" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-serif text-2xl font-semibold leading-tight tracking-tight text-foreground">
+              <h2 className="font-serif text-2xl font-medium leading-tight tracking-tight text-foreground sm:text-3xl">
                 {profile.company_name}
               </h2>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -527,7 +536,7 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
                 </span>
                 {profile.industry && <span>· {profile.industry}</span>}
                 {profile.scale !== 'unspecified' && (
-                  <Badge variant="outline" className="rounded-full">
+                  <Badge variant="outline" className="rounded-md">
                     {SCALE_LABEL[profile.scale]}
                   </Badge>
                 )}
@@ -542,43 +551,43 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
           )}
         </div>
 
-        {/* 完整度 */}
-        <div className="mt-5 rounded-2xl border border-muted bg-card px-4 py-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
-              <Sparkles className="size-3.5 text-primary" />
-              档案完整度
-            </span>
-            <span className="font-semibold text-foreground">{score}%</span>
-          </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-border">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${score}%` }}
-            />
-          </div>
-          {score < 100 && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              补全经营与研发指标，可启用更精准的资质申报差距分析。
-            </p>
-          )}
-        </div>
-
         {profile.main_business && (
-          <div className="mt-5">
-            <div className="text-xs font-semibold text-muted-foreground">主营业务</div>
-            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
+          <div className="mt-7 max-w-3xl border-t border-border pt-5">
+            <div className="text-[11px] font-semibold tracking-[0.12em] text-primary">主营业务</div>
+            <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-foreground/80">
               {profile.main_business}
             </p>
           </div>
         )}
+        </div>
+        <div className="flex flex-col justify-between border-t border-border bg-accent p-6 lg:border-l lg:border-t-0">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-foreground">
+              <Sparkles className="size-3.5 text-primary" />
+              档案完整度
+            </div>
+            <div className="mt-4 font-serif text-5xl font-medium tabular-nums text-foreground">
+              {score}<span className="ml-1 text-xl text-muted-foreground">%</span>
+            </div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-border">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${score}%` }} />
+            </div>
+          </div>
+          <p className="mt-6 text-xs leading-5 text-muted-foreground">
+            {score < 100
+              ? '补全经营与研发指标，可启用更精准的资质申报差距分析。'
+              : '档案信息完整，已具备精细化政策匹配基础。'}
+          </p>
+        </div>
+        </div>
       </div>
 
+      <div className="grid gap-5 lg:grid-cols-[0.78fr_1.22fr]">
       {/* 资质与领域 */}
-      <div className={CARD_CLASS}>
-        <div className="mb-4 flex items-center gap-2 text-base font-bold text-foreground">
+      <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <div className="mb-5 flex items-center gap-2 text-base font-semibold text-foreground">
           <Award className="size-5 text-primary" />
-          资质与领域
+          企业能力标签
         </div>
         <div className="flex flex-col gap-4">
           <div>
@@ -611,13 +620,13 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
       </div>
 
       {/* 经营与研发指标 */}
-      <div className={CARD_CLASS}>
-        <div className="mb-1 flex items-center gap-2 text-base font-bold text-foreground">
+      <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <div className="mb-1 flex items-center gap-2 text-base font-semibold text-foreground">
           <TrendingUp className="size-5 text-primary" />
           经营与研发指标
         </div>
         <p className="mb-4 text-xs text-muted-foreground">用于资质申报机会的条件差距分析（成立年限、研发占比、研发投入强度、知识产权等）。</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
           <MetricCard label="成立 / 注册日期" value={formatDateLabel(profile.established_date)} />
           <MetricCard label="员工总数" value={formatNumber(profile.total_staff)} unit="人" />
           <MetricCard label="研发人员数" value={formatNumber(profile.rd_staff)} unit="人" />
@@ -639,6 +648,7 @@ function ProfileView({ profile, score }: { profile: EnterpriseProfile; score: nu
           <MetricCard label="发明专利数" value={formatNumber(profile.invention_patents)} unit="件" />
           <MetricCard label="其他知识产权数" value={formatNumber(profile.other_ip_count)} unit="件" />
         </div>
+      </div>
       </div>
     </div>
   )
