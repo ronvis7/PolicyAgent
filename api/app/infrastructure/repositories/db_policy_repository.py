@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,3 +144,26 @@ class DBPolicyRepository(PolicyRepository):
         )
         rows = (await self.db_session.execute(stmt)).scalars().all()
         return [r for r in rows if r]
+
+    async def list_contests(
+        self, page: int, page_size: int, origin: str = "", region: str = "",
+        source: str = "", keyword: str = "", active_only: bool = False,
+    ) -> Tuple[List[Policy], int]:
+        conditions = [PolicyModel.item_type == "competition"]
+        if origin:
+            conditions.append(PolicyModel.origin_type == origin)
+        if region:
+            conditions.append(PolicyModel.region.ilike(f"%{region}%"))
+        if source:
+            conditions.append(PolicyModel.source == source)
+        if keyword:
+            conditions.append(or_(PolicyModel.title.ilike(f"%{keyword}%"), PolicyModel.body_text.ilike(f"%{keyword}%")))
+        if active_only:
+            conditions.append(or_(PolicyModel.apply_deadline.is_(None), PolicyModel.apply_deadline >= date.today()))
+        where = and_(*conditions)
+        total = (await self.db_session.execute(select(func.count()).select_from(PolicyModel).where(where))).scalar_one()
+        stmt = (select(PolicyModel).where(where)
+                .order_by(PolicyModel.apply_deadline.asc().nullslast(), PolicyModel.publish_date.desc().nullslast())
+                .offset((page - 1) * page_size).limit(page_size))
+        rows = (await self.db_session.execute(stmt)).scalars().all()
+        return [row.to_domain() for row in rows], total

@@ -15,17 +15,20 @@ from typing import List
 import httpx
 
 from app.domain.models.enterprise_profile import EnterpriseProfile
+from app.domain.models.feed_item import FeedItem, FeedItemType
 from app.domain.models.policy import Policy
 from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
 from app.infrastructure.external.notify.feishu_webhook import (
     FeishuWebhookNotifier,
     build_contest_daily_summary_message,
     build_contest_message,
+    build_feed_contest_message,
     feishu_sign,
     make_contest_daily_summary_hook,
     make_contest_push_hook,
     make_tenant_contest_daily_summary_hook,
     make_tenant_contest_push_hook,
+    make_tenant_feed_contest_push_hook,
     mask_webhook_url,
 )
 from tests.app.application.services._fakes import make_uow_factory
@@ -42,6 +45,20 @@ def _policy(
         publish_date=date(2026, 7, 1),
         apply_deadline=deadline,
         deadline_status="extracted" if deadline else "unknown",
+    )
+
+
+def _feed_contest(item_id: str = "feed-1") -> FeedItem:
+    return FeedItem(
+        id=item_id,
+        tenant_id="tenant-a",
+        type=FeedItemType.COMPETITION,
+        policy_id="contest-1",
+        title="matched contest",
+        source_url="https://example.test/contest-1",
+        region="Jiangsu",
+        reasons=["profile match"],
+        publish_date=date(2026, 7, 1),
     )
 
 
@@ -101,14 +118,14 @@ def test_build_contest_message_urgent_deadline_reddens_header() -> None:
     assert normal["card"]["header"]["template"] == "blue"
 
 
-def test_build_contest_message_button_links_to_workbench_when_base_url_set() -> None:
+def test_build_contest_message_button_links_to_contest_center_when_base_url_set() -> None:
     with_btn = build_contest_message([_policy()], web_base_url="http://host:8088/")
     without = build_contest_message([_policy()])
 
     flat = json.dumps(with_btn["card"]["elements"], ensure_ascii=False)
-    assert "打开工作台查看全部" in flat
-    assert "http://host:8088/feed" in flat  # 去重斜杠后拼 /feed
-    assert "打开工作台" not in json.dumps(without["card"]["elements"], ensure_ascii=False)
+    assert "打开赛事中心" in flat
+    assert "http://host:8088/contests" in flat
+    assert "打开赛事中心" not in json.dumps(without["card"]["elements"], ensure_ascii=False)
 
 
 def test_build_contest_message_caps_items() -> None:
@@ -120,6 +137,17 @@ def test_build_contest_message_caps_items() -> None:
     assert "15" in card["header"]["title"]["content"]  # 标题仍报真实总数
     flat = json.dumps(card["elements"], ensure_ascii=False)
     assert flat.count("https://x/") == 10
+
+
+def test_build_feed_contest_message_has_ignore_link_and_feed_link() -> None:
+    msg = build_feed_contest_message(
+        [_feed_contest("feed-42")], web_base_url="http://host:8088/", today=date(2026, 7, 1),
+    )
+
+    flat = json.dumps(msg["card"]["elements"], ensure_ascii=False)
+    assert "matched contest" in flat
+    assert "http://host:8088/feed?ignore=feed-42" in flat
+    assert "http://host:8088/feed" in flat
 
 
 def test_build_daily_summary_sends_heartbeat_when_no_matches() -> None:
@@ -136,7 +164,7 @@ def test_build_daily_summary_sends_heartbeat_when_no_matches() -> None:
     flat = json.dumps(card["elements"], ensure_ascii=False)
     assert "今日新增 **0** 条" in flat
     assert "今天没有发现匹配你关注地区的可参赛赛事" in flat
-    assert "http://host:8088/feed" in flat
+    assert "http://host:8088/contests" in flat
 
 
 def test_build_daily_summary_counts_active_and_urgent_only() -> None:
@@ -325,6 +353,36 @@ def test_tenant_fanout_one_failure_does_not_block_others() -> None:
     asyncio.run(hook("wnd-contest", policies))
 
     assert sent == ["https://hook/b"]
+
+
+def test_feed_push_hook_sends_only_new_matched_opportunities() -> None:
+    sent: List[tuple] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append((str(request.url), json.loads(request.content)))
+        return httpx.Response(200, json={"code": 0})
+
+    async def recompute(tenant_id: str) -> List[FeedItem]:
+        return [_feed_contest()] if tenant_id == "tenant-a" else []
+
+    hook = make_tenant_feed_contest_push_hook(
+        make_uow_factory(
+            tenant_settings={
+                "tenant-a": _tenant_settings("tenant-a", "https://hook/a"),
+                "tenant-b": _tenant_settings("tenant-b", "https://hook/b"),
+            },
+        ),
+        recompute,
+        transport=httpx.MockTransport(handler),
+        web_base_url="http://host:8088",
+    )
+    policy = _policy().model_copy(update={"item_type": "competition"})
+
+    asyncio.run(hook("wnd-contest", [policy]))
+
+    assert [url for url, _ in sent] == ["https://hook/a"]
+    flat = json.dumps(sent[0][1], ensure_ascii=False)
+    assert "feed?ignore=feed-1" in flat
 
 
 # ---------- 每日赛事摘要(重爬后固定心跳) ----------

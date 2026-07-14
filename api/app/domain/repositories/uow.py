@@ -15,6 +15,7 @@ from .policy_repository import PolicyRepository
 from .session_repository import SessionRepository
 from .tenant_repository import TenantRepository
 from .tenant_settings_repository import TenantSettingsRepository
+from .contest_repository import ContestRepository
 from .user_repository import UserRepository
 
 T = TypeVar("T", bound="IUnitOfWork")
@@ -36,6 +37,7 @@ class IUnitOfWork(ABC):
     feed: FeedRepository
     agent_memory: AgentMemoryRepository
     intel_briefing: IntelBriefingRepository
+    contest: ContestRepository
 
     @abstractmethod
     async def commit(self):

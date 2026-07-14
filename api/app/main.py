@@ -16,11 +16,12 @@ from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
 from app.interfaces.service_dependencies import (
-    build_contest_daily_summary_hook,
     get_briefing_service,
+    get_contest_service,
     get_default_agent_service,
     get_policy_ingest_service,
 )
+from app.infrastructure.external.crawler.registry import competition_source_keys
 from core.config import get_settings
 
 
@@ -60,13 +61,24 @@ async def lifespan(app: FastAPI):
     # 3.5 启动公开政策定时重爬调度器(主线⑤；DB 初始化后再起，任务依赖 uow)
     recrawl_scheduler: PolicyRecrawlScheduler | None = None
     if settings.policy_recrawl_enabled:
+        async def run_contest_pipeline(summaries: list[dict]) -> None:
+            """政策重爬后执行官方赛事源、租户关键词发现与每日摘要。"""
+            contest_service = get_contest_service()
+            ingest_service = get_policy_ingest_service()
+            for source in await contest_service.list_sources(enabled_only=True):
+                try:
+                    summaries.append(await contest_service.ingest_source(source.id, ingest_service))
+                except Exception as exc:  # 单来源失败不阻断后续任务
+                    logger.warning("官方赛事来源定时抓取失败 source=%s: %s", source.key, exc)
+            summaries.extend(await contest_service.discover_all(ingest_service))
+
         recrawl_scheduler = PolicyRecrawlScheduler(
-            sources=settings.policy_recrawl_source_list,
+            sources=[s for s in settings.policy_recrawl_source_list if s not in competition_source_keys()],
             hour=settings.policy_recrawl_hour,
             minute=settings.policy_recrawl_minute,
             max_pages=settings.policy_recrawl_max_pages,
             ingest=lambda source, max_pages: get_policy_ingest_service().ingest(source, max_pages),
-            after_run=build_contest_daily_summary_hook(),
+            after_run=run_contest_pipeline,
             timezone=settings.policy_recrawl_timezone,
         )
         recrawl_scheduler.start()

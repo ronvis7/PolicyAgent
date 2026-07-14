@@ -6,6 +6,7 @@ RAG 分块/Embedding 流水线写入全局公开知识库(挂系统租户 'publi
 保证重复入库幂等(先删旧切片再写)。
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import date, datetime
@@ -63,6 +64,7 @@ class PolicyIngestService:
         llm: Optional[LLM] = None,
         on_new_policies: Optional[Callable[[str, List[Policy]], Awaitable[None]]] = None,
         skip_expired_sources: Optional[Set[str]] = None,
+        source_metadata: Optional[Dict[str, tuple[str, str, str]]] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._crawlers = crawlers
@@ -75,6 +77,11 @@ class PolicyIngestService:
         # 过期即失效的来源集合(赛事子源，registry.competition_source_keys())：
         # 抽出申报截止且已过期的条目不入库不推送。缺省空集=不跳过，政策来源不受影响。
         self._skip_expired_sources = skip_expired_sources or set()
+        # source -> (item_type, origin_type, display_name); 未配置时保持旧政策语义。
+        self._source_metadata = source_metadata or {}
+        # Dynamic sources are temporarily registered for a single run.  Serialise
+        # those registrations so a manual run cannot replace a scheduled crawler.
+        self._dynamic_ingest_lock = asyncio.Lock()
 
     async def ingest(self, source: str, max_pages: int = 1) -> Dict[str, object]:
         """按来源(source)抓取并入库，返回 {source, crawled, upserted, new, indexed} 计数。
@@ -90,6 +97,14 @@ class PolicyIngestService:
         # 返回重复条目，重复 save 在同一事务内会双双 INSERT 撞唯一约束导致整批回滚。
         policies = _dedupe_by_source_url(await crawler.crawl(max_pages))
         crawled = len(policies)
+
+        item_type, origin_type, source_name = self._source_metadata.get(
+            source, ("policy", "official", source),
+        )
+        for policy in policies:
+            policy.item_type = item_type
+            policy.origin_type = origin_type
+            policy.source_name = source_name
 
         for policy in policies:
             await self._enrich_deadline(policy)
@@ -125,7 +140,7 @@ class PolicyIngestService:
         summary = {
             "source": source, "crawled": crawled, "upserted": upserted,
             "new": len(new_policies), "indexed": indexed,
-            "skipped_expired": skipped_expired,
+            "skipped_expired": skipped_expired, "item_type": item_type,
         }
         logger.info(f"公开政策入库完成: {summary}")
 
@@ -135,6 +150,29 @@ class PolicyIngestService:
 
         await self._notify_new(source, new_policies)
         return summary
+
+    async def ingest_with_crawler(
+        self, source: str, crawler: PolicyCrawler, name: str, max_pages: int = 1,
+        origin_type: str = "official",
+    ) -> Dict[str, object]:
+        """用平台已验证模板构造的动态赛事来源入库。"""
+        async with self._dynamic_ingest_lock:
+            old_crawler = self._crawlers.get(source)
+            old_metadata = self._source_metadata.get(source)
+            self._crawlers[source] = crawler
+            self._source_metadata[source] = ("competition", origin_type, name)
+            self._skip_expired_sources.add(source)
+            try:
+                return await self.ingest(source, max_pages)
+            finally:
+                if old_crawler is None:
+                    self._crawlers.pop(source, None)
+                else:
+                    self._crawlers[source] = old_crawler
+                if old_metadata is None:
+                    self._source_metadata.pop(source, None)
+                else:
+                    self._source_metadata[source] = old_metadata
 
     async def _detect_new(self, policies: List[Policy]) -> List[Policy]:
         """入库前按 source_url 批量比对存量，返回本次首次入库的政策(同批重复去重)。"""

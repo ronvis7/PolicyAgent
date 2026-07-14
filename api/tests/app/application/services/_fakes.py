@@ -170,6 +170,23 @@ class FakePolicyRepository:
         start = (page - 1) * page_size
         return items[start:start + page_size], total
 
+    async def list_contests(
+        self, page: int, page_size: int, active_only: bool = False, **_filters,
+    ):
+        items = [
+            p for p in self._store.values()
+            if p.item_type == "competition" or p.source.endswith("-contest")
+        ]
+        if active_only:
+            items = [
+                p for p in items
+                if p.apply_deadline is None or p.apply_deadline >= date.today()
+            ]
+        items.sort(key=lambda p: p.publish_date or date.min, reverse=True)
+        total = len(items)
+        start = (page - 1) * page_size
+        return items[start:start + page_size], total
+
     async def list_candidates(self, limit: int):
         items = sorted(
             self._store.values(), key=lambda p: p.publish_date or date.min, reverse=True

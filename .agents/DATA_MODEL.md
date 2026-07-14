@@ -94,6 +94,35 @@ Agent 会话。必须带 `tenant_id` 和 `owner_id`。
 - 原文 URL、正文哈希和版本
 - 申报对象、条件、材料和截止日期
 
+## 赛事中心模型
+
+公开 `policies` 内容增加 `item_type`（`policy`/`competition`）、`origin_type`（`official`/`web`）和
+`source_name`。赛事仍以 `source_url` 全局去重，避免同一公开赛事被多个关键词或租户重复写入。
+
+### ContestSource
+
+平台级官方赛事来源：`id`、`key`、`name`、`region`、`home_url`、`adapter_type`、`adapter_config`、
+`enabled`、`created_at`、`updated_at`。不带 `tenant_id`；仅平台管理员可写。`adapter_type` 必须是平台已验证
+的爬虫模板，`adapter_config` 保存该模板的非机密栏目参数。
+
+### ContestSubscription
+
+企业全网赛事关键词订阅：`id`、`tenant_id`、`keyword`、`enabled`、`last_run_at`、`created_at`、
+`updated_at`。`tenant_id` 不可空且建索引；租户内 `(tenant_id, keyword)` 唯一。公开赛事不记录或返回订阅
+所属租户，避免泄露企业关注方向。
+
+### ContestDiscoveryHit
+
+全网发现命中记录：`id`、`tenant_id`、`subscription_id`、`policy_id`、`created_at`。
+这是租户私有数据，`tenant_id` 必须过滤；`(tenant_id, policy_id)` 唯一，使公开赛事可以全局只保存一份，
+同时允许不同企业各自收到一次通知，而同一企业的多个关键词不会重复推送。
+
+### FeedItem 赛事提醒语义
+
+`policy_matches`（领域模型为 `FeedItem`）已带 `tenant_id`、`policy_id`、`type` 与 `status`。赛事飞书推送只选择本租户本次新建且 `type=competition` 的 Feed 条目；`ignored`/`applied` 状态在后续快照更新时保留，因此不会因重爬重新提醒。该优化不增加新表或迁移。
+
+对于 `deadline_status=unknown` 的赛事，Feed 仅保留发布时间 45 天以内的条目；`rolling` 或未来明确截止的赛事按原有时效规则保留。
+
 ## 待实现报告模型
 
 ### Report
