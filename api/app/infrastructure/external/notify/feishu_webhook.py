@@ -24,9 +24,11 @@ import logging
 import time
 from datetime import date
 from typing import Awaitable, Callable, Dict, List, Optional
+from urllib.parse import urlencode
 
 import httpx
 
+from app.domain.models.feed_item import FeedItem
 from app.domain.models.policy import Policy
 from app.domain.models.tenant_settings import TenantSettings
 from app.domain.repositories.uow import IUnitOfWork
@@ -137,7 +139,12 @@ def _header_template(policies: List[Policy], today: date) -> str:
 
 
 def _feed_url(web_base_url: str) -> str:
-    """工作台赛事页地址(卡片按钮跳转)。"""
+    """赛事中心地址(卡片按钮跳转)。"""
+    return web_base_url.rstrip("/") + "/contests"
+
+
+def _feed_opportunities_url(web_base_url: str) -> str:
+    """Tenant workbench address for a user's matched opportunities."""
     return web_base_url.rstrip("/") + "/feed"
 
 
@@ -172,12 +179,12 @@ def build_contest_message(
     if len(policies) > _MAX_ITEMS_PER_MESSAGE:
         elements.append({"tag": "hr"})
         elements.append({"tag": "div", "text": {"tag": "lark_md",
-            "content": f"…共 **{len(policies)}** 条，其余请到工作台「赛事机会」查看"}})
+            "content": f"…共 **{len(policies)}** 条，其余请到赛事中心查看"}})
 
     if web_base_url:
         elements.append({"tag": "action", "actions": [{
             "tag": "button",
-            "text": {"tag": "plain_text", "content": "打开工作台查看全部"},
+            "text": {"tag": "plain_text", "content": "打开赛事中心"},
             "url": _feed_url(web_base_url),
             "type": "primary",
         }]})
@@ -196,6 +203,61 @@ def build_contest_message(
             "header": {
                 "template": _header_template(shown, today),
                 "title": {"tag": "plain_text", "content": f"🏆 新赛事机会 · {len(policies)} 条"},
+            },
+            "elements": elements,
+        },
+    }
+
+
+def _feed_ignore_url(web_base_url: str, item_id: str) -> str:
+    return _feed_opportunities_url(web_base_url) + "?" + urlencode({"ignore": item_id})
+
+
+def build_feed_contest_message(
+    items: List[FeedItem], web_base_url: str = "", today: Optional[date] = None,
+) -> dict:
+    """Build a Feishu card from tenant-scoped Feed recommendations only."""
+    today = today or date.today()
+    shown = items[:_MAX_ITEMS_PER_MESSAGE]
+    elements: List[dict] = []
+    for index, item in enumerate(shown):
+        title = _escape_md(item.title)
+        title_line = f"**[{title}]({item.source_url})**" if item.source_url else f"**{title}**"
+        meta = [part for part in (
+            f"📍 {item.region}" if item.region else "",
+            _deadline_hint(item, today),
+        ) if part]
+        if item.reasons:
+            meta.append(f"推荐：{item.reasons[0]}")
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": title_line + (f"\n{'  ·  '.join(meta)}" if meta else "")}})
+        if web_base_url:
+            elements.append({"tag": "action", "actions": [{
+                "tag": "button",
+                "text": {"tag": "plain_text", "content": "不再提醒此赛事"},
+                "url": _feed_ignore_url(web_base_url, item.id),
+                "type": "default",
+            }]})
+        if index < len(shown) - 1:
+            elements.append({"tag": "hr"})
+
+    if len(items) > _MAX_ITEMS_PER_MESSAGE:
+        elements.append({"tag": "hr"})
+        elements.append({"tag": "div", "text": {"tag": "lark_md", "content": f"…共 **{len(items)}** 条，请到赛事机会查看"}})
+    if web_base_url:
+        elements.append({"tag": "action", "actions": [{
+            "tag": "button", "text": {"tag": "plain_text", "content": "查看赛事机会"},
+            "url": _feed_opportunities_url(web_base_url), "type": "primary",
+        }]})
+    elements.append({"tag": "note", "elements": [{
+        "tag": "plain_text", "content": "仅推送与你企业画像匹配且仍有效的赛事机会",
+    }]})
+    return {
+        "msg_type": "interactive",
+        "card": {
+            "config": {"wide_screen_mode": True},
+            "header": {
+                "template": _header_template(shown, today),
+                "title": {"tag": "plain_text", "content": f"🏆 新赛事机会 · {len(items)} 条"},
             },
             "elements": elements,
         },
@@ -343,7 +405,9 @@ def make_contest_push_hook(
     """
 
     async def push_new_contests(source: str, new_policies: List[Policy]) -> None:
-        source_name = contest_source_names.get(source)
+        if source == "web-discovery":
+            return
+        source_name = contest_source_names.get(source) or (new_policies[0].source_name if new_policies and new_policies[0].item_type == "competition" else None)
         if source_name is None:  # 非赛事来源(普通政策入库)不打扰群
             return
         message = build_contest_message(
@@ -360,7 +424,7 @@ def _daily_new_count(summaries: Optional[List[dict]], contest_sources: set[str])
         return 0
     total = 0
     for summary in summaries:
-        if summary.get("source") not in contest_sources:
+        if summary.get("source") not in contest_sources and summary.get("item_type") != "competition":
             continue
         try:
             total += int(summary.get("new", 0) or 0)
@@ -380,7 +444,7 @@ def make_contest_daily_summary_hook(
 
     async def push_daily_summary(summaries: List[dict]) -> None:
         async with uow_factory() as uow:
-            policies = await uow.policy.list_by_sources(list(contest_sources), limit=200)
+            policies, _ = await uow.policy.list_contests(page=1, page_size=200, active_only=True)
         message = build_contest_daily_summary_message(
             policies,
             new_count=_daily_new_count(summaries, contest_sources),
@@ -405,7 +469,9 @@ def make_tenant_contest_push_hook(
     """
 
     async def push_new_contests(source: str, new_policies: List[Policy]) -> None:
-        source_name = contest_source_names.get(source)
+        if source == "web-discovery":
+            return
+        source_name = contest_source_names.get(source) or (new_policies[0].source_name if new_policies and new_policies[0].item_type == "competition" else None)
         if source_name is None:  # 非赛事来源(普通政策入库)不打扰任何群
             return
 
@@ -445,6 +511,104 @@ def make_tenant_contest_push_hook(
     return push_new_contests
 
 
+def make_tenant_discovery_push_hook(
+    uow_factory: Callable[[], IUnitOfWork],
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+    web_base_url: str = "",
+) -> Callable[[str, List[Policy]], Awaitable[None]]:
+    """Notify exactly one tenant for newly discovered web contests.
+
+    The public contest remains globally deduplicated; this callback uses the
+    tenant-private discovery-hit record to avoid exposing or broadcasting a
+    tenant's subscription to any other tenant.
+    """
+
+    async def push(tenant_id: str, policies: List[Policy]) -> None:
+        async with uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+            profile = await uow.enterprise_profile.get_by_tenant(tenant_id)
+        config = settings.feishu_config if settings else None
+        if config is None or not config.webhook_url.strip():
+            return
+        regions = profile.contest_regions if profile else []
+        matched = [policy for policy in policies if contest_region_matches(policy.region, regions)]
+        if not matched:
+            return
+        notifier = FeishuWebhookNotifier(
+            webhook_url=config.webhook_url,
+            secret=config.secret,
+            transport=transport,
+        )
+        await notifier.send(build_contest_message(
+            matched, source_name="全网发现", web_base_url=web_base_url,
+        ))
+
+    return push
+
+
+def make_tenant_feed_contest_push_hook(
+    uow_factory: Callable[[], IUnitOfWork],
+    recompute_new_competitions: Callable[[str], Awaitable[List[FeedItem]]],
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+    web_base_url: str = "",
+) -> Callable[[str, List[Policy]], Awaitable[None]]:
+    """Push only new, tenant-scoped Feed contest opportunities.
+
+    Crawler output is merely an input.  The Feed is the final authority for
+    profile relevance, region, deadline freshness, and ignored state.
+    """
+
+    async def push(source: str, policies: List[Policy]) -> None:
+        if source == "web-discovery" or not any(p.item_type == "competition" for p in policies):
+            return
+        async with uow_factory() as uow:
+            configured = await uow.tenant_settings.list_feishu_configured()
+
+        async def push_one(settings: TenantSettings) -> None:
+            config = settings.feishu_config
+            if config is None or not config.webhook_url.strip():
+                return
+            try:
+                items = await recompute_new_competitions(settings.tenant_id)
+                if not items:
+                    return
+                notifier = FeishuWebhookNotifier(
+                    webhook_url=config.webhook_url, secret=config.secret, transport=transport,
+                )
+                await notifier.send(build_feed_contest_message(items, web_base_url=web_base_url))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("租户 %s 赛事机会推送失败: %s: %s", settings.tenant_id, type(exc).__name__, exc)
+
+        await asyncio.gather(*(push_one(settings) for settings in configured))
+
+    return push
+
+
+def make_single_tenant_feed_contest_push_hook(
+    uow_factory: Callable[[], IUnitOfWork],
+    recompute_new_competitions: Callable[[str], Awaitable[List[FeedItem]]],
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+    web_base_url: str = "",
+) -> Callable[[str, List[Policy]], Awaitable[None]]:
+    """Feed-based notifier for a single tenant's keyword-discovery result."""
+
+    async def push(tenant_id: str, _policies: List[Policy]) -> None:
+        async with uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+        config = settings.feishu_config if settings else None
+        if config is None or not config.webhook_url.strip():
+            return
+        items = await recompute_new_competitions(tenant_id)
+        if not items:
+            return
+        notifier = FeishuWebhookNotifier(
+            webhook_url=config.webhook_url, secret=config.secret, transport=transport,
+        )
+        await notifier.send(build_feed_contest_message(items, web_base_url=web_base_url))
+
+    return push
+
+
 def make_tenant_contest_daily_summary_hook(
     uow_factory: Callable[[], IUnitOfWork],
     contest_source_names: Dict[str, str],
@@ -457,7 +621,7 @@ def make_tenant_contest_daily_summary_hook(
     async def push_daily_summary(summaries: List[dict]) -> None:
         async with uow_factory() as uow:
             configured = await uow.tenant_settings.list_feishu_configured()
-            policies = await uow.policy.list_by_sources(list(contest_sources), limit=200)
+            policies, _ = await uow.policy.list_contests(page=1, page_size=200, active_only=True)
             profiles = {
                 ts.tenant_id: await uow.enterprise_profile.get_by_tenant(ts.tenant_id)
                 for ts in configured

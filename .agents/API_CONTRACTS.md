@@ -117,6 +117,26 @@
 
 报告创建输入至少包含企业材料、知识库范围和报告模板标识。报告状态使用 `pending/running/completed/failed`。
 
+## 赛事中心（双来源）
+
+赛事为全局公开内容；企业的关键词订阅与推送配置为租户数据，严格从访问令牌取得租户上下文。
+
+- `GET /api/contests` — 分页浏览赛事中心。支持 `origin=official|web`、`region`、`source`、`keyword`、`active_only` 筛选。
+- `GET /api/contests/{contest_id}` — 获取赛事详情和原文链接。
+- `GET /api/contest-sources` — 列出平台维护的官方赛事来源及抓取状态。
+- `GET/POST/PATCH/DELETE /api/contest-subscriptions` — 当前组织 owner/admin 管理本组织的全网赛事关键词订阅；响应不得泄露其他租户订阅。
+- `GET/POST/PATCH/DELETE /api/platform/contest-sources` — 仅平台管理员管理官方来源；`POST /{id}/preflight` 为只读连通性预检，`POST /{id}/ingest` 手动触发抓取。
+
+赛事列表项包含 `origin`（`official` 或 `web`）、`source_name`、`region`、`apply_deadline` 与 `source_url`。全网发现条目必须完成原文抓取、赛事/报名语义与时效校验后才可出现在该接口或触发推送。
+同一原文按 `source_url` 全局去重；全网发现的通知命中记录仅在订阅租户内保存，接口不返回其他租户的关键词或命中状态。
+
+## 飞书赛事机会通知
+
+- 飞书仅推送当前租户新创建的 `FeedItem.type=competition`；Feed 是唯一准入结果，企业画像、关注地区、报名时效和已忽略状态均在推送前生效。
+- 同一 `(tenant_id, policy_id)` 已存在于 Feed 时，即使后续重爬或重新入库也不会重复推送；每日重爬不再发送全量赛事或“0 条赛事”摘要。
+- 卡片的“查看赛事机会”跳转 `/feed`；“不再提醒此赛事”跳转 `/feed?ignore={feed_item_id}`。用户登录后，前端调用既有 `POST /api/feed/{feed_item_id}/status`，body 为 `{ "status": "ignored" }`。
+- 状态接口继续只以访问令牌中的租户处理条目；非本租户的 `feed_item_id` 返回 404，不能借飞书链接跨租户停止提醒。
+
 ## 契约变更规则
 
 - 先修改本文档，再提交后端和前端代码。

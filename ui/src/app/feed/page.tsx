@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlarmClock,
   ArrowLeft,
@@ -109,6 +109,8 @@ function DeadlineBadge({ item }: { item: FeedItem }) {
 /** 工作台 Feed 页（④）：持久化的可申报政策信息流 + 状态流转 + 重新匹配。 */
 export default function FeedPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const ignoreItemId = searchParams.get('ignore')
 
   const [filter, setFilter] = useState<FeedStatus | ''>('')
   const [typeFilter, setTypeFilter] = useState<OpportunityType | ''>('')
@@ -155,6 +157,26 @@ export default function FeedPage() {
   useEffect(() => {
     load('', true)
   }, [load])
+
+  // Feishu uses a signed-in platform link instead of a bot callback: the same
+  // tenant-scoped Feed API marks this one contest ignored, so it will not be
+  // selected by future pushes.
+  useEffect(() => {
+    if (!ignoreItemId) return
+    let active = true
+    const ignoreFromFeishu = async () => {
+      try {
+        await feedApi.setStatus(ignoreItemId, 'ignored')
+        if (active) toast.success('已停止提醒此赛事')
+      } catch (err) {
+        if (active) toast.error(err instanceof Error ? err.message : '停止提醒失败')
+      } finally {
+        if (active) router.replace('/feed')
+      }
+    }
+    ignoreFromFeishu()
+    return () => { active = false }
+  }, [ignoreItemId, router])
 
   const onFilter = (value: FeedStatus | '') => {
     setFilter(value)

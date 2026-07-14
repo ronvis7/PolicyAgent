@@ -20,6 +20,7 @@ from .db_session_repository import DBSessionRepository
 from .db_tenant_repository import DBTenantRepository
 from .db_tenant_settings_repository import DBTenantSettingsRepository
 from .db_user_repository import DBUserRepository
+from .db_contest_repository import DBContestRepository
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.feed = DBFeedRepository(db_session=self.db_session)
         self.agent_memory = DBAgentMemoryRepository(db_session=self.db_session)
         self.intel_briefing = DBIntelBriefingRepository(db_session=self.db_session)
+        self.contest = DBContestRepository(db_session=self.db_session)
 
         return self
 

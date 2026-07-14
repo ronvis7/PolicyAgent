@@ -7,6 +7,12 @@ from app.domain.models.policy import Policy
 class PolicyRepository(Protocol):
     """公开政策仓库协议定义（全局共享，非租户隔离）"""
 
+    async def list_contests(
+        self, page: int, page_size: int, origin: str = "", region: str = "",
+        source: str = "", keyword: str = "", active_only: bool = False,
+    ) -> Tuple[List[Policy], int]:
+        ...
+
     async def get_by_id(self, policy_id: str) -> Optional[Policy]:
         """按政策id查询"""
         ...

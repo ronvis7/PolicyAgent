@@ -12,6 +12,7 @@ from app.application.services.briefing_service import BriefingService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.auth_service import AuthService
 from app.application.services.enterprise_profile_service import EnterpriseProfileService
+from app.application.services.contest_service import ContestService
 from app.application.services.feed_service import FeedService
 from app.application.services.report_service import ReportService
 from app.application.services.file_service import FileService
@@ -48,8 +49,10 @@ from app.infrastructure.external.notify.feishu_webhook import (
     FeishuWebhookNotifier,
     make_contest_daily_summary_hook,
     make_contest_push_hook,
+    make_single_tenant_feed_contest_push_hook,
     make_tenant_contest_daily_summary_hook,
     make_tenant_contest_push_hook,
+    make_tenant_feed_contest_push_hook,
 )
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
@@ -281,7 +284,20 @@ def get_policy_service() -> PolicyService:
     return PolicyService(uow_factory=get_uow)
 
 
-def _build_contest_push_hook():
+def get_contest_service() -> ContestService:
+    """赛事中心服务：全网发现复用 Agent 的搜索提供方，但独立于会话沙箱。"""
+    return ContestService(
+        uow_factory=get_uow,
+        search_engine=BingSearchEngine(),
+        on_tenant_discovered=make_single_tenant_feed_contest_push_hook(
+            get_uow,
+            lambda tenant_id: get_feed_service().recompute_new_competitions_for_notification(tenant_id),
+            web_base_url=settings.web_base_url,
+        ),
+    )
+
+
+def _build_legacy_contest_push_hook():
     """构造"新赛事即推"飞书回调，两级组合：
 
     - 租户级(主)：组织在设置页配置 webhook 后自动生效，按参赛关注地区过滤后扇出推送；
@@ -313,6 +329,20 @@ def _build_contest_push_hook():
                 logger.warning("新赛事推送回调失败: %s: %s", type(e).__name__, e)
 
     return push_all
+
+
+def _build_contest_push_hook():
+    """Create the Feed-based Feishu contest notifier.
+
+    A tenant's Feed is the single eligibility gate for profile matching,
+    region selection, freshness, and ignored status.  A deployment-wide
+    webhook is intentionally excluded because it has no tenant profile.
+    """
+    return make_tenant_feed_contest_push_hook(
+        get_uow,
+        lambda tenant_id: get_feed_service().recompute_new_competitions_for_notification(tenant_id),
+        web_base_url=settings.web_base_url,
+    )
 
 
 def build_contest_daily_summary_hook():
@@ -365,6 +395,10 @@ def get_policy_ingest_service() -> PolicyIngestService:
         llm=llm,
         on_new_policies=_build_contest_push_hook(),
         skip_expired_sources=competition_source_keys(),
+        source_metadata={
+            s.key: ("competition", "official", s.name)
+            for s in list_sources() if s.key in competition_source_keys()
+        },
     )
 
 

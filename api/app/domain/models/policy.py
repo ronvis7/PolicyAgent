@@ -24,6 +24,9 @@ class Policy(BaseModel):
     publish_date: Optional[date] = None  # 发文/公开日期
     body_text: str = ""  # 政策正文纯文本
     region: str = ""  # 适用地区(如 江苏省无锡市新吴区)
+    item_type: str = "policy"  # policy / competition
+    origin_type: str = "official"  # official / web
+    source_name: str = ""  # 人类可读来源名
     # ---- 申报截止(由 LLM 从正文抽取，遵循"待核对"纪律，以原文为准) ----
     apply_deadline: Optional[date] = None  # 申报截止日期(仅 deadline_status=extracted 时有值)
     apply_window_text: str = ""  # 原文申报窗口描述(如"常年受理"/"分两批"，供展示+人工核对)

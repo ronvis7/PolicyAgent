@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 # 每次重算纳入 Feed 的候选上限(与③默认 top_k 对齐，足够覆盖一个区的可申报政策)
 DEFAULT_FEED_TOP_K = 20
+# Deadline-unknown contests are only useful for a short time after publication.
+UNKNOWN_DEADLINE_CONTEST_MAX_AGE_DAYS = 45
 
 
 class MatchService(Protocol):
@@ -67,25 +69,42 @@ class FeedService:
         """
         fresh_items = await self._collect_fresh_items(tenant_id, top_k)
 
-        new_count = 0
-        updated_count = 0
-        async with self._uow_factory() as uow:
-            for fresh in fresh_items:
-                existing = await uow.feed.get_by_tenant_and_policy(
-                    tenant_id, fresh.policy_id,
-                )
-                if existing is None:
-                    await uow.feed.save(fresh)  # 新增 → unread → 驱动红点
-                    new_count += 1
-                else:
-                    # 只更新计算快照，保留 id/status/created_at
-                    await uow.feed.save(existing.with_snapshot_from(fresh))
-                    updated_count += 1
+        new_items, updated_count = await self._persist_fresh_items(tenant_id, fresh_items)
+        new_count = len(new_items)
 
         logger.info(
             "Feed 重算完成 tenant=%s new=%d updated=%d", tenant_id, new_count, updated_count,
         )
         return {"new": new_count, "updated": updated_count}
+
+    async def recompute_new_competitions_for_notification(
+        self, tenant_id: str, top_k: int = DEFAULT_FEED_TOP_K,
+    ) -> List[FeedItem]:
+        """Return only newly-created contest opportunities for Feishu.
+
+        Existing opportunities are deliberately excluded, so periodic crawls
+        never repeat a contest that has already been pushed or ignored.
+        """
+        fresh_items = await self._collect_fresh_items(tenant_id, top_k)
+        new_items, _ = await self._persist_fresh_items(tenant_id, fresh_items)
+        return [item for item in new_items if item.type == FeedItemType.COMPETITION]
+
+    async def _persist_fresh_items(
+        self, tenant_id: str, fresh_items: List[FeedItem],
+    ) -> Tuple[List[FeedItem], int]:
+        new_items: List[FeedItem] = []
+        updated_count = 0
+        async with self._uow_factory() as uow:
+            for fresh in fresh_items:
+                existing = await uow.feed.get_by_tenant_and_policy(tenant_id, fresh.policy_id)
+                if existing is None:
+                    await uow.feed.save(fresh)
+                    new_items.append(fresh)
+                else:
+                    # Preserve ignored/applied state across all crawler refreshes.
+                    await uow.feed.save(existing.with_snapshot_from(fresh))
+                    updated_count += 1
+        return new_items, updated_count
 
     async def _collect_fresh_items(self, tenant_id: str, top_k: int) -> List[FeedItem]:
         """汇集政策/赛事与资质各类机会，统一转为待 upsert 的 FeedItem 列表。"""
@@ -108,13 +127,21 @@ class FeedService:
         """报名截止已过的赛事=失效机会，不再物化(存量比赛过期后自然从工作台消失)。
 
         无截止(unknown/rolling)的保留；政策/资质条目不受影响(政策长期有效，历史截止仅供展示)。
+        Deadline-unknown contests must also be recently published; this is the
+        final safeguard against old portal notices becoming reminders.
         """
         today = date.today()
+        oldest_unknown_date = today - timedelta(days=UNKNOWN_DEADLINE_CONTEST_MAX_AGE_DAYS)
         return [
             i for i in items
             if i.type != FeedItemType.COMPETITION
-            or i.apply_deadline is None
-            or i.apply_deadline >= today
+            or (
+                (i.apply_deadline is None or i.apply_deadline >= today)
+                and (
+                    i.deadline_status != "unknown"
+                    or (i.publish_date is not None and i.publish_date >= oldest_unknown_date)
+                )
+            )
         ]
 
     async def _filter_contests_by_region(
@@ -138,7 +165,7 @@ class FeedService:
 
     def _item_type_of(self, match: PolicyMatch) -> FeedItemType:
         """按机会来源派生条目类型：赛事子源的候选=比赛通知，其余保持政策。"""
-        if match.policy.source in self._competition_sources:
+        if match.policy.item_type == FeedItemType.COMPETITION.value or match.policy.source in self._competition_sources:
             return FeedItemType.COMPETITION
         return FeedItemType.POLICY
 

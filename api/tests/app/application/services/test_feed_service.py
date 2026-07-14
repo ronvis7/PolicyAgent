@@ -420,3 +420,33 @@ def test_recompute_drops_expired_competition() -> None:
     asyncio.run(service.recompute_for_tenant("t1"))
 
     assert {i.policy_id for i in feed.values()} == {"c-open", "c-unknown", "p-old"}
+
+
+def test_notification_recompute_returns_new_competitions_only_once() -> None:
+    """Feishu receives only newly materialized contest Feed items."""
+    feed: dict = {}
+    service = _contest_service(
+        {"t1": [_match("c1", "new contest", source="gxt-contest")]},
+        feed,
+        profiles={},
+    )
+
+    first = asyncio.run(service.recompute_new_competitions_for_notification("t1"))
+    second = asyncio.run(service.recompute_new_competitions_for_notification("t1"))
+
+    assert [item.policy_id for item in first] == ["c1"]
+    assert second == []
+
+
+def test_recompute_drops_old_contest_with_unknown_deadline() -> None:
+    """Old portal notices without a deadline never become Feishu reminders."""
+    feed: dict = {}
+    stale = _match("c-stale", "stale contest", source="gxt-contest")
+    stale.policy.publish_date = date.today() - timedelta(days=46)
+    recent = _match("c-recent", "recent contest", source="gxt-contest")
+    recent.policy.publish_date = date.today()
+    service = _contest_service({"t1": [stale, recent]}, feed, profiles={})
+
+    asyncio.run(service.recompute_for_tenant("t1"))
+
+    assert {item.policy_id for item in feed.values()} == {"c-recent"}

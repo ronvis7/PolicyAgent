@@ -49,6 +49,9 @@ class PolicyModel(Base):
     region: Mapped[str] = mapped_column(
         String(128), nullable=False, server_default=text("''"), index=True,
     )  # 适用地区
+    item_type: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'policy'"), index=True)
+    origin_type: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'official'"), index=True)
+    source_name: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("''"))
     apply_deadline: Mapped[date] = mapped_column(
         Date, nullable=True, index=True,
     )  # 申报截止日期(LLM 抽取，仅 extracted 时有值；索引供临期查询)
@@ -84,6 +87,9 @@ class PolicyModel(Base):
             publish_date=policy.publish_date,
             body_text=policy.body_text,
             region=policy.region,
+            item_type=policy.item_type,
+            origin_type=policy.origin_type,
+            source_name=policy.source_name,
             apply_deadline=policy.apply_deadline,
             apply_window_text=policy.apply_window_text,
             deadline_status=policy.deadline_status,
@@ -106,6 +112,9 @@ class PolicyModel(Base):
             publish_date=self.publish_date,
             body_text=self.body_text,
             region=self.region,
+            item_type=self.item_type,
+            origin_type=self.origin_type,
+            source_name=self.source_name,
             apply_deadline=self.apply_deadline,
             apply_window_text=self.apply_window_text,
             deadline_status=self.deadline_status,
@@ -125,6 +134,9 @@ class PolicyModel(Base):
         self.publish_date = policy.publish_date
         self.body_text = policy.body_text
         self.region = policy.region
+        self.item_type = policy.item_type
+        self.origin_type = policy.origin_type
+        self.source_name = policy.source_name
         self.apply_deadline = policy.apply_deadline
         self.apply_window_text = policy.apply_window_text
         self.deadline_status = policy.deadline_status
