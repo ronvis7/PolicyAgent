@@ -79,7 +79,11 @@ class _Uow:
 
 
 class _Search:
+    def __init__(self) -> None:
+        self.calls = []
+
     async def invoke(self, query, date_range=None):
+        self.calls.append((query, date_range))
         return ToolResult(success=True, data=SearchResults(
             query=query,
             results=[SearchResultItem(
@@ -103,10 +107,10 @@ class _Ingest:
         return {"source": source, "crawled": 1, "new": 1}
 
 
-def _service(contest: _ContestRepo, policies: Dict[str, Policy], notified=None) -> ContestService:
+def _service(contest: _ContestRepo, policies: Dict[str, Policy], notified=None, search=None) -> ContestService:
     def factory():
         return _Uow(contest, FakePolicyRepository(policies))
-    return ContestService(factory, _Search(), on_tenant_discovered=notified)
+    return ContestService(factory, search or _Search(), on_tenant_discovered=notified)
 
 
 def test_subscription_cannot_be_read_or_changed_by_another_tenant() -> None:
@@ -149,3 +153,27 @@ def test_discovery_is_publicly_deduped_and_notified_once_per_tenant() -> None:
         ("tenant-a", ["https://example.test/contest-1"]),
         ("tenant-b", ["https://example.test/contest-1"]),
     ]
+
+
+def test_discovery_uses_precise_query_and_skips_low_value_domains() -> None:
+    contest, policies = _ContestRepo(), {}
+    search = _Search()
+    service = _service(contest, policies, search=search)
+    sub = asyncio.run(service.create_subscription("tenant-a", "创新创业"))
+
+    assert ContestService._is_discovery_candidate_url("https://www.youtube.com/watch?v=123") is False
+    assert ContestService._is_discovery_candidate_url("https://www.bing.com/ck/a?u=target") is False
+    assert ContestService._is_discovery_candidate_url("https://gxt.jiangsu.gov.cn/notice", {"gxt.jiangsu.gov.cn"}) is False
+    assert ContestService._is_discovery_candidate_url("https://example.gov.cn/contest") is True
+    assert ContestService._build_discovery_query("创新创业") == (
+        '"创新创业" (比赛 OR 大赛 OR 竞赛 OR 挑战赛) '
+        "(报名 OR 参赛 OR 征集 OR 申报) -获奖 -公示 -名单 -结果"
+    )
+
+    async def no_candidate(url: str) -> str:
+        return ""
+
+    with patch.object(ContestService, "_fetch_and_validate", staticmethod(no_candidate)):
+        asyncio.run(service._search_subscription(sub, _Ingest(policies)))
+
+    assert search.calls == [(ContestService._build_discovery_query("创新创业"), "past_month")]

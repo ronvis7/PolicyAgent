@@ -1,7 +1,9 @@
+import base64
 import logging
 import re
 import time
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -11,6 +13,13 @@ from app.domain.models.search import SearchResults, SearchResultItem
 from app.domain.models.tool_result import ToolResult
 
 logger = logging.getLogger(__name__)
+
+_DATE_FILTERS = {
+    "past_hour": 'ex1:"ez1"',
+    "past_day": 'ex1:"ez1"',
+    "past_week": 'ex1:"ez2"',
+    "past_month": 'ex1:"ez3"',
+}
 
 
 class BingSearchEngine(SearchEngine):
@@ -22,7 +31,7 @@ class BingSearchEngine(SearchEngine):
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.6",
             "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
@@ -32,25 +41,7 @@ class BingSearchEngine(SearchEngine):
     async def invoke(self, query: str, date_range: Optional[str] = None) -> ToolResult[SearchResults]:
         """传递query+date_range使用httpx+bs4调用bing搜索并获取搜索结果"""
         # 1.构建请求参数
-        params = {"q": query}
-
-        # 2.判断date_range是否存在并提取真实检索数据
-        if date_range and date_range != "all":
-            # 3.获取当前日期的天数距离1970-01-01的天数
-            days_since_epoch = int(time.time() / (24 * 60 * 60))
-
-            # 4.创建日期检索数据类型映射
-            date_mapping = {
-                "past_hour": "ex1%3a\"ez1\"",
-                "past_day": "ex1%3a\"ez1\"",
-                "past_week": "ex1%3a\"ez2\"",
-                "past_month": "ex1%3a\"ez3\"",
-                "past_year": f"ex1%3a\"ez5_{days_since_epoch - 365}_{days_since_epoch}\""
-            }
-
-            # 5.判断是否传递了date_range补全params参数
-            if date_range in date_mapping:
-                params["filters"] = date_mapping[date_range]
+        params = self._build_params(query, date_range)
 
         try:
             # 6.使用httpx创建异步客户端
@@ -60,12 +51,27 @@ class BingSearchEngine(SearchEngine):
                     timeout=60,
                     follow_redirects=True,
             ) as client:
-                # 7.调用客户端发起请求
-                response = await client.get(self.base_url, params=params)
+                # Bing's current Chinese HTML no longer reliably exposes ``li.b_algo``.
+                # Its public RSS feed is stable across that presentation change.
+                response = await client.get(self.base_url, params={**params, "format": "rss"})
                 response.raise_for_status()
 
                 # 8.更新cookie信息
                 self.cookies.update(response.cookies)
+
+                rss_results = self._parse_rss_results(response.text)
+                if rss_results:
+                    return ToolResult(success=True, data=SearchResults(
+                        query=query,
+                        date_range=date_range,
+                        total_results=len(rss_results),
+                        results=rss_results,
+                    ))
+
+                # RSS may be empty for a small number of queries; retain the legacy
+                # HTML parser as a compatibility fallback.
+                response = await client.get(self.base_url, params=params)
+                response.raise_for_status()
 
                 # 9.使用bs4解析html内容
                 soup = BeautifulSoup(response.text, "html.parser")
@@ -139,12 +145,14 @@ class BingSearchEngine(SearchEngine):
                             elif url.startswith("/"):
                                 url = "https://www.bing.com" + url
 
-                        # 22.如果标题和链接都存在则添加数据
-                        search_results.append(SearchResultItem(
-                            title=title,
-                            url=url,
-                            snippet=snippet,
-                        ))
+                        # Bing /ck/a 链接包含会变化的追踪参数；以真实原文链接进行抓取和去重。
+                        canonical_url = self._canonicalize_result_url(url)
+                        if canonical_url:
+                            search_results.append(SearchResultItem(
+                                title=title,
+                                url=canonical_url,
+                                snippet=snippet,
+                            ))
 
                     except Exception as e:
                         # 23.记录错误信息并继续解析
@@ -206,6 +214,55 @@ class BingSearchEngine(SearchEngine):
                 message=f"Bing搜索出错: {str(e)}",
                 data=error_results,
             )
+
+    @staticmethod
+    def _parse_rss_results(content: str) -> list[SearchResultItem]:
+        """Parse Bing RSS without requiring an XML-only BeautifulSoup parser."""
+        soup = BeautifulSoup(content, "html.parser")
+        results: list[SearchResultItem] = []
+        for item in soup.find_all("item"):
+            title_tag = item.find("title")
+            link_tag = item.find("link")
+            description_tag = item.find("description")
+            title = title_tag.get_text(" ", strip=True) if title_tag else ""
+            # Bing emits ``<link/>https://target`` rather than a normal link element.
+            url = str(link_tag.next_sibling or "").strip() if link_tag else ""
+            snippet = description_tag.get_text(" ", strip=True) if description_tag else ""
+            canonical_url = BingSearchEngine._canonicalize_result_url(url)
+            if title and canonical_url:
+                results.append(SearchResultItem(title=title, url=canonical_url, snippet=snippet))
+        return results
+
+    @staticmethod
+    def _build_params(query: str, date_range: Optional[str]) -> dict[str, str]:
+        """Build raw params and let httpx URL-encode them exactly once."""
+        params = {"q": query, "mkt": "zh-CN", "setlang": "zh-hans"}
+        if date_range == "past_year":
+            days_since_epoch = int(time.time() / (24 * 60 * 60))
+            params["filters"] = f'ex1:"ez5_{days_since_epoch - 365}_{days_since_epoch}"'
+        elif date_range in _DATE_FILTERS:
+            params["filters"] = _DATE_FILTERS[date_range]
+        return params
+
+    @staticmethod
+    def _canonicalize_result_url(url: str) -> str:
+        """Return the original target behind Bing's /ck/a tracking link."""
+        if not url:
+            return ""
+        parsed = urlparse(url)
+        if not parsed.hostname or not parsed.hostname.lower().endswith("bing.com") or not parsed.path.startswith("/ck/"):
+            return url
+        encoded_target = parse_qs(parsed.query).get("u", [""])[0]
+        if encoded_target.startswith("a1"):
+            encoded_target = encoded_target[2:]
+        if not encoded_target:
+            return ""
+        try:
+            padding = "=" * (-len(encoded_target) % 4)
+            target = base64.urlsafe_b64decode(encoded_target + padding).decode("utf-8")
+        except (UnicodeDecodeError, ValueError):
+            return ""
+        return target if target.startswith(("http://", "https://")) else ""
 
 
 if __name__ == "__main__":

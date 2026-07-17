@@ -142,5 +142,5 @@ export { feedApi } from "./feed";
 export { qualificationApi } from "./qualification";
 export { reportApi } from "./report";
 export { contestApi } from "./contest";
-export type { Contest, ContestList, ContestSource, ContestSubscription } from "./contest";
+export type { Contest, ContestList, ContestRun, ContestSource, ContestSourceSuggestion, ContestSubscription, TenantContestSource } from "./contest";
 

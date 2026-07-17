@@ -1,3 +1,11 @@
+# Contest source data additions — 2026-07-17
+
+`tenant_contest_sources` stores tenant-owned static HTML contest sources. It is always filtered by `tenant_id`; optional `preset_source_id` references a verified platform `contest_sources` row when the tenant follows a regional preset.
+
+`tenant_contest_source_items` links a tenant source to global `policies`, with unique `(tenant_id, source_id, policy_id)`. `contest_runs` stores source/discovery execution state and counts, indexed by `(tenant_id, kind, target_id, started_at)`.
+
+`origin_type="tenant"` policy rows must never appear in normal public-policy/RAG queries. Contest list and detail access additionally verify the source-item link belongs to the current tenant.
+
 # 数据模型与隔离规则
 
 ## 已有核心模型

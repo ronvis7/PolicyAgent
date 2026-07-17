@@ -82,6 +82,7 @@ class PolicyIngestService:
         # Dynamic sources are temporarily registered for a single run.  Serialise
         # those registrations so a manual run cannot replace a scheduled crawler.
         self._dynamic_ingest_lock = asyncio.Lock()
+        self._skip_index_sources: Set[str] = set()
 
     async def ingest(self, source: str, max_pages: int = 1) -> Dict[str, object]:
         """按来源(source)抓取并入库，返回 {source, crawled, upserted, new, indexed} 计数。
@@ -124,18 +125,19 @@ class PolicyIngestService:
                 await uow.policy.save(policy)
                 upserted += 1
 
-        kb = await self._ensure_public_kb()
         indexed = 0
-        for policy in policies:
-            if not policy.body_text.strip():
-                continue
-            try:
-                await self._index_policy(kb, policy)
-                indexed += 1
-            except Exception as e:
-                logger.warning(
-                    f"政策向量双写失败[{policy.source_url}]: {type(e).__name__}: {e}"
-                )
+        if source not in self._skip_index_sources:
+            kb = await self._ensure_public_kb()
+            for policy in policies:
+                if not policy.body_text.strip():
+                    continue
+                try:
+                    await self._index_policy(kb, policy)
+                    indexed += 1
+                except Exception as e:
+                    logger.warning(
+                        f"政策向量双写失败[{policy.source_url}]: {type(e).__name__}: {e}"
+                    )
 
         summary = {
             "source": source, "crawled": crawled, "upserted": upserted,
@@ -153,7 +155,7 @@ class PolicyIngestService:
 
     async def ingest_with_crawler(
         self, source: str, crawler: PolicyCrawler, name: str, max_pages: int = 1,
-        origin_type: str = "official",
+        origin_type: str = "official", index: bool = True,
     ) -> Dict[str, object]:
         """用平台已验证模板构造的动态赛事来源入库。"""
         async with self._dynamic_ingest_lock:
@@ -162,6 +164,8 @@ class PolicyIngestService:
             self._crawlers[source] = crawler
             self._source_metadata[source] = ("competition", origin_type, name)
             self._skip_expired_sources.add(source)
+            if not index:
+                self._skip_index_sources.add(source)
             try:
                 return await self.ingest(source, max_pages)
             finally:
@@ -173,6 +177,8 @@ class PolicyIngestService:
                     self._source_metadata.pop(source, None)
                 else:
                     self._source_metadata[source] = old_metadata
+                if not index:
+                    self._skip_index_sources.discard(source)
 
     async def _detect_new(self, policies: List[Policy]) -> List[Policy]:
         """入库前按 source_url 批量比对存量，返回本次首次入库的政策(同批重复去重)。"""

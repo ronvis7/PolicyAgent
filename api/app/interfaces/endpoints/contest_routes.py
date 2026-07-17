@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 
 from app.application.services.contest_service import ContestService
 from app.application.services.policy_ingest_service import PolicyIngestService
-from app.domain.models.contest import ContestSource
+from app.domain.models.contest import ContestSource, TenantContestSource
 from app.domain.models.membership import MembershipRole
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user, require_platform_admin, require_role
 from app.interfaces.schemas.base import Response
@@ -11,6 +11,9 @@ from app.interfaces.schemas.contest import (
     ContestSourcePatchRequest, ContestSourceRequest, ContestSourceResponse,
     ContestSubscriptionListResponse, ContestSubscriptionPatchRequest, ContestSubscriptionRequest,
     ContestSubscriptionResponse,
+    ContestRunListResponse, ContestRunResponse, TenantContestSourceListResponse,
+    TenantContestSourcePatchRequest, TenantContestSourceRequest, TenantContestSourceResponse,
+    ContestSourceSuggestionListResponse, ContestSourceSuggestionRequest,
 )
 from app.interfaces.service_dependencies import get_contest_service, get_policy_ingest_service
 
@@ -24,14 +27,14 @@ async def list_contests(
     region: str = Query(""), source: str = Query(""), keyword: str = Query(""), active_only: bool = Query(True),
     _user: CurrentUser = Depends(get_current_user), service: ContestService = Depends(get_contest_service),
 ) -> Response[ContestListResponse]:
-    items, total = await service.list_contests(page=page, page_size=page_size, origin=origin, region=region,
+    items, total = await service.list_contests(tenant_id=_user.tenant_id, page=page, page_size=page_size, origin=origin, region=region,
                                                source=source, keyword=keyword, active_only=active_only)
     return Response.success(data=ContestListResponse(items=[ContestItemResponse.from_domain(i) for i in items], total=total, page=page, page_size=page_size))
 
 
 @router.get("/contests/{contest_id}", response_model=Response[ContestDetailResponse])
 async def get_contest(contest_id: str, _user: CurrentUser = Depends(get_current_user), service: ContestService = Depends(get_contest_service)) -> Response[ContestDetailResponse]:
-    return Response.success(data=ContestDetailResponse.from_domain(await service.get_contest(contest_id)))
+    return Response.success(data=ContestDetailResponse.from_domain(await service.get_contest(contest_id, _user.tenant_id)))
 
 
 @router.get("/contest-sources", response_model=Response[ContestSourceListResponse])
@@ -58,6 +61,71 @@ async def update_subscription(subscription_id: str, request: ContestSubscription
 async def delete_subscription(subscription_id: str, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[dict]:
     await service.delete_subscription(user.tenant_id, subscription_id)
     return Response.success(data={})
+
+
+@router.post("/contest-subscriptions/{subscription_id}/discover", response_model=Response[ContestRunResponse])
+async def discover_subscription(subscription_id: str, tasks: BackgroundTasks, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service), ingest: PolicyIngestService = Depends(get_policy_ingest_service)) -> Response[ContestRunResponse]:
+    run = await service.start_discovery(user.tenant_id, subscription_id)
+    tasks.add_task(service.execute_discovery, user.tenant_id, subscription_id, run.id, ingest)
+    return Response.success(data=ContestRunResponse.from_domain(run), msg="已开始全网搜索")
+
+
+@router.get("/contest-subscriptions/{subscription_id}/runs", response_model=Response[ContestRunListResponse])
+async def list_subscription_runs(subscription_id: str, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[ContestRunListResponse]:
+    runs = await service.list_subscription_runs(user.tenant_id, subscription_id)
+    return Response.success(data=ContestRunListResponse(items=[ContestRunResponse.from_domain(run) for run in runs]))
+
+
+tenant_source_router = APIRouter(prefix="/tenant/contest-sources", tags=["企业赛事来源"])
+
+
+@tenant_source_router.post("/suggestions", response_model=Response[ContestSourceSuggestionListResponse])
+async def suggest_tenant_source(request: ContestSourceSuggestionRequest, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[ContestSourceSuggestionListResponse]:
+    items = await service.suggest_tenant_sources(user.tenant_id, request.region)
+    return Response.success(data=ContestSourceSuggestionListResponse(items=items))
+
+
+@tenant_source_router.get("", response_model=Response[TenantContestSourceListResponse])
+async def list_tenant_sources(user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[TenantContestSourceListResponse]:
+    sources = await service.list_tenant_sources(user.tenant_id)
+    return Response.success(data=TenantContestSourceListResponse(items=[TenantContestSourceResponse.from_domain(source) for source in sources]))
+
+
+@tenant_source_router.post("", response_model=Response[TenantContestSourceResponse])
+async def create_tenant_source(request: TenantContestSourceRequest, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[TenantContestSourceResponse]:
+    source = await service.create_tenant_source(user.tenant_id, TenantContestSource(tenant_id=user.tenant_id, **request.model_dump()))
+    return Response.success(data=TenantContestSourceResponse.from_domain(source), msg="企业赛事来源已创建，请先预检")
+
+
+@tenant_source_router.patch("/{source_id}", response_model=Response[TenantContestSourceResponse])
+async def update_tenant_source(source_id: str, request: TenantContestSourcePatchRequest, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[TenantContestSourceResponse]:
+    changes = {key: value for key, value in request.model_dump().items() if value is not None}
+    source = await service.update_tenant_source(user.tenant_id, source_id, **changes)
+    return Response.success(data=TenantContestSourceResponse.from_domain(source))
+
+
+@tenant_source_router.delete("/{source_id}", response_model=Response[dict])
+async def delete_tenant_source(source_id: str, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[dict]:
+    await service.delete_tenant_source(user.tenant_id, source_id)
+    return Response.success(data={})
+
+
+@tenant_source_router.post("/{source_id}/preflight", response_model=Response[dict])
+async def preflight_tenant_source(source_id: str, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[dict]:
+    return Response.success(data=await service.preflight_tenant_source(user.tenant_id, source_id))
+
+
+@tenant_source_router.post("/{source_id}/ingest", response_model=Response[ContestRunResponse])
+async def ingest_tenant_source(source_id: str, tasks: BackgroundTasks, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service), ingest: PolicyIngestService = Depends(get_policy_ingest_service)) -> Response[ContestRunResponse]:
+    run = await service.start_tenant_source_ingest(user.tenant_id, source_id)
+    tasks.add_task(service.execute_tenant_source_ingest, user.tenant_id, source_id, run.id, ingest)
+    return Response.success(data=ContestRunResponse.from_domain(run), msg="已开始抓取")
+
+
+@tenant_source_router.get("/{source_id}/runs", response_model=Response[ContestRunListResponse])
+async def list_tenant_source_runs(source_id: str, user: CurrentUser = Depends(_require_org_admin), service: ContestService = Depends(get_contest_service)) -> Response[ContestRunListResponse]:
+    runs = await service.list_tenant_source_runs(user.tenant_id, source_id)
+    return Response.success(data=ContestRunListResponse(items=[ContestRunResponse.from_domain(run) for run in runs]))
 
 
 platform_router = APIRouter(prefix="/platform/contest-sources", tags=["平台赛事来源"], dependencies=[Depends(require_platform_admin)])

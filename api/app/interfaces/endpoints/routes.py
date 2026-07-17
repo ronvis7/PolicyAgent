@@ -25,6 +25,7 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(report_routes.router)
     api_router.include_router(briefing_routes.router)
     api_router.include_router(contest_routes.router)
+    api_router.include_router(contest_routes.tenant_source_router)
     api_router.include_router(contest_routes.platform_router)
     # 3.返回api_router实例
     return api_router
