@@ -16,6 +16,7 @@ from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
 from app.interfaces.service_dependencies import (
+    build_contest_daily_summary_hook,
     get_briefing_service,
     get_contest_service,
     get_default_agent_service,
@@ -70,7 +71,11 @@ async def lifespan(app: FastAPI):
                     summaries.append(await contest_service.ingest_source(source.id, ingest_service))
                 except Exception as exc:  # 单来源失败不阻断后续任务
                     logger.warning("官方赛事来源定时抓取失败 source=%s: %s", source.key, exc)
+            summaries.extend(await contest_service.ingest_all_tenant_sources(ingest_service))
             summaries.extend(await contest_service.discover_all(ingest_service))
+            # Keep a daily tenant-visible heartbeat even when no new contest becomes
+            # an eligible Feed opportunity. Immediate pushes remain new-item only.
+            await build_contest_daily_summary_hook()(summaries)
 
         recrawl_scheduler = PolicyRecrawlScheduler(
             sources=[s for s in settings.policy_recrawl_source_list if s not in competition_source_keys()],

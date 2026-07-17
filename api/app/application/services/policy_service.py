@@ -102,6 +102,6 @@ class PolicyService:
         """获取政策详情，不存在则抛 NotFound"""
         async with self._uow_factory() as uow:
             policy = await uow.policy.get_by_id(policy_id)
-        if not policy:
+        if not policy or policy.origin_type == "tenant":
             raise NotFoundError(f"政策[{policy_id}]不存在")
         return policy

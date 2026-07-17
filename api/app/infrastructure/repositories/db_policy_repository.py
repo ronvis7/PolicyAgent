@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.policy import Policy
 from app.domain.repositories.policy_repository import PolicyRepository
-from app.infrastructure.models import PolicyModel, SourceCrawlStateModel
+from app.infrastructure.models import PolicyModel, SourceCrawlStateModel, TenantContestSourceItemModel
 
 
 class DBPolicyRepository(PolicyRepository):
@@ -70,7 +70,7 @@ class DBPolicyRepository(PolicyRepository):
         keyword: str = "",
     ) -> Tuple[List[Policy], int]:
         """分页+可选筛选返回(当前页列表, 总数)，按发文日期倒序(空日期殿后)"""
-        conditions = []
+        conditions = [PolicyModel.origin_type != "tenant"]
         if region:
             conditions.append(PolicyModel.region.ilike(f"%{region}%"))
         if issuer:
@@ -97,6 +97,7 @@ class DBPolicyRepository(PolicyRepository):
         """取最近 limit 篇政策(含正文)作为③匹配的结构化候选集，按发文日期倒序(空日期殿后)"""
         stmt = (
             select(PolicyModel)
+            .where(PolicyModel.origin_type != "tenant")
             .order_by(PolicyModel.publish_date.desc().nullslast())
             .limit(limit)
         )
@@ -147,9 +148,16 @@ class DBPolicyRepository(PolicyRepository):
 
     async def list_contests(
         self, page: int, page_size: int, origin: str = "", region: str = "",
-        source: str = "", keyword: str = "", active_only: bool = False,
+        source: str = "", keyword: str = "", active_only: bool = False, tenant_id: str = "",
     ) -> Tuple[List[Policy], int]:
         conditions = [PolicyModel.item_type == "competition"]
+        tenant_visibility = select(TenantContestSourceItemModel.policy_id).where(
+            TenantContestSourceItemModel.tenant_id == tenant_id,
+        )
+        conditions.append(
+            PolicyModel.origin_type != "tenant" if not tenant_id else
+            or_(PolicyModel.origin_type != "tenant", PolicyModel.id.in_(tenant_visibility))
+        )
         if origin:
             conditions.append(PolicyModel.origin_type == origin)
         if region:

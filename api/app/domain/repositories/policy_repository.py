@@ -9,7 +9,7 @@ class PolicyRepository(Protocol):
 
     async def list_contests(
         self, page: int, page_size: int, origin: str = "", region: str = "",
-        source: str = "", keyword: str = "", active_only: bool = False,
+        source: str = "", keyword: str = "", active_only: bool = False, tenant_id: str = "",
     ) -> Tuple[List[Policy], int]:
         ...
 

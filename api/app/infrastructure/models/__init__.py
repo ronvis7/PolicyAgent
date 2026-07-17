@@ -14,7 +14,7 @@ from .source_crawl_state import SourceCrawlStateModel
 from .feed_item import FeedItemModel
 from .agent_memory import AgentMemoryModel
 from .intel_briefing import IntelBriefingModel
-from .contest import ContestDiscoveryHitModel, ContestSourceModel, ContestSubscriptionModel
+from .contest import ContestDiscoveryHitModel, ContestRunModel, ContestSourceModel, ContestSubscriptionModel, TenantContestSourceItemModel, TenantContestSourceModel
 
 __all__ = [
     "Base",
@@ -36,4 +36,7 @@ __all__ = [
     "ContestSourceModel",
     "ContestSubscriptionModel",
     "ContestDiscoveryHitModel",
+    "TenantContestSourceModel",
+    "TenantContestSourceItemModel",
+    "ContestRunModel",
 ]

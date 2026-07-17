@@ -2,11 +2,11 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.domain.models.contest import ContestDiscoveryHit, ContestSource, ContestSubscription
+from app.domain.models.contest import ContestDiscoveryHit, ContestRun, ContestSource, ContestSubscription, TenantContestSource
 from .base import Base
 
 
@@ -76,3 +76,73 @@ class ContestDiscoveryHitModel(Base):
     @classmethod
     def from_domain(cls, value: ContestDiscoveryHit) -> "ContestDiscoveryHitModel":
         return cls(**value.model_dump())
+
+
+class TenantContestSourceModel(Base):
+    __tablename__ = "tenant_contest_sources"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    region: Mapped[str] = mapped_column(String(128), nullable=False)
+    list_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    title_keywords: Mapped[str] = mapped_column(String(512), nullable=False, server_default=text("''"))
+    link_selector: Mapped[str] = mapped_column(String(512), nullable=False)
+    content_selector: Mapped[str] = mapped_column(String(512), nullable=False)
+    preset_source_id: Mapped[Optional[str]] = mapped_column(String(255), ForeignKey("contest_sources.id", ondelete="SET NULL"), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    preflight_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, onupdate=datetime.now, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+    def to_domain(self) -> TenantContestSource:
+        return TenantContestSource(**{field: getattr(self, field) for field in TenantContestSource.model_fields})
+
+    @classmethod
+    def from_domain(cls, value: TenantContestSource) -> "TenantContestSourceModel":
+        return cls(**value.model_dump())
+
+    def update_from_domain(self, value: TenantContestSource) -> None:
+        for field, value_ in value.model_dump().items():
+            if field not in {"id", "tenant_id", "created_at"}:
+                setattr(self, field, value_)
+
+
+class TenantContestSourceItemModel(Base):
+    __tablename__ = "tenant_contest_source_items"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(String(255), ForeignKey("tenant_contest_sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    policy_id: Mapped[str] = mapped_column(String(255), ForeignKey("policies.id", ondelete="CASCADE"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
+
+
+class ContestRunModel(Base):
+    __tablename__ = "contest_runs"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(255), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    trigger: Mapped[str] = mapped_column(String(16), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    searched_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    valid_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    stored_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    feed_new_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    error_message: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
+
+    def to_domain(self) -> ContestRun:
+        return ContestRun(**{field: getattr(self, field) for field in ContestRun.model_fields})
+
+    @classmethod
+    def from_domain(cls, value: ContestRun) -> "ContestRunModel":
+        return cls(**value.model_dump())
+
+    def update_from_domain(self, value: ContestRun) -> None:
+        for field, value_ in value.model_dump().items():
+            if field not in {"id", "tenant_id", "kind", "target_id", "started_at"}:
+                setattr(self, field, value_)

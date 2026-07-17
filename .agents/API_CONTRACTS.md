@@ -1,3 +1,13 @@
+# Contest source additions — 2026-07-17
+
+- Regional portal suggestions use a two-pass public-government search (department portal, then contest notice) and return candidates for preflight; no suggestion is enabled automatically.
+- `GET/POST/PATCH/DELETE /api/tenant/contest-sources`: tenant owner/admin private source management.
+- `POST /api/tenant/contest-sources/{id}/preflight`, `POST /api/tenant/contest-sources/{id}/ingest`, and `GET /api/tenant/contest-sources/{id}/runs`: tenant-scoped preflight, manual ingest, and the latest ten runs.
+- `POST /api/tenant/contest-sources/suggestions` accepts `{ "region": string }` and returns at most three public-portal candidates. A candidate only fills the UI; it is not saved or enabled until explicit creation and preflight.
+- Tenant-source creation can include `preset_source_id` to follow a verified platform official source for the selected region.
+- `POST /api/contest-subscriptions/{id}/discover` starts one discovery run. `GET /api/contest-subscriptions/{id}/runs` returns the latest ten runs. Both enforce the server-side five-minute cooldown.
+- `GET /api/contests` may return `origin: "tenant"`; such entries are visible only to the owning tenant. Web discovery excludes all configured official-source hosts.
+
 # API 契约
 
 本文档记录前后端并行开发所需的稳定契约。实际实现变化后必须同步更新。
