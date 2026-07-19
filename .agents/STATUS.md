@@ -1,14 +1,17 @@
-# Latest contest-source update — 2026-07-17
+# Latest update — 2026-07-19
 
-The Bing HTML DOM parser was returning zero results because Bing no longer emits `li.b_algo` for the Chinese result page. Search now prefers public Bing RSS and the regional helper performs a portal pass followed by a contest-notice pass. The recrawl pipeline again invokes the tenant daily Feishu summary after all contest work; immediate Feishu pushes remain limited to genuinely new Feed opportunities.
+Daily contest summary now has per-item ignore buttons with no-login signed URLs (HMAC). Ignored contests are excluded from future summaries; missing FeedItems are auto-created on the fly. WEB_BASE_URL corrected to port 8888. Contest crawling pipeline verified: cnmaker-contest (12) + cqkjj-contest (3) active; wnd/gxt/cqjjw have no recent contest data (not a bug). Web discovery via Bing is fundamentally broken for Chinese (single-char segmentation); Baidu Search API migration pending.
 
-Regional portal assistance and source/discovery observability are implemented locally. The regional form supports verified official presets and public portal suggestions; suggested URLs still require owner/admin confirmation and preflight.
-
-The UI error during origin switching was traced to `GET /api/tenant/contest-sources`: the running code expected `preset_source_id`, but its database was only migrated through `b1c2d3e4f5a6`. Migration `c2d3e4f5a6b7` adds that column. The page now uses `Promise.allSettled` for management data, so a management endpoint fault cannot break the three contest-origin filters.
+See handoff `2026-07-19-contest-daily-summary-ignore-buttons`.
 
 # 当前状态
 
-最后更新：2026-07-14（**赛事飞书推送已改为仅发送赛事机会**）：分支 `feat/contest-dual-sources` 尚未提交或部署。飞书只发送租户 Feed 本次新创建的 `competition` 条目；定时重爬不再发送全量/零条赛事摘要。卡片逐条提供“不再提醒此赛事”，通过登录后的 `/feed?ignore={feed_item_id}` 把该租户 Feed 条目设为 `ignored`，后续重爬不会重复提醒。未知截止日期赛事超过发布后 45 天不再进入赛事机会。定向后端测试 46 passed；前端 TypeScript 已执行，生产构建在本机 120 秒超时，需明日复验。
+最后更新：2026-07-19（**每日摘要逐条忽略按钮 + 免登录签名链接 + 全网发现排查**）：
+main `f467dbe` 已部署 .222。飞书每日摘要卡片每条赛事有「不再提醒此赛事」按钮(HMAC 签名，免登录) +
+confirm 弹窗；已忽略赛事自动排除；缺失 FeedItem 自动创建。WEB_BASE_URL 修正为 8888。
+赛事爬取链路排查：cnmaker(12)+cqkjj(3)正常，wnd/gxt/cqjjw 近期无新比赛(非 bug)。
+Bing 全网发现中文分词不可用，待接入百度搜索 API。详见 handoff
+`2026-07-19-contest-daily-summary-ignore-buttons`。
 
 最后更新：2026-07-14（**赛事双来源 + 独立赛事中心实现和定向验证完成，待真机验收**）：
 分支 `feat/contest-dual-sources`，尚未提交/部署。实现平台级可信官方来源、租户级全网关键词订阅和公开
