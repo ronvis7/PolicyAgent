@@ -4,14 +4,21 @@
 重算物化；本路由提供浏览、未读计数、状态流转与手动重算。
 """
 
+import hashlib
+import hmac
 import logging
+import time
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import HTMLResponse
 
-from app.application.errors.exceptions import BadRequestError
+from app.application.errors.exceptions import BadRequestError, NotFoundError
 from app.application.services.feed_service import FeedService
 from app.domain.models.feed_item import FeedStatus
+from app.domain.repositories.uow import IUnitOfWork
+from app.infrastructure.storage.postgres import get_uow
 from app.interfaces.auth_dependencies import CurrentUser, get_current_user
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.feed import (
@@ -157,3 +164,82 @@ async def set_feed_status(
         current_user.tenant_id, item_id, FeedStatus(request.status),
     )
     return Response.success(msg="状态已更新", data=FeedItemResponse.from_domain(item))
+
+
+@router.get(
+    path="/ignore-direct",
+    response_class=HTMLResponse,
+    summary="免登录忽略赛事提醒（飞书按钮回调）",
+    description=(
+        "通过 HMAC 签名验证(无需登录态)，将指定 Feed 条目标记为 ignored。"
+        "供飞书卡片「不再提醒此赛事」按钮使用，点击后直接忽略、无需跳转登录页。"
+    ),
+)
+async def ignore_feed_direct(
+    item: str = Query(..., description="Feed 条目 id"),
+    tenant: str = Query(..., description="所属租户 id"),
+    exp: str = Query(..., description="过期时间戳（秒）"),
+    sig: str = Query(..., description="HMAC-SHA256 签名（hex 前 16 位）"),
+):
+    """免登录忽略：验证 HMAC 签名 → 标记忽略 → 返回结果页面。"""
+    from core.config import get_settings
+    settings = get_settings()
+
+    # 1. 验证签名
+    payload = f"{tenant}:{item}:{exp}"
+    expected = hmac.new(
+        settings.jwt_secret_key.encode(), payload.encode(), hashlib.sha256,
+    ).hexdigest()[:16]
+    if not hmac.compare_digest(expected, sig):
+        return HTMLResponse(
+            content=_ignore_result_html(False, "签名无效或链接已损坏"),
+            status_code=403,
+        )
+
+    # 2. 检查过期
+    try:
+        exp_ts = int(exp)
+    except (TypeError, ValueError):
+        return HTMLResponse(
+            content=_ignore_result_html(False, "参数格式错误"), status_code=400,
+        )
+    if int(time.time()) > exp_ts:
+        return HTMLResponse(
+            content=_ignore_result_html(False, "该链接已过期（有效期 30 天），请从最新的推送中操作。"),
+            status_code=410,
+        )
+
+    # 3. 标记忽略
+    async with get_uow() as uow:
+        feed_item = await uow.feed.get_by_id(tenant, item)
+        if feed_item is None:
+            return HTMLResponse(
+                content=_ignore_result_html(False, "赛事不存在或已被删除。"),
+                status_code=404,
+            )
+        updated = feed_item.model_copy(
+            update={"status": FeedStatus.IGNORED, "updated_at": datetime.now()},
+        )
+        await uow.feed.save(updated)
+
+    return HTMLResponse(content=_ignore_result_html(True, "已停止提醒此赛事。"))
+
+
+def _ignore_result_html(success: bool, message: str) -> str:
+    """返回处理结果的精简 HTML 页面（飞书内置浏览器中展示）。"""
+    color = "#287174" if success else "#d14343"
+    icon = "✅" if success else "❌"
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>赛事提醒</title></head>
+<body style="margin:0;font-family:system-ui,-apple-system,sans-serif;
+  display:flex;align-items:center;justify-content:center;min-height:100vh;
+  background:#f5f5f5">
+<div style="text-align:center;padding:32px">
+  <div style="font-size:48px;margin-bottom:16px">{icon}</div>
+  <h2 style="color:{color};margin:0 0 8px;font-size:18px">
+    {('已忽略' if success else '操作失败')}</h2>
+  <p style="color:#666;margin:0;font-size:14px">{message}</p>
+  <p style="color:#999;margin:16px 0 0;font-size:12px">可关闭此页面返回飞书</p>
+</div></body></html>"""

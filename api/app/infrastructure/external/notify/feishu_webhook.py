@@ -22,13 +22,13 @@ import hashlib
 import hmac
 import logging
 import time
-from datetime import date
+from datetime import date, datetime
 from typing import Awaitable, Callable, Dict, List, Optional
 from urllib.parse import urlencode
 
 import httpx
 
-from app.domain.models.feed_item import FeedItem
+from app.domain.models.feed_item import FeedItem, FeedItemType
 from app.domain.models.policy import Policy
 from app.domain.models.tenant_settings import TenantSettings
 from app.domain.repositories.uow import IUnitOfWork
@@ -213,10 +213,24 @@ def _feed_ignore_url(web_base_url: str, item_id: str) -> str:
     return _feed_opportunities_url(web_base_url) + "?" + urlencode({"ignore": item_id})
 
 
+def _feed_ignore_signed_url(web_base_url: str, item_id: str, tenant_id: str, secret: str) -> str:
+    """生成免登录的忽略链接(带 HMAC 签名，30 天有效，无需登录态)。"""
+    exp = int(time.time()) + 30 * 24 * 3600
+    payload = f"{tenant_id}:{item_id}:{exp}"
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()[:16]
+    params = urlencode({"item": item_id, "tenant": tenant_id, "exp": str(exp), "sig": sig})
+    return f"{web_base_url.rstrip('/')}/api/feed/ignore-direct?{params}"
+
+
 def build_feed_contest_message(
     items: List[FeedItem], web_base_url: str = "", today: Optional[date] = None,
+    signing_secret: str = "",
 ) -> dict:
-    """Build a Feishu card from tenant-scoped Feed recommendations only."""
+    """Build a Feishu card from tenant-scoped Feed recommendations only.
+
+    signing_secret 非空时，「不再提醒此赛事」按钮使用免登录签名链接(HMAC)，
+    点击后无需登录即可直接忽略；为空时回退到旧的需要登录的 Feed 页链接。
+    """
     today = today or date.today()
     shown = items[:_MAX_ITEMS_PER_MESSAGE]
     elements: List[dict] = []
@@ -231,11 +245,19 @@ def build_feed_contest_message(
             meta.append(f"推荐：{item.reasons[0]}")
         elements.append({"tag": "div", "text": {"tag": "lark_md", "content": title_line + (f"\n{'  ·  '.join(meta)}" if meta else "")}})
         if web_base_url:
+            ignore_url = (
+                _feed_ignore_signed_url(web_base_url, item.id, item.tenant_id, signing_secret)
+                if signing_secret else _feed_ignore_url(web_base_url, item.id)
+            )
             elements.append({"tag": "action", "actions": [{
                 "tag": "button",
                 "text": {"tag": "plain_text", "content": "不再提醒此赛事"},
-                "url": _feed_ignore_url(web_base_url, item.id),
+                "url": ignore_url,
                 "type": "default",
+                "confirm": {
+                    "title": {"tag": "plain_text", "content": "不再提醒此赛事"},
+                    "text": {"tag": "plain_text", "content": "确认后本条赛事将不再出现在未来的推送中。"},
+                },
             }]})
         if index < len(shown) - 1:
             elements.append({"tag": "hr"})
@@ -269,11 +291,18 @@ def build_contest_daily_summary_message(
     new_count: int = 0,
     web_base_url: str = "",
     today: Optional[date] = None,
+    feed_item_ids: Optional[Dict[str, str]] = None,
+    feed_tenant_id: str = "",
+    signing_secret: str = "",
 ) -> dict:
     """每日赛事摘要卡片：固定心跳，展示新增数、当前可参赛数、临期数与重点条目。
 
     与"新赛事即推"不同，摘要即便无新增也发送，避免用户误以为定时任务没跑。policies
     应传入已按租户关注地区过滤后的候选；函数内部再排除明确已过期赛事。
+
+    feed_item_ids 为 policy_id → feed_item_id 映射，传入后每条赛事展示
+    「不再提醒此赛事」按钮(与即时推送卡片一致)，供用户从每日摘要直接忽略。
+    signing_secret + feed_tenant_id 非空时使用免登录签名链接。
     """
     today = today or date.today()
     active = [p for p in policies if _is_active_contest(p, today)]
@@ -284,6 +313,7 @@ def build_contest_daily_summary_message(
         if (days := _days_left(p, today)) is not None and 0 <= days <= _SOON_DAYS
     )
     shown = sorted_active[:_MAX_ITEMS_PER_MESSAGE]
+    feed_map = feed_item_ids or {}
 
     elements: List[dict] = [{
         "tag": "div",
@@ -307,6 +337,23 @@ def build_contest_daily_summary_message(
             ) if part]
             content = title_line + (f"\n{'  ·  '.join(meta)}" if meta else "")
             elements.append({"tag": "div", "text": {"tag": "lark_md", "content": content}})
+            # 逐条「不再提醒此赛事」按钮(与即时推送卡片一致)
+            if web_base_url and p.id in feed_map:
+                ignore_url = (
+                    _feed_ignore_signed_url(web_base_url, feed_map[p.id], feed_tenant_id, signing_secret)
+                    if signing_secret and feed_tenant_id
+                    else _feed_ignore_url(web_base_url, feed_map[p.id])
+                )
+                elements.append({"tag": "action", "actions": [{
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": "不再提醒此赛事"},
+                    "url": ignore_url,
+                    "type": "default",
+                    "confirm": {
+                        "title": {"tag": "plain_text", "content": "不再提醒此赛事"},
+                        "text": {"tag": "plain_text", "content": "确认后本条赛事将不再出现在未来的推送中。"},
+                    },
+                }]})
             if i < len(shown) - 1:
                 elements.append({"tag": "hr"})
         if len(active) > _MAX_ITEMS_PER_MESSAGE:
@@ -551,6 +598,7 @@ def make_tenant_feed_contest_push_hook(
     recompute_new_competitions: Callable[[str], Awaitable[List[FeedItem]]],
     transport: Optional[httpx.AsyncBaseTransport] = None,
     web_base_url: str = "",
+    signing_secret: str = "",
 ) -> Callable[[str, List[Policy]], Awaitable[None]]:
     """Push only new, tenant-scoped Feed contest opportunities.
 
@@ -575,7 +623,9 @@ def make_tenant_feed_contest_push_hook(
                 notifier = FeishuWebhookNotifier(
                     webhook_url=config.webhook_url, secret=config.secret, transport=transport,
                 )
-                await notifier.send(build_feed_contest_message(items, web_base_url=web_base_url))
+                await notifier.send(build_feed_contest_message(
+                    items, web_base_url=web_base_url, signing_secret=signing_secret,
+                ))
             except Exception as exc:  # noqa: BLE001
                 logger.warning("租户 %s 赛事机会推送失败: %s: %s", settings.tenant_id, type(exc).__name__, exc)
 
@@ -589,6 +639,7 @@ def make_single_tenant_feed_contest_push_hook(
     recompute_new_competitions: Callable[[str], Awaitable[List[FeedItem]]],
     transport: Optional[httpx.AsyncBaseTransport] = None,
     web_base_url: str = "",
+    signing_secret: str = "",
 ) -> Callable[[str, List[Policy]], Awaitable[None]]:
     """Feed-based notifier for a single tenant's keyword-discovery result."""
 
@@ -604,7 +655,9 @@ def make_single_tenant_feed_contest_push_hook(
         notifier = FeishuWebhookNotifier(
             webhook_url=config.webhook_url, secret=config.secret, transport=transport,
         )
-        await notifier.send(build_feed_contest_message(items, web_base_url=web_base_url))
+        await notifier.send(build_feed_contest_message(
+            items, web_base_url=web_base_url, signing_secret=signing_secret,
+        ))
 
     return push
 
@@ -614,6 +667,7 @@ def make_tenant_contest_daily_summary_hook(
     contest_source_names: Dict[str, str],
     transport: Optional[httpx.AsyncBaseTransport] = None,
     web_base_url: str = "",
+    signing_secret: str = "",
 ) -> Callable[[List[dict]], Awaitable[None]]:
     """租户级每日赛事摘要：固定发送，按企业档案参赛关注地区过滤当前可参赛赛事。"""
     contest_sources = set(contest_source_names)
@@ -636,6 +690,53 @@ def make_tenant_contest_daily_summary_hook(
             profile = profiles.get(ts.tenant_id)
             regions = profile.contest_regions if profile else []
             matched = [p for p in policies if contest_region_matches(p.region, regions)]
+            # 查询该租户的 Feed 条目：
+            # - feed_item_ids：policy_id → feed_item_id 映射（供忽略按钮）
+            # - ignored_ids：已被用户忽略的 policy_id 集合（从摘要中排除）
+            feed_item_ids: Dict[str, str] = {}
+            ignored_policy_ids: set = set()
+            try:
+                async with uow_factory() as uow:
+                    items, _ = await uow.feed.list_paginated(
+                        ts.tenant_id, status=None, page=1, page_size=500,
+                    )
+                    feed_item_ids = {item.policy_id: item.id for item in items}
+                    ignored_policy_ids = {
+                        item.policy_id for item in items
+                        if item.status.value == "ignored"
+                    }
+            except Exception:  # noqa: BLE001 — Feed 查询失败不阻断摘要发送
+                logger.warning("租户 %s 查询 Feed 条目失败，摘要将不含忽略按钮", ts.tenant_id)
+            # 排除已被用户忽略的赛事
+            matched = [p for p in matched if p.id not in ignored_policy_ids]
+            # 为尚未进入 Feed 的赛事自动创建 FeedItem（如被时效过滤掉的历史赛事），
+            # 确保每条展示的赛事都有「不再提醒此赛事」按钮。
+            missing = [p for p in matched if p.id not in feed_item_ids]
+            if missing:
+                try:
+                    async with uow_factory() as uow:
+                        for p in missing:
+                            now = datetime.now()
+                            item = FeedItem(
+                                tenant_id=ts.tenant_id,
+                                type=FeedItemType.COMPETITION,
+                                policy_id=p.id,
+                                title=p.title,
+                                source_url=p.source_url,
+                                region=p.region,
+                                publish_date=p.publish_date,
+                                apply_deadline=p.apply_deadline,
+                                deadline_status=p.deadline_status,
+                            )
+                            await uow.feed.save(item)
+                            feed_item_ids[p.id] = item.id
+                    logger.info(
+                        "租户 %s 为 %d 条赛事自动创建 FeedItem", ts.tenant_id, len(missing),
+                    )
+                except Exception:  # noqa: BLE001 — 创建失败不影响摘要发送
+                    logger.warning(
+                        "租户 %s 自动创建 FeedItem 失败，部分赛事将不含忽略按钮", ts.tenant_id,
+                    )
             try:
                 notifier = FeishuWebhookNotifier(
                     webhook_url=config.webhook_url,
@@ -644,6 +745,8 @@ def make_tenant_contest_daily_summary_hook(
                 )
                 await notifier.send(build_contest_daily_summary_message(
                     matched, new_count=new_count, web_base_url=web_base_url,
+                    feed_item_ids=feed_item_ids, feed_tenant_id=ts.tenant_id,
+                    signing_secret=signing_secret,
                 ))
             except Exception as e:  # noqa: BLE001 — 单租户失败不拖累其他租户
                 logger.warning(

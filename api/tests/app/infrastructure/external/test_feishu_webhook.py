@@ -184,6 +184,38 @@ def test_build_daily_summary_counts_active_and_urgent_only() -> None:
     assert "已过期大赛" not in flat
 
 
+def test_build_daily_summary_has_ignore_buttons_when_feed_item_ids_provided() -> None:
+    """传入 feed_item_ids 映射后，展示赛事附带「不再提醒此赛事」按钮。"""
+    p = _policy(url="https://x/a", title="创新大赛", deadline=date(2026, 7, 20))
+    msg = build_contest_daily_summary_message(
+        [p],
+        new_count=1,
+        web_base_url="http://host:8088",
+        today=date(2026, 7, 10),
+        feed_item_ids={p.id: "feed-99"},
+    )
+
+    flat = json.dumps(msg["card"]["elements"], ensure_ascii=False)
+    assert "不再提醒此赛事" in flat
+    assert "http://host:8088/feed?ignore=feed-99" in flat
+    assert "confirm" in flat
+    assert "不再出现在未来的推送中" in flat
+
+
+def test_build_daily_summary_no_ignore_buttons_when_no_feed_ids() -> None:
+    """不传 feed_item_ids 时与改造前行为一致——不展示忽略按钮(向后兼容)。"""
+    p = _policy(url="https://x/b", deadline=date(2026, 7, 20))
+    msg = build_contest_daily_summary_message(
+        [p],
+        new_count=1,
+        web_base_url="http://host:8088",
+        today=date(2026, 7, 10),
+    )
+
+    flat = json.dumps(msg["card"]["elements"], ensure_ascii=False)
+    assert "不再提醒此赛事" not in flat
+
+
 # ---------- 发送 ----------
 
 def _notifier(handler, secret: str = "") -> FeishuWebhookNotifier:

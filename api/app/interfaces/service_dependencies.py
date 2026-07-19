@@ -293,6 +293,7 @@ def get_contest_service() -> ContestService:
             get_uow,
             lambda tenant_id: get_feed_service().recompute_new_competitions_for_notification(tenant_id),
             web_base_url=settings.web_base_url,
+            signing_secret=settings.jwt_secret_key,
         ),
     )
 
@@ -342,6 +343,7 @@ def _build_contest_push_hook():
         get_uow,
         lambda tenant_id: get_feed_service().recompute_new_competitions_for_notification(tenant_id),
         web_base_url=settings.web_base_url,
+        signing_secret=settings.jwt_secret_key,
     )
 
 
@@ -354,6 +356,7 @@ def build_contest_daily_summary_hook():
     web_base_url = settings.web_base_url
     hooks = [make_tenant_contest_daily_summary_hook(
         get_uow, contest_source_names, web_base_url=web_base_url,
+        signing_secret=settings.jwt_secret_key,
     )]
     if settings.feishu_webhook_url:
         notifier = FeishuWebhookNotifier(
