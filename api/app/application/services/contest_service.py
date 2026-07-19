@@ -436,9 +436,15 @@ class ContestService:
 
     @staticmethod
     def _build_discovery_query(keyword: str) -> str:
+        """为中文关键词构建搜索查询。
+
+        Bing 中文分词容易把"人工智能"拆成"人工"+单字，返回词典/百科类噪音。
+        因此①不加引号(Bing 中文引号不生效) ②加 site:gov.cn 限政府网站
+        ③竞争类关键词语义已足够收窄(比赛/大赛/报名等)，不需额外 + 号。
+        """
         return (
-            f'"{keyword}" (比赛 OR 大赛 OR 竞赛 OR 挑战赛) '
-            "(报名 OR 参赛 OR 征集 OR 申报) -获奖 -公示 -名单 -结果"
+            f"{keyword} (比赛 OR 大赛 OR 竞赛 OR 挑战赛) "
+            "(报名 OR 参赛 OR 征集 OR 申报) site:gov.cn -获奖 -公示 -名单 -结果"
         )
 
     @classmethod

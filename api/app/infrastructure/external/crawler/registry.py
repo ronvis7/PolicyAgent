@@ -19,7 +19,7 @@ from app.infrastructure.external.crawler.wnd_policy_crawler import WndPolicyCraw
 
 # 赛事标题排除词：获奖公示/名单类通知从来不是"可报名的机会"，列表页即排除
 # (风险收紧：真机首抓 gxt-contest 大半是历史获奖公示)。
-_CONTEST_EXCLUDE_WORDS = ("获奖", "公示", "公布", "名单", "结果")
+_CONTEST_EXCLUDE_WORDS = ("获奖", "公示", "公布", "名单", "结果", "喜报", "佳绩", "斩获")
 
 
 def _contest_filter_kwargs() -> dict:
