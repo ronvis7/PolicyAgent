@@ -15,10 +15,15 @@ class FeishuNotifyConfig(BaseModel):
     secret: str = ""
 
 
+class ContestSearchConfig(BaseModel):
+    """组织自有赛事搜索凭据；当前仅允许覆盖百度千帆 API Key。"""
+    api_key: str = ""
+
+
 class TenantSettings(BaseModel):
     """租户级设置领域模型，承载组织对平台默认配置的覆盖。
 
-    承载 LLM 与 Embedding 配置覆盖(BYO key)：对应字段为 None 表示该组织未自定义，
+    承载 LLM、Embedding 与赛事搜索配置覆盖(BYO key)：对应字段为 None 表示该组织未自定义，
     运行时回落到平台默认配置(LLM→config.yaml；Embedding→平台模型 + .env key)。
     Embedding 为双轨私有侧：租户只 BYO api_key，base_url/model/dimension 锁平台(见 ADR 003)。
     飞书推送配置为 None 表示该组织未开启新赛事推送。
@@ -27,5 +32,6 @@ class TenantSettings(BaseModel):
     llm_config: Optional[LLMConfig] = None  # 组织自定义LLM配置，None表示未覆盖
     embed_config: Optional[EmbedConfig] = None  # 组织自定义Embedding配置(仅api_key生效)，None表示未覆盖
     feishu_config: Optional[FeishuNotifyConfig] = None  # 组织飞书群webhook(新赛事即推)，None表示未开启
+    contest_search_config: Optional[ContestSearchConfig] = None  # 组织赛事搜索凭据，None表示回落平台配置
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间

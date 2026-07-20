@@ -216,7 +216,7 @@ def test_extract_main_text_drops_navigation_noise() -> None:
     assert ContestService._extract_main_text(soup) == "人工智能大赛报名通知，报名截止8月30日。"
 
 
-def test_scheduled_discovery_reuses_candidates_for_same_normalized_keyword() -> None:
+def test_scheduled_discovery_does_not_share_search_across_tenants() -> None:
     contest, policies, search = _ContestRepo(), {}, _Search()
     service = _service(contest, policies, search=search)
     asyncio.run(service.create_subscription("tenant-a", "人工智能"))
@@ -228,6 +228,31 @@ def test_scheduled_discovery_reuses_candidates_for_same_normalized_keyword() -> 
     with patch.object(ContestService, "_fetch_and_validate", staticmethod(valid_page)):
         summaries = asyncio.run(service.discover_all(_Ingest(policies)))
 
-    assert len(search.calls) == 1
+    assert len(search.calls) == 2
     assert len(summaries) == 2
     assert {summary["tenant_new"] for summary in summaries} == {1}
+
+
+def test_discovery_resolves_search_engine_for_current_tenant() -> None:
+    contest, policies = _ContestRepo(), {}
+    engines = {"tenant-a": _Search(), "tenant-b": _Search()}
+
+    async def resolve(tenant_id: str):
+        return engines[tenant_id]
+
+    def factory():
+        return _Uow(contest, FakePolicyRepository(policies))
+
+    service = ContestService(factory, search_engine_resolver=resolve)
+    a = asyncio.run(service.create_subscription("tenant-a", "人工智能"))
+    b = asyncio.run(service.create_subscription("tenant-b", "人工智能"))
+
+    async def no_candidate(url: str) -> str:
+        return ""
+
+    with patch.object(ContestService, "_fetch_and_validate", staticmethod(no_candidate)):
+        asyncio.run(service._search_subscription(a, _Ingest(policies)))
+        asyncio.run(service._search_subscription(b, _Ingest(policies)))
+
+    assert len(engines["tenant-a"].calls) == 1
+    assert len(engines["tenant-b"].calls) == 1

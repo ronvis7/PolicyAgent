@@ -34,6 +34,19 @@ class UpdateEmbedConfigRequest(BaseModel):
     api_key: str = ""  # 为空表示不修改(沿用已有或回落平台默认)
 
 
+class PublicContestSearchConfig(BaseModel):
+    """赛事搜索公开配置，不包含密钥明文。"""
+    provider: str = "baidu"
+    api_key_configured: bool = False
+    is_custom: bool = False
+    fallback_enabled: bool = True
+
+
+class UpdateContestSearchConfigRequest(BaseModel):
+    """更新组织百度赛事搜索密钥；空值表示不修改。"""
+    api_key: str = ""
+
+
 class PublicFeishuConfig(BaseModel):
     """可安全返回给前端的飞书 webhook 推送配置。
 

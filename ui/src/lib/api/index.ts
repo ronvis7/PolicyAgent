@@ -25,6 +25,7 @@ export type {
   LLMConfig,
   EmbedConfig,
   FeishuConfig,
+  ContestSearchConfig,
   AgentConfig,
   ListMCPServerItem,
   MCPServerConfig,

@@ -287,10 +287,10 @@ def get_policy_service() -> PolicyService:
 
 
 def get_contest_service() -> ContestService:
-    """赛事中心服务：中文搜索优先使用百度，独立于会话沙箱。"""
+    """赛事中心服务：按租户解析百度搜索密钥，未配置时回落部署级设置。"""
     return ContestService(
         uow_factory=get_uow,
-        search_engine=_build_contest_search_engine(),
+        search_engine_resolver=_resolve_tenant_contest_search_engine,
         on_tenant_discovered=make_single_tenant_feed_contest_push_hook(
             get_uow,
             lambda tenant_id: get_feed_service().recompute_new_competitions_for_notification(tenant_id),
@@ -300,20 +300,34 @@ def get_contest_service() -> ContestService:
     )
 
 
-def _build_contest_search_engine():
-    provider = settings.contest_search_provider.strip().lower()
+async def _resolve_tenant_contest_search_engine(tenant_id: str):
+    api_key = settings.baidu_search_api_key
+    provider_override = None
+    if tenant_id:
+        tenant_config = await get_tenant_settings_service().get_contest_search_config(tenant_id)
+        if tenant_config is not None:
+            api_key = tenant_config.api_key
+            provider_override = "baidu"
+    return _build_contest_search_engine(api_key, provider_override)
+
+
+def _build_contest_search_engine(
+        api_key: Optional[str] = None, provider_override: Optional[str] = None,
+):
+    provider = provider_override or settings.contest_search_provider.strip().lower()
     fallback = BingSearchEngine()
     if provider == "bing":
         return fallback
     if provider not in {"auto", "baidu"}:
         logger.warning("未知赛事搜索提供方 %r，回落 Bing", provider)
         return fallback
-    if not settings.baidu_search_api_key.strip():
+    effective_key = settings.baidu_search_api_key if api_key is None else api_key
+    if not effective_key.strip():
         logger.warning("赛事搜索已选择 %s，但 BAIDU_SEARCH_API_KEY 未配置，回落 Bing", provider)
         return fallback
 
     primary = BaiduSearchEngine(
-        api_key=settings.baidu_search_api_key,
+        api_key=effective_key,
         top_k=settings.contest_search_top_k,
     )
     if settings.contest_search_fallback_enabled:
