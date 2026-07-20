@@ -1,4 +1,12 @@
-# Latest update — 2026-07-19
+# Latest update — 2026-07-20
+
+Chinese contest web discovery optimization is implemented on `fix/chinese-contest-search`: Baidu Qianfan v2 web search is now configurable as the primary provider with Bing fallback, contest queries use a one-year window and provider-neutral Chinese wording, candidates are validated from main-page content with relevance scoring, and duplicate tenant keywords share one scheduled search/fetch. No database or public API changes. A real local Baidu-key smoke test succeeded: 10 Chinese contest results returned with no dictionary noise, and the full read-only search/fetch/score path accepted 9; one finals-news false positive was then covered by expanded title exclusions. The key is only in gitignored local `.env`; `.222` is not configured or deployed yet.
+
+Targeted search/contest/ingest verification: 27 passed; compileall passed. A wider 57-test run had 50 passed and 7 pre-existing Feed failures because its fixed `2026-06-01` fixture is now 49 days old and correctly exceeds the 45-day unknown-deadline freshness window.
+
+See handoff `2026-07-20-chinese-contest-search`.
+
+# Previous update — 2026-07-19
 
 Daily contest summary now has per-item ignore buttons with no-login signed URLs (HMAC). Ignored contests are excluded from future summaries; missing FeedItems are auto-created on the fly. WEB_BASE_URL corrected to port 8888. Contest crawling pipeline verified: cnmaker-contest (12) + cqkjj-contest (3) active; wnd/gxt/cqjjw have no recent contest data (not a bug). Web discovery via Bing is fundamentally broken for Chinese (single-char segmentation); Baidu Search API migration pending.
 

@@ -21,6 +21,7 @@ class _ContestRepo:
         self.sources: Dict[str, ContestSource] = {}
         self.subscriptions: Dict[str, ContestSubscription] = {}
         self.hits: List[ContestDiscoveryHit] = []
+        self.runs = []
 
     async def list_sources(self, enabled_only=False):
         return [source for source in self.sources.values() if not enabled_only or source.enabled]
@@ -65,6 +66,9 @@ class _ContestRepo:
 
     async def save_discovery_hit(self, hit):
         self.hits.append(hit)
+
+    async def save_run(self, run):
+        self.runs.append(run)
 
 
 class _Uow:
@@ -138,7 +142,7 @@ def test_discovery_is_publicly_deduped_and_notified_once_per_tenant() -> None:
     ingest = _Ingest(policies)
 
     async def valid_page(url: str) -> str:
-        return "创新创业大赛报名正在进行，请及时参赛。"
+        return "人工智能创新创业大赛报名正在进行，请及时参赛。"
 
     with patch.object(ContestService, "_fetch_and_validate", staticmethod(valid_page)):
         first = asyncio.run(service._search_subscription(a, ingest))
@@ -166,8 +170,7 @@ def test_discovery_uses_precise_query_and_skips_low_value_domains() -> None:
     assert ContestService._is_discovery_candidate_url("https://gxt.jiangsu.gov.cn/notice", {"gxt.jiangsu.gov.cn"}) is False
     assert ContestService._is_discovery_candidate_url("https://example.gov.cn/contest") is True
     assert ContestService._build_discovery_query("创新创业") == (
-        '"创新创业" (比赛 OR 大赛 OR 竞赛 OR 挑战赛) '
-        "(报名 OR 参赛 OR 征集 OR 申报) -获奖 -公示 -名单 -结果"
+        "创新创业 正在报名的大赛或竞赛通知"
     )
 
     async def no_candidate(url: str) -> str:
@@ -176,4 +179,55 @@ def test_discovery_uses_precise_query_and_skips_low_value_domains() -> None:
     with patch.object(ContestService, "_fetch_and_validate", staticmethod(no_candidate)):
         asyncio.run(service._search_subscription(sub, _Ingest(policies)))
 
-    assert search.calls == [(ContestService._build_discovery_query("创新创业"), "past_month")]
+    assert search.calls == [(ContestService._build_discovery_query("创新创业"), "past_year")]
+
+
+def test_discovery_scoring_keeps_valid_notice_when_body_mentions_results() -> None:
+    score = ContestService._score_discovery_candidate(
+        "人工智能",
+        "人工智能创新创业大赛报名通知",
+        "面向科技企业征集参赛项目",
+        "报名截止时间为8月30日。网站底部同时链接往届结果公示。",
+    )
+
+    assert score >= 7
+    assert ContestService._score_discovery_candidate(
+        "人工智能",
+        "人工智能创新创业大赛获奖结果公示",
+        "公布获奖名单",
+        "人工智能大赛结果",
+    ) == -100
+    assert ContestService._score_discovery_candidate(
+        "人工智能",
+        "首届人工智能创新大赛决赛即将启幕",
+        "赛事新闻",
+        "往届报名企业进入决赛",
+    ) == -100
+
+
+def test_extract_main_text_drops_navigation_noise() -> None:
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        "<html><nav>获奖名单 结果公示</nav><article>人工智能大赛报名通知，报名截止8月30日。</article></html>",
+        "html.parser",
+    )
+
+    assert ContestService._extract_main_text(soup) == "人工智能大赛报名通知，报名截止8月30日。"
+
+
+def test_scheduled_discovery_reuses_candidates_for_same_normalized_keyword() -> None:
+    contest, policies, search = _ContestRepo(), {}, _Search()
+    service = _service(contest, policies, search=search)
+    asyncio.run(service.create_subscription("tenant-a", "人工智能"))
+    asyncio.run(service.create_subscription("tenant-b", " 人工智能 "))
+
+    async def valid_page(url: str) -> str:
+        return "人工智能创新创业大赛正在报名，报名截止8月30日。"
+
+    with patch.object(ContestService, "_fetch_and_validate", staticmethod(valid_page)):
+        summaries = asyncio.run(service.discover_all(_Ingest(policies)))
+
+    assert len(search.calls) == 1
+    assert len(summaries) == 2
+    assert {summary["tenant_new"] for summary in summaries} == {1}
