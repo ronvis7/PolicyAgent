@@ -33,12 +33,21 @@ class ContestService:
     def __init__(
         self,
         uow_factory: Callable[[], IUnitOfWork],
-        search_engine: SearchEngine,
+        search_engine: Optional[SearchEngine] = None,
+        search_engine_resolver: Optional[Callable[[str], Awaitable[SearchEngine]]] = None,
         on_tenant_discovered: Optional[Callable[[str, List[Policy]], Awaitable[None]]] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._search_engine = search_engine
+        self._search_engine_resolver = search_engine_resolver
         self._on_tenant_discovered = on_tenant_discovered
+
+    async def _resolve_search_engine(self, tenant_id: str) -> SearchEngine:
+        if self._search_engine_resolver is not None:
+            return await self._search_engine_resolver(tenant_id)
+        if self._search_engine is None:
+            raise RuntimeError("赛事搜索引擎未配置")
+        return self._search_engine
 
     async def list_contests(self, tenant_id: str = "", **filters) -> Tuple[List[Policy], int]:
         async with self._uow_factory() as uow:
@@ -138,7 +147,7 @@ class ContestService:
                 raise NotFoundError("关键词订阅不存在")
 
     async def discover_all(self, ingest_service: PolicyIngestService) -> List[dict]:
-        """每日全网发现；相同关键词只搜索和抓取一次，再按租户分别记命中。"""
+        """每日全网发现；同一租户相同关键词共享候选，不跨租户复用搜索凭据。"""
         async with self._uow_factory() as uow:
             subscriptions = await uow.contest.list_enabled_subscriptions()
         summaries: List[dict] = []
@@ -147,10 +156,10 @@ class ContestService:
             run = ContestRun(tenant_id=sub.tenant_id, kind="discovery", target_id=sub.id, trigger="scheduled")
             async with self._uow_factory() as uow:
                 await uow.contest.save_run(run)
-            cache_key = self._normalize_keyword(sub.keyword)
+            cache_key = f"{sub.tenant_id}:{self._normalize_keyword(sub.keyword)}"
             if cache_key not in candidate_cache:
                 try:
-                    candidate_cache[cache_key] = await self._discover_candidates(sub.keyword)
+                    candidate_cache[cache_key] = await self._discover_candidates(sub.keyword, sub.tenant_id)
                 except Exception as exc:  # 搜索/抓取失败也必须收口运行记录
                     failed = run.model_copy(update={
                         "status": "failed",
@@ -175,8 +184,9 @@ class ContestService:
                 summaries.append({"tenant_id": sub.tenant_id, "keyword": sub.keyword, "error": type(exc).__name__})
         return summaries
 
-    async def _discover_candidates(self, keyword: str) -> tuple[List[Policy], int]:
-        search = await self._search_engine.invoke(self._build_discovery_query(keyword), "past_year")
+    async def _discover_candidates(self, keyword: str, tenant_id: str = "") -> tuple[List[Policy], int]:
+        search_engine = await self._resolve_search_engine(tenant_id)
+        search = await search_engine.invoke(self._build_discovery_query(keyword), "past_year")
         official_hosts = await self._official_source_hosts()
         if not search.success or not search.data:
             return [], 0
@@ -220,7 +230,7 @@ class ContestService:
         candidate_result: Optional[tuple[List[Policy], int]] = None,
     ) -> dict:
         if candidate_result is None:
-            candidate_result = await self._discover_candidates(subscription.keyword)
+            candidate_result = await self._discover_candidates(subscription.keyword, subscription.tenant_id)
         candidates, searched_count = candidate_result
         if candidates:
             class _ResultCrawler:
@@ -319,7 +329,8 @@ class ContestService:
             f'"{normalized}" (创新创业大赛 OR 创客中国 OR 科技创新大赛 OR 赛事通知) site:gov.cn',
         )
         for query in queries:
-            search = await self._search_engine.invoke(query)
+            search_engine = await self._resolve_search_engine(tenant_id)
+            search = await search_engine.invoke(query)
             if not search.success or not search.data:
                 continue
             for item in search.data.results[:10]:

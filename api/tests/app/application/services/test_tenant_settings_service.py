@@ -275,3 +275,26 @@ def test_update_feishu_rejects_non_feishu_url() -> None:
     ):
         with pytest.raises(BadRequestError):
             asyncio.run(service.update_feishu_config(TENANT_A, bad, ""))
+
+
+# ---------- 百度赛事搜索 BYO key ----------
+
+
+def test_contest_search_config_is_tenant_isolated() -> None:
+    service = _service()
+
+    asyncio.run(service.update_contest_search_config(TENANT_A, "baidu-a"))
+
+    config_a = asyncio.run(service.get_contest_search_config(TENANT_A))
+    config_b = asyncio.run(service.get_contest_search_config(TENANT_B))
+    assert config_a is not None and config_a.api_key == "baidu-a"
+    assert config_b is None
+
+
+def test_empty_contest_search_key_keeps_existing() -> None:
+    service = _service()
+    asyncio.run(service.update_contest_search_config(TENANT_A, "baidu-a"))
+
+    config = asyncio.run(service.update_contest_search_config(TENANT_A, ""))
+
+    assert config is not None and config.api_key == "baidu-a"

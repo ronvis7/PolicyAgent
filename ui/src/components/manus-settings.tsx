@@ -2,7 +2,7 @@
 
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {Bell, Boxes, LayoutGrid, LayoutList, Loader2, Languages, Settings, Trash, Users, Wrench} from 'lucide-react'
+import {Bell, Boxes, LayoutGrid, LayoutList, Loader2, Languages, Search, Settings, Trash, Users, Wrench} from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -22,7 +22,7 @@ import {Badge} from '@/components/ui/badge'
 import {Switch} from '@/components/ui/switch'
 import {Textarea} from '@/components/ui/textarea'
 import {configApi} from '@/lib/api'
-import type {AgentConfig, LLMConfig, EmbedConfig, FeishuConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
+import type {AgentConfig, LLMConfig, EmbedConfig, FeishuConfig, ContestSearchConfig, ListMCPServerItem, ListA2AServerItem} from '@/lib/api'
 import {MembersSetting} from '@/components/members-setting'
 import {FeishuSetting} from '@/components/feishu-setting'
 import {useAuth} from '@/providers/auth-provider'
@@ -587,13 +587,58 @@ function EmbedSetting({config, onChange}: EmbedSettingProps) {
   )
 }
 
+// ==================== 赛事搜索（百度千帆） ====================
+
+type ContestSearchSettingProps = {
+  config: ContestSearchConfig
+  onChange: (config: ContestSearchConfig) => void
+}
+
+function ContestSearchSetting({config, onChange}: ContestSearchSettingProps) {
+  return (
+    <form className="w-full px-1" onSubmit={(e) => e.preventDefault()}>
+      <FieldGroup>
+        <FieldSet>
+          <FieldLegend className="text-lg font-bold text-gray-700">赛事搜索</FieldLegend>
+          <FieldDescription className="text-sm">
+            为本组织的全网赛事发现配置百度千帆搜索 API Key，搜索消费归属组织账户。
+            <br/>
+            当前状态：
+            <span className={config.api_key_configured ? 'text-green-600' : 'text-amber-600'}>
+              {config.api_key_configured ? ` 已配置（${config.provider === 'baidu' ? '百度' : '平台回退'}）` : ' 未配置（使用 Bing 兜底）'}
+            </span>
+            {config.is_custom ? '（组织自定义）' : (config.api_key_configured ? '（平台配置）' : '')}
+          </FieldDescription>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="contest_search_api_key">百度千帆 API Key</FieldLabel>
+              <Input
+                id="contest_search_api_key"
+                type="password"
+                autoComplete="new-password"
+                placeholder="填写新密钥；留空则保留当前配置"
+                value={config.api_key ?? ''}
+                onChange={(e) => onChange({...config, api_key: e.target.value})}
+              />
+              <FieldDescription className="text-xs">
+                密钥仅保存到服务端且不会回显。手动搜索、定时发现和地区来源建议都会使用本组织密钥；百度不可用时
+                {config.fallback_enabled ? '会自动回落 Bing。' : '不会自动回落 Bing。'}
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+        </FieldSet>
+      </FieldGroup>
+    </form>
+  )
+}
+
 
 // ==================== 设置弹窗主组件 ====================
 
-type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'feishu-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
+type SettingTab = 'common-setting' | 'llm-setting' | 'embedding-setting' | 'contest-search-setting' | 'feishu-setting' | 'members-setting' | 'a2a-setting' | 'mcp-setting'
 
 // 由弹窗底部统一「保存」按钮提交、共用 loadingConfig 加载态的表单页签
-const FORM_TABS: SettingTab[] = ['common-setting', 'llm-setting', 'embedding-setting', 'feishu-setting']
+const FORM_TABS: SettingTab[] = ['common-setting', 'llm-setting', 'embedding-setting', 'contest-search-setting', 'feishu-setting']
 
 // scope 决定可见性：'org' 对组织 owner/admin 开放；'platform' 仅平台管理员
 type SettingScope = 'org' | 'platform'
@@ -606,6 +651,7 @@ const SETTING_MENUS: Array<{
 }> = [
   {key: 'llm-setting', icon: Languages, title: '模型提供商', scope: 'org'},
   {key: 'embedding-setting', icon: Boxes, title: '向量模型', scope: 'org'},
+  {key: 'contest-search-setting', icon: Search, title: '赛事搜索', scope: 'org'},
   {key: 'feishu-setting', icon: Bell, title: '飞书推送', scope: 'org'},
   {key: 'members-setting', icon: Users, title: '组织成员', scope: 'org'},
   {key: 'common-setting', icon: Settings, title: '通用配置', scope: 'platform'},
@@ -644,6 +690,7 @@ export function ManusSettings({
   const [agentConfig, setAgentConfig] = useState<AgentConfig>({})
   const [llmConfig, setLlmConfig] = useState<LLMConfig>({})
   const [embedConfig, setEmbedConfig] = useState<EmbedConfig>({})
+  const [contestSearchConfig, setContestSearchConfig] = useState<ContestSearchConfig>({})
   const [feishuConfig, setFeishuConfig] = useState<FeishuConfig>({})
   const [mcpServers, setMcpServers] = useState<ListMCPServerItem[]>([])
   const [a2aServers, setA2aServers] = useState<ListA2AServerItem[]>([])
@@ -678,6 +725,12 @@ export function ManusSettings({
         .then((feishu) => setFeishuConfig(feishu))
         .catch((err) => {
           console.error('[Settings] 获取飞书推送配置失败:', err)
+        })
+      configApi
+        .getContestSearchConfig()
+        .then((config) => setContestSearchConfig(config))
+        .catch((err) => {
+          console.error('[Settings] 获取赛事搜索配置失败:', err)
         })
       configApi
         .getLLMConfig()
@@ -752,6 +805,10 @@ export function ManusSettings({
         const updated = await configApi.updateEmbedConfig(embedConfig.api_key ?? '')
         setEmbedConfig({...updated, api_key: ''})
         toast.success('向量模型配置保存成功')
+      } else if (activeSetting === 'contest-search-setting') {
+        const updated = await configApi.updateContestSearchConfig(contestSearchConfig.api_key ?? '')
+        setContestSearchConfig({...updated, api_key: ''})
+        toast.success('赛事搜索配置保存成功')
       } else if (activeSetting === 'feishu-setting') {
         const url = (feishuConfig.webhook_url ?? '').trim()
         if (!url && !feishuConfig.configured) {
@@ -958,6 +1015,9 @@ export function ManusSettings({
                 )}
                 {activeSetting === 'embedding-setting' && (
                   <EmbedSetting config={embedConfig} onChange={setEmbedConfig}/>
+                )}
+                {activeSetting === 'contest-search-setting' && (
+                  <ContestSearchSetting config={contestSearchConfig} onChange={setContestSearchConfig}/>
                 )}
                 {activeSetting === 'feishu-setting' && (
                   <FeishuSetting

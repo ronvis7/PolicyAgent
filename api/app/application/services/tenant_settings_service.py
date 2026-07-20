@@ -6,7 +6,7 @@ from typing import Callable, List, Optional, Tuple
 
 from app.application.errors.exceptions import BadRequestError
 from app.domain.models.app_config import EmbedConfig, LLMConfig
-from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
+from app.domain.models.tenant_settings import ContestSearchConfig, FeishuNotifyConfig, TenantSettings
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.domain.repositories.uow import IUnitOfWork
 
@@ -187,3 +187,29 @@ class TenantSettingsService:
         """列出配置了飞书 webhook 的租户设置(供新赛事推送扇出)"""
         async with self.uow_factory() as uow:
             return await uow.tenant_settings.list_feishu_configured()
+
+    # ---------- 百度赛事搜索凭据（组织级 BYO key） ----------
+
+    async def get_contest_search_config(self, tenant_id: str) -> Optional[ContestSearchConfig]:
+        """读取租户自有搜索配置；None 表示使用部署级配置。"""
+        async with self.uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+        config = settings.contest_search_config if settings else None
+        return config if config and config.api_key.strip() else None
+
+    async def update_contest_search_config(
+            self, tenant_id: str, api_key: str,
+    ) -> Optional[ContestSearchConfig]:
+        """保存租户百度搜索密钥；空字符串表示保留已有配置。"""
+        async with self.uow_factory() as uow:
+            settings = await uow.tenant_settings.get_by_tenant(tenant_id)
+            existing = settings.contest_search_config if settings else None
+            key = api_key.strip()
+            if not key:
+                return existing if existing and existing.api_key.strip() else None
+            config = ContestSearchConfig(api_key=key)
+            record = (settings or TenantSettings(tenant_id=tenant_id)).model_copy(
+                update={"contest_search_config": config, "updated_at": datetime.now()}
+            )
+            await uow.tenant_settings.save(record)
+        return config

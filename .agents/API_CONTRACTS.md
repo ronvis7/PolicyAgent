@@ -129,6 +129,15 @@
 
 ## 赛事中心（双来源）
 
+### 租户赛事搜索配置
+
+组织 owner/admin 可为当前租户配置百度千帆搜索 API Key；密钥只保存在服务端，读取接口不回传明文。未配置组织密钥时回落部署级 `BAIDU_SEARCH_API_KEY`，两者均未配置时按现有策略回落 Bing。
+
+- `GET /api/app-config/contest-search` — 返回 `{ provider, api_key_configured, is_custom, fallback_enabled }`。
+- `POST /api/app-config/contest-search` — body `{ api_key }`；非空值保存/轮换当前租户密钥，空字符串表示保留现有配置。
+
+手动发现、定时发现和地区来源建议均使用当前租户实际生效的搜索密钥；不得跨租户读取或返回密钥。
+
 赛事为全局公开内容；企业的关键词订阅与推送配置为租户数据，严格从访问令牌取得租户上下文。
 
 - `GET /api/contests` — 分页浏览赛事中心。支持 `origin=official|web`、`region`、`source`、`keyword`、`active_only` 筛选。

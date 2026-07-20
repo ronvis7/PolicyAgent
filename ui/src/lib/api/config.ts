@@ -3,6 +3,7 @@ import type {
   LLMConfig,
   EmbedConfig,
   FeishuConfig,
+  ContestSearchConfig,
   AgentConfig,
   MCPConfig,
   MCPServersData,
@@ -47,6 +48,16 @@ export const configApi = {
    */
   updateEmbedConfig: (apiKey: string): Promise<EmbedConfig> => {
     return post<EmbedConfig>("/app-config/embedding", { api_key: apiKey ?? "" });
+  },
+
+  /** 获取当前组织赛事搜索配置（不回显密钥） */
+  getContestSearchConfig: (): Promise<ContestSearchConfig> => {
+    return get<ContestSearchConfig>("/app-config/contest-search");
+  },
+
+  /** 保存/轮换当前组织百度千帆搜索密钥；留空表示不修改 */
+  updateContestSearchConfig: (apiKey: string): Promise<ContestSearchConfig> => {
+    return post<ContestSearchConfig>("/app-config/contest-search", {api_key: apiKey ?? ""});
   },
 
   /**

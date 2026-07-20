@@ -104,6 +104,8 @@ Agent 会话。必须带 `tenant_id` 和 `owner_id`。
 
 ## 赛事中心模型
 
+`tenant_settings.contest_search_config` 为可空 JSONB，保存租户自有赛事搜索凭据，当前结构为 `{ api_key }`。该字段随 `tenant_settings.tenant_id` 隔离；`NULL` 表示回落部署级搜索配置。接口与日志不得回传或打印密钥明文。
+
 公开 `policies` 内容增加 `item_type`（`policy`/`competition`）、`origin_type`（`official`/`web`）和
 `source_name`。赛事仍以 `source_url` 全局去重，避免同一公开赛事被多个关键词或租户重复写入。
 

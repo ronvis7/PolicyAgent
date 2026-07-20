@@ -69,6 +69,18 @@ export type FeishuConfig = {
 };
 
 /**
+ * 赛事搜索配置（组织级百度千帆 BYO Key）。
+ * 服务端只返回配置状态；api_key 仅用于本地编辑，保存后清空。
+ */
+export type ContestSearchConfig = {
+  provider?: "baidu" | "bing";
+  api_key?: string;
+  api_key_configured?: boolean;
+  is_custom?: boolean;
+  fallback_enabled?: boolean;
+};
+
+/**
  * Agent 通用配置
  */
 export type AgentConfig = {

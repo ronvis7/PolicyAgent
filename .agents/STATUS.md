@@ -1,4 +1,10 @@
-# Latest update — 2026-07-20
+# Latest update — 2026-07-21
+
+Tenant-owned Baidu contest-search configuration is implemented on `feat/tenant-baidu-search-config`. Organization owner/admin users can configure a Baidu Qianfan API key from Settings → Contest Search; GET responses only expose configuration state and never return the key. The credential is stored in tenant-isolated `tenant_settings.contest_search_config` (migration `d2e3f4a5b6c7`) and is resolved for manual discovery, scheduled discovery, and source suggestions. Unconfigured tenants still fall back to deployment `BAIDU_SEARCH_API_KEY`, then Bing under the existing fallback policy. Search candidates are no longer cached across tenants, preventing credential/quota coupling. Backend suite: 405 passed, 7 skipped; Alembic has one head; frontend lint has 0 errors (existing warnings only) and production build passes.
+
+See handoff `2026-07-21-tenant-baidu-search-config`.
+
+# Previous update — 2026-07-20
 
 Chinese contest web discovery optimization is implemented on `fix/chinese-contest-search`: Baidu Qianfan v2 web search is now configurable as the primary provider with Bing fallback, contest queries use a one-year window and provider-neutral Chinese wording, candidates are validated from main-page content with relevance scoring, and duplicate tenant keywords share one scheduled search/fetch. No database or public API changes. A real local Baidu-key smoke test succeeded: 10 Chinese contest results returned with no dictionary noise, and the full read-only search/fetch/score path accepted 9; one finals-news false positive was then covered by expanded title exclusions. The key is only in gitignored local `.env`; `.222` is not configured or deployed yet.
 
