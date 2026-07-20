@@ -162,7 +162,7 @@ def test_ingest_upserts_and_vector_double_writes() -> None:
 
     assert summary == {
         "source": "wnd", "crawled": 2, "upserted": 2, "new": 2, "indexed": 1,
-        "skipped_expired": 0,
+        "skipped_expired": 0, "item_type": "policy",
     }
     # 结构化表两条
     assert len(policies_store) == 2

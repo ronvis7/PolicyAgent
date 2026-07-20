@@ -41,7 +41,7 @@ def _match(
 ) -> PolicyMatch:
     policy = Policy(
         id=policy_id, source=source, source_url=f"url-{policy_id}", title=title,
-        region=region, publish_date=date(2026, 6, 1),
+        region=region, publish_date=date.today(),
     )
     return PolicyMatch(
         policy=policy, score=score, structured_score=score,
@@ -323,7 +323,7 @@ def _match_with_deadline(
 ) -> PolicyMatch:
     policy = Policy(
         id=policy_id, source_url=f"url-{policy_id}", title=title,
-        region="江苏省无锡市新吴区", publish_date=date(2026, 6, 1),
+        region="江苏省无锡市新吴区", publish_date=date.today(),
         apply_deadline=deadline if deadline_status == "extracted" else None,
         deadline_status=deadline_status,
     )

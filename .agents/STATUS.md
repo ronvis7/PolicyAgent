@@ -2,7 +2,7 @@
 
 Chinese contest web discovery optimization is implemented on `fix/chinese-contest-search`: Baidu Qianfan v2 web search is now configurable as the primary provider with Bing fallback, contest queries use a one-year window and provider-neutral Chinese wording, candidates are validated from main-page content with relevance scoring, and duplicate tenant keywords share one scheduled search/fetch. No database or public API changes. A real local Baidu-key smoke test succeeded: 10 Chinese contest results returned with no dictionary noise, and the full read-only search/fetch/score path accepted 9; one finals-news false positive was then covered by expanded title exclusions. The key is only in gitignored local `.env`; `.222` is not configured or deployed yet.
 
-Targeted search/contest/ingest verification: 27 passed; compileall passed. A wider 57-test run had 50 passed and 7 pre-existing Feed failures because its fixed `2026-06-01` fixture is now 49 days old and correctly exceeds the 45-day unknown-deadline freshness window.
+Targeted search/contest/ingest verification: 27 passed; compileall passed. PR #83 CI exposed date-sensitive Feed fixtures fixed at `2026-06-01` plus one stale ingest-summary expectation; the test fixtures now use `date.today()` for current contests and expect the existing `item_type` field. Full CI-equivalent backend suite: 400 passed, 7 skipped.
 
 See handoff `2026-07-20-chinese-contest-search`.
 
