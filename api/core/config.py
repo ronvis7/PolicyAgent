@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     # 省详情抓取/LLM 截止抽取/向量化开销；0/负值=不限。仅赛事子源生效，政策来源不受影响。
     contest_max_age_days: int = Field(default=180, alias="CONTEST_MAX_AGE_DAYS")
 
+    # 赛事全网发现搜索。auto 在配置百度 Key 时优先百度，否则兼容回落 Bing；
+    # 显式 baidu 但缺 Key 时也不会阻断 API 启动，会记录告警并回落。
+    contest_search_provider: str = Field(default="auto", alias="CONTEST_SEARCH_PROVIDER")
+    baidu_search_api_key: str = Field(default="", alias="BAIDU_SEARCH_API_KEY")
+    contest_search_top_k: int = Field(default=20, ge=1, le=50, alias="CONTEST_SEARCH_TOP_K")
+    contest_search_fallback_enabled: bool = Field(default=True, alias="CONTEST_SEARCH_FALLBACK_ENABLED")
+
     # 飞书群自定义机器人 webhook：赛事子源每次入库新增会即推；每天重爬完成后也会发赛事摘要。
     # 留空=部署级兜底不推送；租户级 webhook 仍由组织设置页配置。secret 为机器人"签名校验"密钥，可选。
     feishu_webhook_url: str = Field(default="", alias="FEISHU_WEBHOOK_URL")

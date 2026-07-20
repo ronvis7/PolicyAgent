@@ -1,5 +1,6 @@
 """赛事中心：可信官方源、租户关键词订阅与全网发现。"""
 
+import asyncio
 import ipaddress
 import re
 from datetime import datetime, timedelta
@@ -21,7 +22,8 @@ from app.infrastructure.external.crawler.tenant_contest_crawler import TenantCon
 
 _INCLUDE = re.compile(r"比赛|大赛|竞赛|挑战赛|创业赛")
 _REGISTRATION = re.compile(r"报名|参赛|征集|申报")
-_EXCLUDE = re.compile(r"获奖|公示|公布|名单|结果")
+_EXCLUDE = re.compile(r"获奖|公示|公布|名单|结果|决赛|复赛|入围|晋级|颁奖|闭幕|回顾")
+_DEADLINE_HINT = re.compile(r"截止|截至|报名时间|征集时间|申报时间")
 _DISCOVERY_BLOCKED_HOSTS = {
     "bing.com", "google.com", "youtube.com", "youtu.be", "play.google.com", "apps.apple.com",
 }
@@ -136,35 +138,90 @@ class ContestService:
                 raise NotFoundError("关键词订阅不存在")
 
     async def discover_all(self, ingest_service: PolicyIngestService) -> List[dict]:
-        """每日全网发现；一次失败不影响其他企业关键词。"""
+        """每日全网发现；相同关键词只搜索和抓取一次，再按租户分别记命中。"""
         async with self._uow_factory() as uow:
             subscriptions = await uow.contest.list_enabled_subscriptions()
         summaries: List[dict] = []
+        candidate_cache: dict[str, tuple[List[Policy], int]] = {}
         for sub in subscriptions:
+            run = ContestRun(tenant_id=sub.tenant_id, kind="discovery", target_id=sub.id, trigger="scheduled")
+            async with self._uow_factory() as uow:
+                await uow.contest.save_run(run)
+            cache_key = self._normalize_keyword(sub.keyword)
+            if cache_key not in candidate_cache:
+                try:
+                    candidate_cache[cache_key] = await self._discover_candidates(sub.keyword)
+                except Exception as exc:  # 搜索/抓取失败也必须收口运行记录
+                    failed = run.model_copy(update={
+                        "status": "failed",
+                        "finished_at": datetime.now(),
+                        "error_message": str(exc)[:1000],
+                    })
+                    async with self._uow_factory() as uow:
+                        await uow.contest.save_run(failed)
+                    summaries.append({"tenant_id": sub.tenant_id, "keyword": sub.keyword, "error": type(exc).__name__})
+                    continue
             try:
-                run = ContestRun(tenant_id=sub.tenant_id, kind="discovery", target_id=sub.id, trigger="scheduled")
-                async with self._uow_factory() as uow:
-                    await uow.contest.save_run(run)
-                result = await self.execute_discovery(sub.tenant_id, sub.id, run.id, ingest_service, "scheduled")
+                result = await self.execute_discovery(
+                    sub.tenant_id,
+                    sub.id,
+                    run.id,
+                    ingest_service,
+                    "scheduled",
+                    candidate_result=candidate_cache[cache_key],
+                )
                 summaries.append(result)
             except Exception as exc:  # best-effort
                 summaries.append({"tenant_id": sub.tenant_id, "keyword": sub.keyword, "error": type(exc).__name__})
         return summaries
 
-    async def _search_subscription(self, subscription: ContestSubscription, ingest_service: PolicyIngestService, notify: bool = True) -> dict:
-        search = await self._search_engine.invoke(self._build_discovery_query(subscription.keyword), "past_month")
+    async def _discover_candidates(self, keyword: str) -> tuple[List[Policy], int]:
+        search = await self._search_engine.invoke(self._build_discovery_query(keyword), "past_year")
         official_hosts = await self._official_source_hosts()
+        if not search.success or not search.data:
+            return [], 0
+
+        rows = []
+        seen_urls: set[str] = set()
+        for row in search.data.results[:30]:
+            if row.url in seen_urls or not self._is_discovery_candidate_url(row.url, official_hosts):
+                continue
+            seen_urls.add(row.url)
+            rows.append(row)
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def fetch(row):
+            async with semaphore:
+                return row, await self._fetch_and_validate(row.url)
+
+        fetched = await asyncio.gather(*(fetch(row) for row in rows))
         candidates: List[Policy] = []
-        if search.success and search.data:
-            for row in search.data.results[:10]:
-                if not self._is_discovery_candidate_url(row.url, official_hosts):
-                    continue
-                body = await self._fetch_and_validate(row.url)
-                text = f"{row.title}\n{row.snippet}\n{body}"
-                if body and _INCLUDE.search(text) and _REGISTRATION.search(text) and not _EXCLUDE.search(text):
-                    candidates.append(Policy(source="web-discovery", source_url=row.url, title=row.title,
-                                             body_text=body, region="全国", item_type="competition",
-                                             origin_type="web", source_name="全网发现"))
+        for row, body in fetched:
+            if not body or self._score_discovery_candidate(keyword, row.title, row.snippet, body) < 7:
+                continue
+            candidates.append(Policy(
+                source="web-discovery",
+                source_url=row.url,
+                title=row.title,
+                body_text=body,
+                region="全国",
+                item_type="competition",
+                origin_type="web",
+                source_name="全网发现",
+            ))
+        return candidates, len(search.data.results)
+
+    async def _search_subscription(
+        self,
+        subscription: ContestSubscription,
+        ingest_service: PolicyIngestService,
+        notify: bool = True,
+        candidate_result: Optional[tuple[List[Policy], int]] = None,
+    ) -> dict:
+        if candidate_result is None:
+            candidate_result = await self._discover_candidates(subscription.keyword)
+        candidates, searched_count = candidate_result
         if candidates:
             class _ResultCrawler:
                 async def crawl(self, max_pages: int = 1):
@@ -190,7 +247,7 @@ class ContestService:
         if notify and notification_policies and self._on_tenant_discovered is not None:
             await self._on_tenant_discovered(subscription.tenant_id, notification_policies)
         return {**summary, "tenant_id": subscription.tenant_id, "keyword": subscription.keyword,
-                "tenant_new": len(notification_policies), "searched": len(search.data.results) if search.success and search.data else 0,
+                "tenant_new": len(notification_policies), "searched": searched_count,
                 "valid": len(candidates)}
 
     async def list_subscription_runs(self, tenant_id: str, subscription_id: str) -> List[ContestRun]:
@@ -210,13 +267,26 @@ class ContestService:
             await uow.contest.save_run(run)
         return run
 
-    async def execute_discovery(self, tenant_id: str, subscription_id: str, run_id: str, ingest_service: PolicyIngestService, trigger: str = "manual") -> dict:
+    async def execute_discovery(
+        self,
+        tenant_id: str,
+        subscription_id: str,
+        run_id: str,
+        ingest_service: PolicyIngestService,
+        trigger: str = "manual",
+        candidate_result: Optional[tuple[List[Policy], int]] = None,
+    ) -> dict:
         async with self._uow_factory() as uow:
             subscription = await uow.contest.get_subscription(tenant_id, subscription_id)
         if subscription is None:
             raise NotFoundError("subscription not found")
         try:
-            result = await self._search_subscription(subscription, ingest_service, notify=trigger == "scheduled")
+            result = await self._search_subscription(
+                subscription,
+                ingest_service,
+                notify=trigger == "scheduled",
+                candidate_result=candidate_result,
+            )
             run = ContestRun(id=run_id, tenant_id=tenant_id, kind="discovery", target_id=subscription_id,
                 trigger=trigger, status="succeeded", finished_at=datetime.now(),
                 searched_count=int(result.get("searched", 0)), valid_count=int(result.get("valid", 0)),
@@ -430,22 +500,59 @@ class ContestService:
             if not ContestService._is_public_http_url(str(response.url)):
                 return ""
             soup = BeautifulSoup(response.text, "html.parser")
-            return soup.get_text("\n", strip=True)[:20000]
+            return ContestService._extract_main_text(soup)[:30000]
         except httpx.HTTPError:
             return ""
 
     @staticmethod
     def _build_discovery_query(keyword: str) -> str:
-        """为中文关键词构建搜索查询。
+        """构建搜索提供方无关的短中文查询，避免依赖 Bing 布尔语法。"""
+        return f"{keyword.strip()} 正在报名的大赛或竞赛通知"
 
-        Bing 中文分词容易把"人工智能"拆成"人工"+单字，返回词典/百科类噪音。
-        因此①不加引号(Bing 中文引号不生效) ②加 site:gov.cn 限政府网站
-        ③竞争类关键词语义已足够收窄(比赛/大赛/报名等)，不需额外 + 号。
-        """
-        return (
-            f"{keyword} (比赛 OR 大赛 OR 竞赛 OR 挑战赛) "
-            "(报名 OR 参赛 OR 征集 OR 申报) site:gov.cn -获奖 -公示 -名单 -结果"
-        )
+    @staticmethod
+    def _normalize_keyword(keyword: str) -> str:
+        return "".join(keyword.split()).casefold()
+
+    @classmethod
+    def _score_discovery_candidate(cls, keyword: str, title: str, snippet: str, body: str) -> int:
+        """按标题、正文意图和关键词相关性评分；负面词只在标题中一票否决。"""
+        if _EXCLUDE.search(title):
+            return -100
+
+        normalized_title = cls._normalize_keyword(title)
+        normalized_text = cls._normalize_keyword(f"{title}\n{snippet}\n{body}")
+        normalized_keyword = cls._normalize_keyword(keyword)
+        terms = [term.casefold() for term in re.split(r"[\s,，、;/]+", keyword.strip()) if term]
+
+        score = 0
+        if normalized_keyword and normalized_keyword in normalized_title:
+            score += 4
+        elif normalized_keyword and normalized_keyword in normalized_text:
+            score += 3
+        elif len(terms) > 1 and all(term in normalized_text for term in terms):
+            score += 3
+        else:
+            return 0
+
+        title_has_contest = bool(_INCLUDE.search(title))
+        title_has_registration = bool(_REGISTRATION.search(title))
+        score += 3 if title_has_contest else (1 if _INCLUDE.search(normalized_text) else 0)
+        score += 3 if title_has_registration else (2 if _REGISTRATION.search(normalized_text) else 0)
+        if _DEADLINE_HINT.search(body):
+            score += 1
+        return score
+
+    @staticmethod
+    def _extract_main_text(soup: BeautifulSoup) -> str:
+        for tag in soup.find_all(["script", "style", "noscript", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+        candidates = []
+        for selector in (
+            "article", "main", "#content", ".article-content", ".article", ".content", ".TRS_Editor"
+        ):
+            candidates.extend(soup.select(selector))
+        root = max(candidates, key=lambda node: len(node.get_text(" ", strip=True)), default=soup.body or soup)
+        return root.get_text("\n", strip=True)
 
     @classmethod
     def _is_discovery_candidate_url(cls, url: str, official_hosts: Optional[set[str]] = None) -> bool:

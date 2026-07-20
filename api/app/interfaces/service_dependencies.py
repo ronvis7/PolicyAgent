@@ -55,6 +55,8 @@ from app.infrastructure.external.notify.feishu_webhook import (
     make_tenant_feed_contest_push_hook,
 )
 from app.infrastructure.external.search.bing_search import BingSearchEngine
+from app.infrastructure.external.search.baidu_search import BaiduSearchEngine
+from app.infrastructure.external.search.fallback_search import FallbackSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
 from app.infrastructure.storage.cos import Cos, get_cos
@@ -285,10 +287,10 @@ def get_policy_service() -> PolicyService:
 
 
 def get_contest_service() -> ContestService:
-    """赛事中心服务：全网发现复用 Agent 的搜索提供方，但独立于会话沙箱。"""
+    """赛事中心服务：中文搜索优先使用百度，独立于会话沙箱。"""
     return ContestService(
         uow_factory=get_uow,
-        search_engine=BingSearchEngine(),
+        search_engine=_build_contest_search_engine(),
         on_tenant_discovered=make_single_tenant_feed_contest_push_hook(
             get_uow,
             lambda tenant_id: get_feed_service().recompute_new_competitions_for_notification(tenant_id),
@@ -296,6 +298,27 @@ def get_contest_service() -> ContestService:
             signing_secret=settings.jwt_secret_key,
         ),
     )
+
+
+def _build_contest_search_engine():
+    provider = settings.contest_search_provider.strip().lower()
+    fallback = BingSearchEngine()
+    if provider == "bing":
+        return fallback
+    if provider not in {"auto", "baidu"}:
+        logger.warning("未知赛事搜索提供方 %r，回落 Bing", provider)
+        return fallback
+    if not settings.baidu_search_api_key.strip():
+        logger.warning("赛事搜索已选择 %s，但 BAIDU_SEARCH_API_KEY 未配置，回落 Bing", provider)
+        return fallback
+
+    primary = BaiduSearchEngine(
+        api_key=settings.baidu_search_api_key,
+        top_k=settings.contest_search_top_k,
+    )
+    if settings.contest_search_fallback_enabled:
+        return FallbackSearchEngine(primary, fallback)
+    return primary
 
 
 def _build_legacy_contest_push_hook():
