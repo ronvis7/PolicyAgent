@@ -138,6 +138,8 @@ class TenantSettingsService:
 
     async def update_feishu_config(
             self, tenant_id: str, webhook_url: str, secret: str,
+            app_id: str = "", app_secret: str = "", verification_token: str = "",
+            encrypt_key: str = "", chat_id: str = "", app_enabled: bool = False,
     ) -> FeishuNotifyConfig:
         """保存某租户的飞书 webhook 配置。
 
@@ -151,11 +153,9 @@ class TenantSettingsService:
             existing = settings.feishu_config if settings else None
 
             url = webhook_url.strip()
-            if not url:
-                if existing is None or not existing.webhook_url.strip():
-                    raise BadRequestError("webhook 地址不能为空")
+            if not url and existing:
                 url = existing.webhook_url
-            if not url.startswith(_ALLOWED_FEISHU_WEBHOOK_PREFIXES):
+            if url and not url.startswith(_ALLOWED_FEISHU_WEBHOOK_PREFIXES):
                 raise BadRequestError(
                     "仅支持飞书群机器人 webhook 地址(https://open.feishu.cn/ 开头)"
                 )
@@ -164,7 +164,36 @@ class TenantSettingsService:
             if not key and existing and existing.webhook_url == url:
                 key = existing.secret  # 地址未变且留空=不修改已有签名密钥
 
-            new_config = FeishuNotifyConfig(webhook_url=url, secret=key)
+            def keep(value: str, old: str) -> str:
+                return value.strip() or old
+
+            old = existing or FeishuNotifyConfig()
+            new_config = FeishuNotifyConfig(
+                webhook_url=url,
+                secret=key,
+                app_id=keep(app_id, old.app_id),
+                app_secret=keep(app_secret, old.app_secret),
+                verification_token=keep(verification_token, old.verification_token),
+                encrypt_key=keep(encrypt_key, old.encrypt_key),
+                chat_id=keep(chat_id, old.chat_id),
+                app_enabled=app_enabled,
+            )
+            if new_config.app_enabled and not (
+                new_config.app_id and new_config.app_secret and new_config.verification_token
+            ):
+                raise BadRequestError("启用应用机器人需填写 App ID、App Secret 和 Verification Token")
+            if not new_config.webhook_url and not new_config.app_enabled:
+                raise BadRequestError("请至少配置 Webhook 或启用应用机器人")
+            if new_config.app_enabled:
+                configured = await uow.tenant_settings.list_feishu_configured()
+                if any(
+                    row.tenant_id != tenant_id
+                    and row.feishu_config
+                    and row.feishu_config.app_enabled
+                    and row.feishu_config.app_id == new_config.app_id
+                    for row in configured
+                ):
+                    raise BadRequestError("该飞书 App ID 已绑定其他组织")
             record = (settings or TenantSettings(tenant_id=tenant_id)).model_copy(
                 update={"feishu_config": new_config, "updated_at": datetime.now()}
             )

@@ -811,12 +811,15 @@ export function ManusSettings({
         toast.success('赛事搜索配置保存成功')
       } else if (activeSetting === 'feishu-setting') {
         const url = (feishuConfig.webhook_url ?? '').trim()
-        if (!url && !feishuConfig.configured) {
-          toast.error('请填写飞书机器人 webhook 地址')
+        if (!url && !feishuConfig.configured && !feishuConfig.app_enabled) {
+          toast.error('请至少配置 Webhook 或启用应用机器人')
           return
         }
-        const updated = await configApi.updateFeishuConfig(url, feishuConfig.secret ?? '')
-        setFeishuConfig({...updated, webhook_url: '', secret: ''})
+        const updated = await configApi.updateFeishuConfig({...feishuConfig, webhook_url: url})
+        setFeishuConfig({
+          ...updated, webhook_url: '', secret: '', app_id: '', app_secret: '',
+          verification_token: '', encrypt_key: '', chat_id: '',
+        })
         toast.success('飞书推送配置保存成功')
       }
     } catch (err) {

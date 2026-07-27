@@ -66,6 +66,18 @@ export type FeishuConfig = {
   secret_configured?: boolean;
   webhook_url?: string;
   secret?: string;
+  app_configured?: boolean;
+  app_enabled?: boolean;
+  app_id_masked?: string;
+  app_secret_configured?: boolean;
+  verification_token_configured?: boolean;
+  encrypt_key_configured?: boolean;
+  chat_id_masked?: string;
+  app_id?: string;
+  app_secret?: string;
+  verification_token?: string;
+  encrypt_key?: string;
+  chat_id?: string;
 };
 
 /**

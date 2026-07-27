@@ -4,6 +4,7 @@ import {Loader2} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet} from '@/components/ui/field'
 import {Input} from '@/components/ui/input'
+import {Switch} from '@/components/ui/switch'
 import type {FeishuConfig} from '@/lib/api'
 
 type FeishuSettingProps = {
@@ -26,8 +27,8 @@ export function FeishuSetting({config, onChange, onTest, onClear, testing, clear
         <FieldSet>
           <FieldLegend className="text-lg font-bold text-gray-700">飞书推送（新赛事即推）</FieldLegend>
           <FieldDescription className="text-sm">
-            新赛事机会入库后即时推送到本组织的飞书群，并按企业档案的「参赛关注地区」过滤。
-            配置方法：建群 → 群设置添加「自定义机器人」→ 复制 webhook 地址填入（建议同时开启「签名校验」并填入密钥）。
+            应用机器人支持卡片内原地忽略并更新为灰色；配置完整时优先使用，发送失败自动回退下方原 Webhook。
+            原自定义机器人配置会继续保留，不会重复发送。
             <br/>
             推送状态：
             <span className={config.configured ? 'text-green-600' : 'text-amber-600'}>
@@ -36,8 +37,53 @@ export function FeishuSetting({config, onChange, onTest, onClear, testing, clear
             {config.configured ? (config.secret_configured ? '，已启用签名校验' : '，未启用签名校验') : ''}
           </FieldDescription>
           <FieldGroup>
+            <Field orientation="horizontal">
+              <div>
+                <FieldLabel htmlFor="feishu_app_enabled">启用应用机器人交互卡片</FieldLabel>
+                <FieldDescription className="text-xs">
+                  需要飞书权限 im:message:send_as_bot、im:message:update，并配置卡片回传交互。
+                </FieldDescription>
+              </div>
+              <Switch
+                id="feishu_app_enabled"
+                checked={config.app_enabled ?? false}
+                onCheckedChange={(checked) => onChange({...config, app_enabled: checked})}
+              />
+            </Field>
             <Field>
-              <FieldLabel htmlFor="feishu_webhook_url">机器人 webhook 地址</FieldLabel>
+              <FieldLabel htmlFor="feishu_app_id">应用 App ID</FieldLabel>
+              <Input id="feishu_app_id" autoComplete="off"
+                placeholder={config.app_id_masked || 'cli_…；留空保留现有值'}
+                value={config.app_id ?? ''}
+                onChange={(e) => onChange({...config, app_id: e.target.value})}/>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="feishu_app_secret">应用 App Secret</FieldLabel>
+              <Input id="feishu_app_secret" type="password" autoComplete="new-password"
+                placeholder={config.app_secret_configured ? '已配置；留空保留' : '填写 App Secret'}
+                value={config.app_secret ?? ''}
+                onChange={(e) => onChange({...config, app_secret: e.target.value})}/>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="feishu_verification_token">Verification Token</FieldLabel>
+              <Input id="feishu_verification_token" type="password" autoComplete="new-password"
+                placeholder={config.verification_token_configured ? '已配置；留空保留' : '事件与回调 → 加密策略'}
+                value={config.verification_token ?? ''}
+                onChange={(e) => onChange({...config, verification_token: e.target.value})}/>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="feishu_chat_id">目标群 Chat ID</FieldLabel>
+              <Input id="feishu_chat_id" autoComplete="off"
+                placeholder={config.chat_id_masked || 'oc_…；机器人进群事件也可自动绑定'}
+                value={config.chat_id ?? ''}
+                onChange={(e) => onChange({...config, chat_id: e.target.value})}/>
+              <FieldDescription className="text-xs">
+                回调地址：/api/integrations/feishu/card-actions；事件地址：/api/integrations/feishu/events。
+                暂时不要开启 Encrypt Key。
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="feishu_webhook_url">原自定义机器人 Webhook（回退）</FieldLabel>
               <Input
                 id="feishu_webhook_url"
                 type="text"

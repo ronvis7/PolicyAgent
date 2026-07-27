@@ -19,7 +19,9 @@ from app.domain.models.feed_item import FeedItem, FeedItemType
 from app.domain.models.policy import Policy
 from app.domain.models.tenant_settings import FeishuNotifyConfig, TenantSettings
 from app.infrastructure.external.notify.feishu_webhook import (
+    FeishuAppBotNotifier,
     FeishuWebhookNotifier,
+    _convert_ignore_links_to_callbacks,
     build_contest_daily_summary_message,
     build_contest_message,
     build_feed_contest_message,
@@ -30,6 +32,7 @@ from app.infrastructure.external.notify.feishu_webhook import (
     make_tenant_contest_push_hook,
     make_tenant_feed_contest_push_hook,
     mask_webhook_url,
+    update_app_card_ignored,
 )
 from tests.app.application.services._fakes import make_uow_factory
 
@@ -150,6 +153,21 @@ def test_build_feed_contest_message_has_ignore_link_and_feed_link() -> None:
     assert "http://host:8088/feed" in flat
 
 
+def test_app_card_converts_ignore_link_to_native_callback() -> None:
+    message = build_feed_contest_message(
+        [_feed_contest("feed-42")],
+        web_base_url="http://host:8088/",
+        today=date(2026, 7, 1),
+    )
+
+    card = _convert_ignore_links_to_callbacks(message["card"])
+    flat = json.dumps(card, ensure_ascii=False)
+
+    assert "feed?ignore=feed-42" not in flat
+    assert '"action": "ignore_contest"' in flat
+    assert '"feed_item_id": "feed-42"' in flat
+
+
 def test_build_daily_summary_sends_heartbeat_when_no_matches() -> None:
     msg = build_contest_daily_summary_message(
         [],
@@ -267,6 +285,77 @@ def test_send_swallows_network_error_and_returns_false() -> None:
 
 
 # ---------- 赛事推送钩子(接 on_new_policies) ----------
+
+def test_app_bot_gets_token_and_sends_native_interactive_card() -> None:
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token"})
+        captured["authorization"] = request.headers.get("Authorization")
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"code": 0, "data": {"message_id": "om_1"}})
+
+    notifier = FeishuAppBotNotifier(
+        "cli_a",
+        "app-secret",
+        "oc_group",
+        transport=httpx.MockTransport(handler),
+    )
+    message = build_feed_contest_message(
+        [_feed_contest("feed-42")],
+        web_base_url="http://host:8088/",
+        today=date(2026, 7, 1),
+    )
+
+    assert asyncio.run(notifier.send(message)) is True
+    assert captured["authorization"] == "Bearer tenant-token"
+    assert captured["body"]["receive_id"] == "oc_group"
+    assert captured["body"]["msg_type"] == "interactive"
+    sent_card = json.loads(captured["body"]["content"])
+    flat = json.dumps(sent_card, ensure_ascii=False)
+    assert "feed?ignore=feed-42" not in flat
+    assert '"feed_item_id": "feed-42"' in flat
+
+
+def test_update_app_card_marks_ignored_item_and_disables_button() -> None:
+    original = _convert_ignore_links_to_callbacks(build_feed_contest_message(
+        [_feed_contest("feed-42")],
+        web_base_url="http://host:8088/",
+        today=date(2026, 7, 1),
+    )["card"])
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/tenant_access_token/internal"):
+            return httpx.Response(200, json={"code": 0, "tenant_access_token": "tenant-token"})
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "code": 0,
+                "data": {"items": [{"body": {"content": json.dumps(original, ensure_ascii=False)}}]},
+            })
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"code": 0})
+
+    config = FeishuNotifyConfig(
+        app_id="cli_a",
+        app_secret="app-secret",
+        verification_token="verification-token",
+        chat_id="oc_group",
+        app_enabled=True,
+    )
+
+    assert asyncio.run(update_app_card_ignored(
+        config,
+        "om_1",
+        "feed-42",
+        transport=httpx.MockTransport(handler),
+    )) is True
+    updated = json.loads(captured["body"]["content"])
+    flat = json.dumps(updated, ensure_ascii=False)
+    assert "已忽略，不再提醒" in flat
+    assert '"disabled": true' in flat
+
 
 def test_contest_push_hook_only_pushes_contest_sources() -> None:
     sent: List[dict] = []

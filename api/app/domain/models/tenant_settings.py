@@ -7,12 +7,25 @@ from app.domain.models.app_config import EmbedConfig, LLMConfig
 
 
 class FeishuNotifyConfig(BaseModel):
-    """飞书群自定义机器人 webhook 配置(组织级"新赛事即推"的推送目标)。
-
-    secret 为空表示该机器人未开启签名校验。
-    """
+    """飞书双通道配置：应用机器人优先，自定义机器人 webhook 回退。"""
     webhook_url: str = ""
     secret: str = ""
+    app_id: str = ""
+    app_secret: str = ""
+    verification_token: str = ""
+    encrypt_key: str = ""
+    chat_id: str = ""
+    app_enabled: bool = False
+
+    @property
+    def app_ready(self) -> bool:
+        return bool(
+            self.app_enabled
+            and self.app_id.strip()
+            and self.app_secret.strip()
+            and self.verification_token.strip()
+            and self.chat_id.strip()
+        )
 
 
 class ContestSearchConfig(BaseModel):

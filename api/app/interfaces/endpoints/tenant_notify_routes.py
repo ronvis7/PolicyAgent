@@ -15,9 +15,9 @@ from app.application.services.tenant_settings_service import TenantSettingsServi
 from app.domain.models.membership import MembershipRole
 from app.domain.models.tenant_settings import FeishuNotifyConfig
 from app.infrastructure.external.notify.feishu_webhook import (
-    FeishuWebhookNotifier,
     build_test_message,
     mask_webhook_url,
+    notifier_from_config,
 )
 from app.interfaces.auth_dependencies import CurrentUser, require_role
 from app.interfaces.schemas.app_config import PublicFeishuConfig, UpdateFeishuConfigRequest
@@ -34,12 +34,19 @@ router = APIRouter(prefix="/app-config", tags=["设置模块"])
 
 def _to_public(config: Optional[FeishuNotifyConfig]) -> PublicFeishuConfig:
     """转换为不含凭据明文的安全响应"""
-    if config is None or not config.webhook_url.strip():
+    if config is None:
         return PublicFeishuConfig()
     return PublicFeishuConfig(
-        configured=True,
-        webhook_url_masked=mask_webhook_url(config.webhook_url),
+        configured=bool(config.webhook_url.strip() or config.app_enabled),
+        webhook_url_masked=mask_webhook_url(config.webhook_url) if config.webhook_url else "",
         secret_configured=bool(config.secret.strip()),
+        app_configured=bool(config.app_id and config.app_secret and config.verification_token),
+        app_enabled=config.app_enabled,
+        app_id_masked=("****" + config.app_id[-4:]) if config.app_id else "",
+        app_secret_configured=bool(config.app_secret),
+        verification_token_configured=bool(config.verification_token),
+        encrypt_key_configured=bool(config.encrypt_key),
+        chat_id_masked=("****" + config.chat_id[-4:]) if config.chat_id else "",
     )
 
 
@@ -72,6 +79,8 @@ async def update_feishu_config(
     """更新当前组织的飞书推送配置"""
     config = await tenant_settings_service.update_feishu_config(
         current_user.tenant_id, request.webhook_url, request.secret,
+        request.app_id, request.app_secret, request.verification_token,
+        request.encrypt_key, request.chat_id, request.app_enabled,
     )
     return Response.success(msg="飞书推送配置保存成功", data=_to_public(config))
 
@@ -105,10 +114,10 @@ async def test_feishu_push(
     config = await tenant_settings_service.get_feishu_config(current_user.tenant_id)
     public = _to_public(config)  # "已配置"判定与 GET 回显同一谓词
     if config is None or not public.configured:
-        raise BadRequestError("请先保存飞书 webhook 配置")
+        raise BadRequestError("请先保存飞书推送配置")
 
-    notifier = FeishuWebhookNotifier(webhook_url=config.webhook_url, secret=config.secret)
+    notifier = notifier_from_config(config)
     ok = await notifier.send(build_test_message())
     if not ok:
-        raise BadRequestError("测试消息发送失败，请检查 webhook 地址与签名密钥")
+        raise BadRequestError("测试消息发送失败，请检查应用机器人或 Webhook 配置")
     return Response.success(msg="测试消息已发送，请在群里查收", data=public)

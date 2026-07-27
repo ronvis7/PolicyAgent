@@ -70,10 +70,16 @@ export const configApi = {
   /**
    * 更新组织飞书推送配置（secret 留空表示不修改已有签名密钥）
    */
-  updateFeishuConfig: (webhookUrl: string, secret: string): Promise<FeishuConfig> => {
+  updateFeishuConfig: (config: FeishuConfig): Promise<FeishuConfig> => {
     return post<FeishuConfig>("/app-config/feishu", {
-      webhook_url: webhookUrl ?? "",
-      secret: secret ?? "",
+      webhook_url: config.webhook_url ?? "",
+      secret: config.secret ?? "",
+      app_id: config.app_id ?? "",
+      app_secret: config.app_secret ?? "",
+      verification_token: config.verification_token ?? "",
+      encrypt_key: config.encrypt_key ?? "",
+      chat_id: config.chat_id ?? "",
+      app_enabled: config.app_enabled ?? false,
     });
   },
 

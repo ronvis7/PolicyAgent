@@ -1,4 +1,4 @@
-"""飞书群自定义机器人 webhook 通知（新赛事即推）。
+﻿"""飞书群自定义机器人 webhook 通知（新赛事即推）。
 
 轻量推送通道：建群 → 添加"自定义机器人" → 得 webhook URL(可选开启签名校验得 secret)。
 配置两级：组织级(设置页配置，存 tenant_settings.feishu_config，按租户扇出+按参赛关注
@@ -20,11 +20,13 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import json
+import copy
 import logging
 import time
 from datetime import date, datetime
 from typing import Awaitable, Callable, Dict, List, Optional
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
 
@@ -440,6 +442,167 @@ class FeishuWebhookNotifier:
         return True
 
 
+class FeishuAppBotNotifier:
+    """飞书应用机器人发送器；使用 tenant_access_token 向指定群发送消息。"""
+
+    def __init__(
+        self, app_id: str, app_secret: str, chat_id: str,
+        timeout: float = _REQUEST_TIMEOUT,
+        transport: Optional[httpx.AsyncBaseTransport] = None,
+    ) -> None:
+        self._app_id = app_id
+        self._app_secret = app_secret
+        self._chat_id = chat_id
+        self._timeout = timeout
+        self._transport = transport
+
+    async def send(self, message: dict) -> bool:
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._timeout, transport=self._transport,
+            ) as client:
+                token_resp = await client.post(
+                    "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+                    json={"app_id": self._app_id, "app_secret": self._app_secret},
+                )
+                token_resp.raise_for_status()
+                token_data = token_resp.json()
+                token = token_data.get("tenant_access_token", "")
+                if token_data.get("code") != 0 or not token:
+                    logger.warning("飞书应用机器人获取 token 失败: code=%s", token_data.get("code"))
+                    return False
+                msg_type = message.get("msg_type", "interactive")
+                content = message.get("card") if msg_type == "interactive" else message.get("content", {})
+                if msg_type == "interactive":
+                    content = _convert_ignore_links_to_callbacks(content)
+                resp = await client.post(
+                    "https://open.feishu.cn/open-apis/im/v1/messages",
+                    params={"receive_id_type": "chat_id"},
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={
+                        "receive_id": self._chat_id,
+                        "msg_type": msg_type,
+                        "content": json.dumps(content, ensure_ascii=False),
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("飞书应用机器人推送失败: %s: %s", type(e).__name__, e)
+            return False
+        if data.get("code") != 0:
+            logger.warning("飞书应用机器人返回错误: code=%s msg=%s", data.get("code"), data.get("msg"))
+            return False
+        return True
+
+
+def _convert_ignore_links_to_callbacks(card: dict) -> dict:
+    """应用机器人卡片把旧免登录 URL 按钮转换为飞书原生 callback。"""
+    converted = copy.deepcopy(card)
+    for element in converted.get("elements", []):
+        for action in element.get("actions", []):
+            if action.get("tag") != "button" or action.get("text", {}).get("content") != "不再提醒此赛事":
+                continue
+            url = action.pop("url", "")
+            query = parse_qs(urlparse(url).query)
+            item_id = (query.get("item") or query.get("ignore") or [""])[0]
+            if item_id:
+                action["value"] = {"action": "ignore_contest", "feed_item_id": item_id}
+    return converted
+
+
+async def update_app_card_ignored(
+    config, message_id: str, item_id: str,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> bool:
+    """读取应用机器人原卡片并把命中的赛事行改成灰色已忽略。"""
+    try:
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, transport=transport) as client:
+            token_resp = await client.post(
+                "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
+                json={"app_id": config.app_id, "app_secret": config.app_secret},
+            )
+            token_data = token_resp.json()
+            token = token_data.get("tenant_access_token", "")
+            if token_data.get("code") != 0 or not token:
+                return False
+            headers = {"Authorization": f"Bearer {token}"}
+            current = await client.get(
+                f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}",
+                headers=headers,
+            )
+            current.raise_for_status()
+            items = current.json().get("data", {}).get("items", [])
+            if not items:
+                return False
+            card = json.loads(items[0].get("body", {}).get("content", "{}"))
+            elements = card.get("elements", [])
+            for index, element in enumerate(elements):
+                actions = element.get("actions", [])
+                matched = any(
+                    action.get("value", {}).get("feed_item_id") == item_id
+                    for action in actions
+                )
+                if not matched:
+                    continue
+                if index > 0 and elements[index - 1].get("tag") == "div":
+                    text = elements[index - 1].get("text", {})
+                    text["content"] = (
+                        f"<font color='grey'>⚪ {text.get('content', '')}"
+                        "\n**已忽略，不再提醒**</font>"
+                    )
+                element["actions"] = [{
+                    "tag": "button",
+                    "text": {"tag": "plain_text", "content": "已忽略"},
+                    "type": "default",
+                    "disabled": True,
+                }]
+                break
+            updated = await client.patch(
+                f"https://open.feishu.cn/open-apis/im/v1/messages/{message_id}",
+                headers=headers,
+                json={"content": json.dumps(card, ensure_ascii=False)},
+            )
+            updated.raise_for_status()
+            return updated.json().get("code") == 0
+    except Exception as e:  # noqa: BLE001
+        logger.warning("更新飞书已忽略卡片失败: %s: %s", type(e).__name__, e)
+        return False
+
+
+class FeishuFallbackNotifier:
+    """应用机器人优先，失败后只回退一次旧 Webhook。"""
+
+    def __init__(
+        self,
+        primary: Optional[FeishuAppBotNotifier],
+        fallback: Optional[FeishuWebhookNotifier],
+    ) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    async def send(self, message: dict) -> bool:
+        if self._primary and await self._primary.send(message):
+            return True
+        return bool(self._fallback and await self._fallback.send(message))
+
+
+def notifier_from_config(
+    config, transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> FeishuFallbackNotifier:
+    primary = (
+        FeishuAppBotNotifier(
+            config.app_id, config.app_secret, config.chat_id, transport=transport,
+        )
+        if config.app_ready else None
+    )
+    fallback = (
+        FeishuWebhookNotifier(config.webhook_url, config.secret, transport=transport)
+        if config.webhook_url else None
+    )
+    return FeishuFallbackNotifier(primary, fallback)
+
+
 def make_contest_push_hook(
     notifier: FeishuWebhookNotifier,
     contest_source_names: Dict[str, str],
@@ -501,7 +664,6 @@ def make_contest_daily_summary_hook(
 
     return push_daily_summary
 
-
 def make_tenant_contest_push_hook(
     uow_factory: Callable[[], IUnitOfWork],
     contest_source_names: Dict[str, str],
@@ -531,7 +693,7 @@ def make_tenant_contest_push_hook(
 
         async def push_one(ts: TenantSettings) -> None:
             config = ts.feishu_config
-            if config is None or not config.webhook_url.strip():
+            if config is None or not (config.webhook_url.strip() or config.app_ready):
                 return
             profile = profiles.get(ts.tenant_id)
             regions = profile.contest_regions if profile else []
@@ -539,11 +701,7 @@ def make_tenant_contest_push_hook(
             if not matched:
                 return
             try:
-                notifier = FeishuWebhookNotifier(
-                    webhook_url=config.webhook_url,
-                    secret=config.secret,
-                    transport=transport,
-                )
+                notifier = notifier_from_config(config, transport)
                 await notifier.send(build_contest_message(
                     matched, source_name=source_name, web_base_url=web_base_url,
                 ))
@@ -575,17 +733,13 @@ def make_tenant_discovery_push_hook(
             settings = await uow.tenant_settings.get_by_tenant(tenant_id)
             profile = await uow.enterprise_profile.get_by_tenant(tenant_id)
         config = settings.feishu_config if settings else None
-        if config is None or not config.webhook_url.strip():
+        if config is None or not (config.webhook_url.strip() or config.app_ready):
             return
         regions = profile.contest_regions if profile else []
         matched = [policy for policy in policies if contest_region_matches(policy.region, regions)]
         if not matched:
             return
-        notifier = FeishuWebhookNotifier(
-            webhook_url=config.webhook_url,
-            secret=config.secret,
-            transport=transport,
-        )
+        notifier = notifier_from_config(config, transport)
         await notifier.send(build_contest_message(
             matched, source_name="全网发现", web_base_url=web_base_url,
         ))
@@ -614,15 +768,13 @@ def make_tenant_feed_contest_push_hook(
 
         async def push_one(settings: TenantSettings) -> None:
             config = settings.feishu_config
-            if config is None or not config.webhook_url.strip():
+            if config is None or not (config.webhook_url.strip() or config.app_ready):
                 return
             try:
                 items = await recompute_new_competitions(settings.tenant_id)
                 if not items:
                     return
-                notifier = FeishuWebhookNotifier(
-                    webhook_url=config.webhook_url, secret=config.secret, transport=transport,
-                )
+                notifier = notifier_from_config(config, transport)
                 await notifier.send(build_feed_contest_message(
                     items, web_base_url=web_base_url, signing_secret=signing_secret,
                 ))
@@ -647,14 +799,12 @@ def make_single_tenant_feed_contest_push_hook(
         async with uow_factory() as uow:
             settings = await uow.tenant_settings.get_by_tenant(tenant_id)
         config = settings.feishu_config if settings else None
-        if config is None or not config.webhook_url.strip():
+        if config is None or not (config.webhook_url.strip() or config.app_ready):
             return
         items = await recompute_new_competitions(tenant_id)
         if not items:
             return
-        notifier = FeishuWebhookNotifier(
-            webhook_url=config.webhook_url, secret=config.secret, transport=transport,
-        )
+        notifier = notifier_from_config(config, transport)
         await notifier.send(build_feed_contest_message(
             items, web_base_url=web_base_url, signing_secret=signing_secret,
         ))
@@ -685,7 +835,7 @@ def make_tenant_contest_daily_summary_hook(
 
         async def push_one(ts: TenantSettings) -> None:
             config = ts.feishu_config
-            if config is None or not config.webhook_url.strip():
+            if config is None or not (config.webhook_url.strip() or config.app_ready):
                 return
             profile = profiles.get(ts.tenant_id)
             regions = profile.contest_regions if profile else []
@@ -738,11 +888,7 @@ def make_tenant_contest_daily_summary_hook(
                         "租户 %s 自动创建 FeedItem 失败，部分赛事将不含忽略按钮", ts.tenant_id,
                     )
             try:
-                notifier = FeishuWebhookNotifier(
-                    webhook_url=config.webhook_url,
-                    secret=config.secret,
-                    transport=transport,
-                )
+                notifier = notifier_from_config(config, transport)
                 await notifier.send(build_contest_daily_summary_message(
                     matched, new_count=new_count, web_base_url=web_base_url,
                     feed_item_ids=feed_item_ids, feed_tenant_id=ts.tenant_id,

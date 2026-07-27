@@ -203,6 +203,87 @@ def test_update_feishu_requires_webhook_url() -> None:
         asyncio.run(service.update_feishu_config(TENANT_A, "   ", "sec"))
 
 
+def test_update_feishu_allows_app_only_configuration() -> None:
+    service = _service()
+
+    config = asyncio.run(service.update_feishu_config(
+        TENANT_A,
+        "",
+        "",
+        app_id="cli_a",
+        app_secret="app-secret",
+        verification_token="verification-token",
+        chat_id="oc_group",
+        app_enabled=True,
+    ))
+
+    assert config.webhook_url == ""
+    assert config.app_ready is True
+
+
+def test_update_feishu_rejects_incomplete_enabled_app() -> None:
+    service = _service()
+
+    with pytest.raises(BadRequestError):
+        asyncio.run(service.update_feishu_config(
+            TENANT_A,
+            FEISHU_URL,
+            "",
+            app_id="cli_a",
+            app_enabled=True,
+        ))
+
+
+def test_update_feishu_app_credentials_blank_keep_existing() -> None:
+    service = _service()
+    asyncio.run(service.update_feishu_config(
+        TENANT_A,
+        FEISHU_URL,
+        "",
+        app_id="cli_a",
+        app_secret="app-secret",
+        verification_token="verification-token",
+        chat_id="oc_group",
+        app_enabled=True,
+    ))
+
+    config = asyncio.run(service.update_feishu_config(
+        TENANT_A,
+        "",
+        "",
+        app_enabled=True,
+    ))
+
+    assert config.app_id == "cli_a"
+    assert config.app_secret == "app-secret"
+    assert config.verification_token == "verification-token"
+    assert config.chat_id == "oc_group"
+
+
+def test_update_feishu_rejects_app_id_bound_to_other_tenant() -> None:
+    service = _service()
+    asyncio.run(service.update_feishu_config(
+        TENANT_A,
+        "",
+        "",
+        app_id="cli_shared",
+        app_secret="secret-a",
+        verification_token="token-a",
+        app_enabled=True,
+    ))
+
+    with pytest.raises(BadRequestError):
+        asyncio.run(service.update_feishu_config(
+            TENANT_B,
+            "",
+            "",
+            app_id="cli_shared",
+            app_secret="secret-b",
+            verification_token="token-b",
+            app_enabled=True,
+        ))
+
+
 def test_clear_feishu_config_disables_push() -> None:
     """清除配置后读回 None，且不再出现在已配置列表"""
     service = _service()

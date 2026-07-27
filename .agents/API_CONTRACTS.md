@@ -153,8 +153,12 @@
 
 - 飞书仅推送当前租户新创建的 `FeedItem.type=competition`；Feed 是唯一准入结果，企业画像、关注地区、报名时效和已忽略状态均在推送前生效。
 - 同一 `(tenant_id, policy_id)` 已存在于 Feed 时，即使后续重爬或重新入库也不会重复推送；每日重爬不再发送全量赛事或“0 条赛事”摘要。
-- 卡片的“查看赛事机会”跳转 `/feed`；“不再提醒此赛事”跳转 `/feed?ignore={feed_item_id}`。用户登录后，前端调用既有 `POST /api/feed/{feed_item_id}/status`，body 为 `{ "status": "ignored" }`。
-- 状态接口继续只以访问令牌中的租户处理条目；非本租户的 `feed_item_id` 返回 404，不能借飞书链接跨租户停止提醒。
+- `GET/POST /api/app-config/feishu` 同时管理旧自定义机器人 Webhook 与应用机器人配置。读取只返回脱敏状态；`app_secret`、`verification_token`、`encrypt_key`、Webhook URL 和签名密钥不得明文回传。
+- 应用机器人配置至少包含 `app_id`、`app_secret`、`verification_token` 与目标群 `chat_id`；完整时优先通过应用机器人 OpenAPI 推送，失败时回退已配置的旧 Webhook，禁止双发。
+- `POST /api/integrations/feishu/events` 处理 URL challenge 与机器人进/出群事件；只接受已保存 App ID 和 Verification Token 对应的租户，并可绑定/清除该租户 `chat_id`。
+- `POST /api/integrations/feishu/card-actions` 处理 `card.action.trigger`。按钮 value 只携带签名后的租户级 Feed 标识；服务端校验 App ID、Verification Token、签名和 Feed 租户归属后，将状态置为 `ignored`。
+- 应用机器人卡片点击后不跳网页；当前卡片保留该赛事但显示为灰色“已忽略”状态。后续推送继续排除 `ignored`。
+- 旧 Webhook 卡片继续使用免登录 HMAC URL 作为兼容回退；非本租户的 `feed_item_id` 始终返回 404，不能跨租户停止提醒。
 
 ## 契约变更规则
 

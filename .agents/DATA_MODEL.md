@@ -133,6 +133,17 @@ Agent 会话。必须带 `tenant_id` 和 `owner_id`。
 
 对于 `deadline_status=unknown` 的赛事，Feed 仅保留发布时间 45 天以内的条目；`rolling` 或未来明确截止的赛事按原有时效规则保留。
 
+### 飞书双通道配置
+
+`tenant_settings.feishu_config` 继续使用现有 JSONB 列，不新增迁移。兼容旧结构
+`{ webhook_url, secret }`，并扩展应用机器人字段：
+`{ app_id, app_secret, verification_token, encrypt_key, chat_id, app_enabled }`。
+所有凭据均按 `tenant_settings.tenant_id` 隔离，读取接口只返回是否已配置和脱敏标识。
+
+飞书回调不得信任 action value 中的裸 `tenant_id`。服务端先按回调 `app_id` 定位唯一租户配置，
+再校验 Verification Token（启用 Encrypt Key 时先解密），最后以该租户查询 FeedItem。
+应用机器人配置完整时优先发送；失败时只回退旧 Webhook，不得向两个通道重复发送。
+
 ## 待实现报告模型
 
 ### Report

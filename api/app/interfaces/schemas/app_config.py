@@ -48,19 +48,27 @@ class UpdateContestSearchConfigRequest(BaseModel):
 
 
 class PublicFeishuConfig(BaseModel):
-    """可安全返回给前端的飞书 webhook 推送配置。
-
-    webhook URL 即推送凭据(拿到即可向群发消息)，只回显脱敏形态；secret 只回显是否已配置。
-    """
+    """可安全返回给前端的飞书双通道配置。"""
     configured: bool = False  # 是否已配置(未配置=不推送)
     webhook_url_masked: str = ""  # 脱敏后的 webhook URL(仅保留尾部便于辨认)
     secret_configured: bool = False  # 是否配置了签名校验密钥
-
-
+    app_configured: bool = False
+    app_enabled: bool = False
+    app_id_masked: str = ""
+    app_secret_configured: bool = False
+    verification_token_configured: bool = False
+    encrypt_key_configured: bool = False
+    chat_id_masked: str = ""
 class UpdateFeishuConfigRequest(BaseModel):
-    """更新组织飞书 webhook 配置请求"""
-    webhook_url: str = ""  # 飞书群自定义机器人 webhook 地址(必填)
-    secret: str = ""  # 签名校验密钥；为空表示不修改已有(从未配置则视为未开启签名)
+    """更新组织飞书双通道配置；凭据空值表示保留已有。"""
+    webhook_url: str = ""
+    secret: str = ""
+    app_id: str = ""
+    app_secret: str = ""
+    verification_token: str = ""
+    encrypt_key: str = ""
+    chat_id: str = ""
+    app_enabled: bool = False
 
 
 class ListMCPServerItem(BaseModel):
