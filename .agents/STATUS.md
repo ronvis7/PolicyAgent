@@ -2,7 +2,9 @@
 
 Feishu contest notifications now support an enterprise app bot alongside the existing custom Webhook. When app credentials and a target `chat_id` are ready, notifications use the app bot first and fall back to the original Webhook only on failure. The “不再提醒此赛事” action is handled by a verified Feishu card callback without opening PolicyAgent; it marks the tenant-scoped Feed item ignored and updates the original card to an ignored/disabled gray state. App credentials are write-only in Settings, callback requests are matched by App ID and Verification Token, one App ID cannot bind multiple tenants, and callbacks are constrained to the configured group. No migration is required because the existing `tenant_settings.feishu_config` JSONB is extended compatibly.
 
-Targeted backend tests: 56 passed. Full backend suite: 413 non-DB tests reached (412 passed before the status endpoint required unavailable local PostgreSQL), 7 integration tests skipped. Frontend lint has 0 errors and 30 existing warnings; production build passes. Live Feishu callback and card rendering still require deployment to an HTTPS callback URL and real app credentials.
+**Merged to main (`cfc9775`) and deployed to .222 (http://118.196.142.222:8888).** api/ui/sandbox healthy.
+
+Targeted backend tests: 56 passed. Full backend suite: 413 non-DB tests reached (412 passed before the status endpoint required unavailable local PostgreSQL), 7 integration tests skipped. Frontend lint has 0 errors and 30 existing warnings; production build passes. Live Feishu callback and card rendering still require real app credentials (App ID, App Secret, Verification Token) configured in tenant settings + Feishu app version published with callback URLs.
 
 See handoff `2026-07-27-feishu-app-bot-interactions`.
 

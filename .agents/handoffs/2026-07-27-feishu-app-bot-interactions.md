@@ -45,7 +45,7 @@
 
 ## Remaining acceptance
 
-- Deploy to an HTTPS-reachable environment.
+- ~~Deploy to an HTTPS-reachable environment.~~ ✅ Merged to main (`cfc9775`) and deployed to .222 (http://118.196.142.222:8888), api/ui/sandbox healthy.
 - Fill the tenant’s real App ID, App Secret, Verification Token, and target `chat_id`.
 - Publish the Feishu app version after permissions/callback changes.
 - Send a test card, click “不再提醒此赛事”, and visually confirm the in-place ignored card state.
