@@ -6,8 +6,8 @@ import {Toaster} from '@/components/ui/sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'PolicyManus',
-  description: 'PolicyManus 是面向企业的政策咨询智能体，提供政策检索、解读、匹配与报告生成能力。',
+  title: 'PolicyAgent',
+  description: 'PolicyAgent 是面向企业的政策咨询智能体，提供政策检索、解读、匹配与报告生成能力。',
   icons: {
     icon: '/icon.png',
   },

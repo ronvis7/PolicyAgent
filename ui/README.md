@@ -1,4 +1,4 @@
-# PolicyManus 前端 UI
+# PolicyAgent 前端 UI
 
 基于 Next.js 构建的前端用户界面，提供会话管理、AI 对话、远程桌面（VNC）等交互功能。
 

@@ -9,9 +9,11 @@ Copy-Item api/config.yaml.example api/config.yaml
 
 填写 `.env` 中数据库、JWT 和 COS 配置，并填写 `api/config.yaml` 中模型配置。禁止提交真实密钥。
 
-赛事全网发现默认 `CONTEST_SEARCH_PROVIDER=auto`：配置 `BAIDU_SEARCH_API_KEY` 后优先调用百度千帆 v2，
-否则记录告警并回落 Bing。`CONTEST_SEARCH_TOP_K` 默认 20、最大 50；
-`CONTEST_SEARCH_FALLBACK_ENABLED=true` 时百度失败或空结果会自动回落。密钥只写部署 `.env`，不得入库。
+赛事全网发现默认 `CONTEST_SEARCH_PROVIDER=auto`：组织 owner/admin 可在“设置 → 赛事搜索”配置租户自有
+百度千帆 API Key；租户未配置时回落部署级 `BAIDU_SEARCH_API_KEY`，仍无有效 Key 时回落 Bing。
+`CONTEST_SEARCH_TOP_K` 默认 20、最大 50；`CONTEST_SEARCH_FALLBACK_ENABLED=true` 时百度失败或空结果
+会自动回落。租户密钥保存在 `tenant_settings.contest_search_config`，接口与日志不得回显明文；部署级密钥
+仍只写 `.env`，不得提交。
 
 ## 常用检查
 

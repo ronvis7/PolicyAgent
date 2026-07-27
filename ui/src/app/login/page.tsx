@@ -42,9 +42,9 @@ export default function LoginPage() {
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-foreground">
             <span className="size-2 rounded-full bg-primary"/>
-            PolicyManus
+            PolicyAgent
           </div>
-          <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground">登录 PolicyManus</h1>
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-foreground">登录 PolicyAgent</h1>
           <p className="mt-1 text-sm text-muted-foreground">企业政策咨询智能体</p>
         </div>
 

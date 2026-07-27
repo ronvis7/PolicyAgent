@@ -68,7 +68,7 @@ export function LeftPanel() {
           <SidebarTrigger className="cursor-pointer rounded-lg hover:bg-card"/>
           <div className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground shadow-sm">
             <span className="size-2 rounded-full bg-primary"/>
-            PolicyManus
+            PolicyAgent
           </div>
         </div>
       </SidebarHeader>

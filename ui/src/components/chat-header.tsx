@@ -22,7 +22,7 @@ export function ChatHeader() {
           className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:border-brand-200"
         >
           <span className="size-2 rounded-full bg-primary"/>
-          PolicyManus
+          PolicyAgent
         </Link>
       </div>
       {/* 右侧设置模态窗（组织 owner/admin 或平台管理员可见） */}

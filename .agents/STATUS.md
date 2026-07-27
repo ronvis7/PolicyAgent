@@ -1,6 +1,12 @@
-# Latest update — 2026-07-21
+# Latest update — 2026-07-27
 
-Tenant-owned Baidu contest-search configuration is implemented on `feat/tenant-baidu-search-config`. Organization owner/admin users can configure a Baidu Qianfan API key from Settings → Contest Search; GET responses only expose configuration state and never return the key. The credential is stored in tenant-isolated `tenant_settings.contest_search_config` (migration `d2e3f4a5b6c7`) and is resolved for manual discovery, scheduled discovery, and source suggestions. Unconfigured tenants still fall back to deployment `BAIDU_SEARCH_API_KEY`, then Bing under the existing fallback policy. Search candidates are no longer cached across tenants, preventing credential/quota coupling. Backend suite: 405 passed, 7 skipped; Alembic has one head; frontend lint has 0 errors (existing warnings only) and production build passes.
+Frontend user-facing branding is standardized from `PolicyManus` to `PolicyAgent` across page metadata, authentication, navigation, chat, settings, and tool-preview copy. Internal package, Compose, database, and service identifiers remain unchanged for compatibility. Four unused experimental PNG assets were intentionally excluded. No API, database, migration, tenant-isolation, or runtime configuration changes. Frontend lint passes with 0 errors and 30 existing warnings; the production build passes.
+
+See handoff `2026-07-27-policy-agent-brand-sync`.
+
+# Previous update — 2026-07-21
+
+Tenant-owned Baidu contest-search configuration from PR #84 is merged and deployed to `.222` at commit `4efb578`. Organization owner/admin users can configure a Baidu Qianfan API key from Settings → Contest Search; GET responses only expose configuration state and never return the key. The credential is stored in tenant-isolated `tenant_settings.contest_search_config` (migration `d2e3f4a5b6c7`) and is resolved for manual discovery, scheduled discovery, and source suggestions. Unconfigured tenants still fall back to deployment `BAIDU_SEARCH_API_KEY`, then Bing under the existing fallback policy. Search candidates are no longer cached across tenants, preventing credential/quota coupling. Backend suite: 405 passed, 7 skipped; Alembic has one head; frontend lint has 0 errors (existing warnings only) and production build passes. Production `policy-api`/`policy-ui` are healthy, public home and `/api/status` return 200, and the unauthenticated config endpoint returns 401 as expected. Deployment backup: `/root/deploy-backups/20260721-tenant-baidu-search-config`.
 
 See handoff `2026-07-21-tenant-baidu-search-config`.
 

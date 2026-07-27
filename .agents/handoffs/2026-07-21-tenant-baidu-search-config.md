@@ -2,7 +2,7 @@
 
 日期：2026-07-21
 分支：`feat/tenant-baidu-search-config`
-状态：本地实现和验证完成，未提交、未部署
+状态：PR #84 已合并，已部署 `.222`
 
 ## 完成内容
 
@@ -32,8 +32,19 @@
 4. 重新打开设置，确认只显示“已配置（百度）（组织自定义）”，输入框不回显密钥。
 5. 对该组织手动运行一个赛事关键词订阅，确认 run 的 `searched_count > 0`。
 
+## `.222` 部署结果
+
+- 部署提交：`4efb57892ab0d8966513c60b9c05ca9213b87644`。
+- 部署目录：`/root/policy_manus`（无 `.git`，通过 `git archive main` 上传）。
+- 部署前备份：`/root/deploy-backups/20260721-tenant-baidu-search-config`，包含代码、`.env`、`api/config.yaml` 和旧版本标记。
+- 只重建 `policy-api`、`policy-ui`；`policy-redis`、`policy-nginx`、`policy-sandbox` 未重建。
+- `policy-api`、`policy-ui` 均为 healthy；Alembic 为 `d2e3f4a5b6c7 (head)`。
+- 公网 `http://118.196.142.222:8888/` 与 `/api/status` 均返回 200。
+- `GET /api/app-config/contest-search` 未登录返回 401，门禁生效。
+- `.env` 与 `api/config.yaml` 已和部署前备份做字节级比较，确认未被代码归档覆盖。
+
 ## 边界与风险
 
 - 密钥与现有租户 LLM/Embedding 凭据一样以 JSONB 保存，API 和日志不回显；数据库管理员仍可读取数据库中的凭据。
-- 本次未部署 `.222`，也未执行真实租户写入或真实百度计费调用。
+- 已部署 `.222`，但尚未用真实组织账号写入租户 Key 或触发真实百度计费搜索。
 - 当前空字符串语义与模型 API 一致：保留已有密钥；尚未提供“清除组织密钥并回落平台”的按钮。
